@@ -49,5 +49,9 @@
     stored, so the hub just compares `player.Team`.
   - Characters may carry `Dead` and `Invincible` attributes and dead ones may be moved under a
     `Debris` parent. The hub doesn't use these yet.
+- User report: the ESP was missing on some players (teammates and enemies, even in plain view) and offset
+  on others. The box then came from `Model:GetBoundingBox()`; it now comes from `HumanoidRootPart`, as
+  that script does. Cause not confirmed: if it persists, the other suspects are an error on one player
+  stopping the loop for the rest, or the game hiding / replacing `player.Character`.
 - Not ported from that script: third person camera, anti-aim, night mode, bullet tracers, hit explosion,
   box-adornment chams, and its auto fire's `mouse1click` path (the hub uses `VirtualInputManager`).

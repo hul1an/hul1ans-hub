@@ -201,14 +201,24 @@ local function update(model, source, camera, viewport)
 		return false
 	end
 
-	local cframe, size = model:GetBoundingBox()
-	local distance = (camera.CFrame.Position - cframe.Position).Magnitude
+	-- the root part is used when there is one: a model's bounding box is thrown off by parts kept elsewhere
+	local root = model:FindFirstChild("HumanoidRootPart")
+	local center, up, down
+	if root then
+		-- head top and feet as multiples of the root's height, so scaled characters still fit
+		center, up, down = root.Position, root.Size.Y * 1.25, root.Size.Y * 1.5
+	else
+		local cframe, size = model:GetBoundingBox()
+		center, up, down = cframe.Position, size.Y / 2, size.Y / 2
+	end
+
+	local distance = (camera.CFrame.Position - center).Magnitude
 	if distance > source.maxDistance then
 		return false
 	end
 
-	local top = camera:WorldToViewportPoint(cframe.Position + Vector3.new(0, size.Y / 2, 0))
-	local bottom = camera:WorldToViewportPoint(cframe.Position - Vector3.new(0, size.Y / 2, 0))
+	local top = camera:WorldToViewportPoint(center + Vector3.new(0, up, 0))
+	local bottom = camera:WorldToViewportPoint(center - Vector3.new(0, down, 0))
 	if top.Z <= 0 or bottom.Z <= 0 then
 		return false
 	end
