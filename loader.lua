@@ -1,4 +1,15 @@
-local BASE_URL = "https://raw.githubusercontent.com/hul1an/hul1ans-hub/main/"
+local REPO = "hul1an/hul1ans-hub"
+local HttpService = cloneref(game:GetService("HttpService"))
+
+-- a raw branch URL is cached for 5 minutes, a raw commit URL is always current
+local ok, commit = pcall(function()
+	local response = request({ Url = "https://api.github.com/repos/" .. REPO .. "/commits/main", Method = "GET" })
+	return HttpService:JSONDecode(response.Body).sha
+end)
+if not (ok and commit) then
+	warn("[hub] commit lookup failed, using main (files may be up to 5 minutes old)")
+end
+local BASE_URL = "https://raw.githubusercontent.com/" .. REPO .. "/" .. (ok and commit or "main") .. "/"
 
 local previous = getgenv().Hub
 if previous then
@@ -15,7 +26,7 @@ function hub.fetch(url)
 end
 
 function hub.load(path)
-	return assert(loadstring(hub.fetch(BASE_URL .. path .. "?t=" .. os.time()), "=" .. path))(hub)
+	return assert(loadstring(hub.fetch(BASE_URL .. path), "=" .. path))(hub)
 end
 
 function hub.require(path)

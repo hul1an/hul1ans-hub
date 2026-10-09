@@ -46,8 +46,8 @@ in an executor in the target game and reported what they saw. Say "written, not 
   threads, hooks. `unload()` undoes all of it. A feature that can't be undone doesn't go in.
 - Network fetches (the loader, game modules) use `request` and check `StatusCode`. The user's
   one-liner is the only place `game:HttpGet` is acceptable.
-- The two expected pcalls are the fetch and the load of a game module, so a dead URL or a broken
-  game file can't take the hub down. Report the failure with `warn` (and in the UI once the window exists), don't swallow it.
+- The expected pcalls are the commit lookup in the loader and the load of a game module, so a rate-limited
+  API or a broken game file can't take the hub down. Report the failure with `warn` (and in the UI once the window exists), don't swallow it.
 - Config is saved with `writefile` into a hub folder in the executor workspace, as JSON. Check
   `isfile` before `readfile`.
 - When a game-specific instance or remote isn't found, notify with the missing path and skip the
@@ -79,9 +79,12 @@ in an executor in the target game and reported what they saw. Say "written, not 
 ## Hosting
 
 Public GitHub repo `hul1an/hul1ans-hub` (branch `main`), so everything pushed is world-readable: no
-tokens, keys or private notes in it. The base URL is the single constant at the top of `loader.lua`.
-Raw URLs are cached for 5 minutes, so `hub.load` appends `?t=<os.time()>` to every hub file. The user's
-one-liner for `loader.lua` itself is not covered: add a changing `?t=` to it after a push, or wait.
+tokens, keys or private notes in it. The repo name is the `REPO` constant at the top of `loader.lua`.
+Raw branch URLs are cached for 5 minutes and ignore query strings, so a `?t=` cache-buster does nothing.
+The loader asks the GitHub API for the latest commit of `main` and fetches every hub file by that commit
+hash, falling back to `main` if the API call fails (unauthenticated limit is 60 per hour per IP). The
+user's one-liner for `loader.lua` itself can't do that: after a push use the commit hash in its URL, or
+wait out the cache.
 
 ## Conventions
 
@@ -103,4 +106,4 @@ not in the game file's comments.
 
 Started from scratch on 2026-10-09 after the old C++ Fragment external and the other product's `bot/`
 were deleted on the user's instruction (unrecoverable). First game is The Walking Dead Online with a
-placeholder window. 
+placeholder window.
