@@ -91,7 +91,8 @@
   anything that walks `Players:GetPlayers()` never sees it. That was the "enemies with no ESP that silent
   aim won't pick". A player's character has `PresentationOwnerUserId` (their UserId) and no `Team`; the
   side is on the Player. The hub now reads `workspace.Characters` and the culled folder directly, takes
-  the side from the character or its owner (`teamOf`), and labels bots by model name.
+  the side from the character or its owner (`teamOf`), and labels bots by model name. Confirmed by the
+  user: bots have ESP now.
 - `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
   `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
 - `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
