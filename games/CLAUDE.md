@@ -79,6 +79,12 @@
   - Silent aim hooks `_performRaycast` with `hookfunction` and rewrites the last hit to `aim.target`.
     It only changes a shot that already hit something. Undone on unload by hooking the original back.
   - Characters may carry an `Invincible` attribute. Not seen in the dump, not used.
+- Dormant ESP (ESP tab, off by default): for an enemy who is alive (`Dead` attribute false on the Player)
+  but culled (character's parent is named `_PVS_CulledCharacters`), a box is drawn at the root position
+  still on the culled character, with opacity falling to zero over the Fade Time slider (1-30 s, default
+  10) counted from when the cull was first seen. Follows the ESP master toggle, Show Players and the
+  players' max distance. If those boxes are seen moving, culled positions are live, which would answer
+  the open question below.
 - The temporary Dump button is removed. Still unknown: whether a culled character's root position keeps
   updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in

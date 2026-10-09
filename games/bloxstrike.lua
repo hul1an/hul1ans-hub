@@ -12,6 +12,8 @@ local aim = hub.require("core/aim.lua")
 aim.settings.TeamCheck = true
 
 local THIRD_PERSON_STEP = "HubThirdPerson"
+-- where the game parks the characters it has culled, under ReplicatedStorage
+local CULLED_FOLDER = "_PVS_CulledCharacters"
 local TEAM_COLORS = {
 	Terrorists = Color3.fromRGB(204, 170, 80),
 	["Counter-Terrorists"] = Color3.fromRGB(100, 149, 200),
@@ -471,6 +473,92 @@ hub.cleanup.add(RunService.RenderStepped:Connect(function()
 end))
 hub.cleanup.add(restoreJoints)
 
+-- dormant esp: a culled enemy that is still alive gets a box at the position left on its character, fading out
+local dormant = { enabled = false, fadeTime = 10 }
+local culledSince = {}
+local dormantBoxes = {}
+
+local function dormantStep()
+	local camera = workspace.CurrentCamera
+	local now = os.clock()
+	local drawing = dormant.enabled and esp.settings.Enabled and players.enabled
+	local team = Players.LocalPlayer:GetAttribute("Team")
+	local shown = {}
+
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local theirTeam = player:GetAttribute("Team")
+		local culled = player ~= Players.LocalPlayer
+			and root
+			and theirTeam
+			and theirTeam ~= team
+			and not player:GetAttribute("Dead")
+			and character.Parent
+			and character.Parent.Name == CULLED_FOLDER
+
+		if not culled then
+			culledSince[player] = nil
+		else
+			-- timed even while the option is off, so switching it on doesn't show old positions as fresh
+			culledSince[player] = culledSince[player] or now
+			local opacity = 1 - (now - culledSince[player]) / dormant.fadeTime
+			local center = root.Position
+			local top = camera:WorldToViewportPoint(center + Vector3.new(0, root.Size.Y * 1.25, 0))
+			local bottom = camera:WorldToViewportPoint(center - Vector3.new(0, root.Size.Y * 1.5, 0))
+			if drawing
+				and opacity > 0
+				and top.Z > 0
+				and bottom.Z > 0
+				and (camera.CFrame.Position - center).Magnitude <= players.maxDistance then
+				local boxes = dormantBoxes[player]
+				if not boxes then
+					boxes = { outline = Drawing.new("Square"), box = Drawing.new("Square") }
+					boxes.outline.Thickness = 3
+					boxes.outline.Color = Color3.new(0, 0, 0)
+					boxes.box.Thickness = 1
+					dormantBoxes[player] = boxes
+				end
+
+				local height = math.abs(bottom.Y - top.Y)
+				local width = height / 2
+				local position = Vector2.new(top.X - width / 2, math.min(top.Y, bottom.Y))
+				for _, square in boxes do
+					square.Visible = true
+					square.Transparency = opacity
+					square.Position = position
+					square.Size = Vector2.new(width, height)
+				end
+				boxes.box.Color = visuals.teamColors and TEAM_COLORS[theirTeam] or players.color
+				shown[player] = true
+			end
+		end
+	end
+
+	for player, boxes in dormantBoxes do
+		if not shown[player] then
+			if player.Parent then
+				boxes.outline.Visible = false
+				boxes.box.Visible = false
+			else
+				boxes.outline:Remove()
+				boxes.box:Remove()
+				dormantBoxes[player] = nil
+				culledSince[player] = nil
+			end
+		end
+	end
+end
+
+hub.cleanup.add(function()
+	for _, boxes in dormantBoxes do
+		boxes.outline:Remove()
+		boxes.box:Remove()
+	end
+	table.clear(dormantBoxes)
+end)
+hub.cleanup.add(RunService.RenderStepped:Connect(dormantStep))
+
 local silentSection = tabs.combat:CreateSection("Silent Aim", "RightSide")
 silentSection:CreateToggle("Enabled", silent.enabled, function(value)
 	silent.enabled = value
@@ -497,8 +585,15 @@ antiAimSection:CreateToggle("Disable On Fire", antiAim.disableOnFire, function(v
 	antiAim.disableOnFire = value
 end)
 
-tabs.esp:CreateSection("BloxStrike", "LeftSide"):CreateToggle("Team Colors", visuals.teamColors, function(value)
+local espSection = tabs.esp:CreateSection("BloxStrike", "LeftSide")
+espSection:CreateToggle("Team Colors", visuals.teamColors, function(value)
 	visuals.teamColors = value
+end)
+espSection:CreateToggle("Dormant ESP", dormant.enabled, function(value)
+	dormant.enabled = value
+end)
+espSection:CreateSlider("Dormant Fade Time", 1, 30, dormant.fadeTime, true, function(value)
+	dormant.fadeTime = value
 end)
 
 local visualsTab = window:CreateTab("Visuals")
