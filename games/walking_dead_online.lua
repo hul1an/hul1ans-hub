@@ -21,11 +21,8 @@ aim:CreateSlider("FOV", 0, 360, 90, true, placeholder("FOV"))
 aim:CreateDropdown("Target Part", { "Head", "Torso" }, placeholder("Target Part"), "Head")
 combat:CreateSection("Melee"):CreateToggle("Kill Aura", false, placeholder("Kill Aura"))
 
-local visuals = window:CreateTab("Visuals")
-visuals:CreateSection("ESP"):CreateColorpicker("ESP Color", placeholder("ESP Color"))
-
 local warned = false
-hub.require("core/esp.lua").addSource("Zombies", function()
+hub.require("core/esp.lua").addSource("Zombies", Color3.fromRGB(110, 150, 90), function()
 	local ai = workspace:FindFirstChild("AI")
 	local walkers = ai and ai:FindFirstChild("Walkers")
 	if not walkers then

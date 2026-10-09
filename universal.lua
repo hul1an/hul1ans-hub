@@ -21,6 +21,10 @@ return function(window)
 		targets:CreateToggle(source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
+		-- a new picker shows black until it is given a colour
+		targets:CreateColorpicker(source.name .. " Color", function(color)
+			source.color = color
+		end):UpdateColor(source.color)
 	end
 
 	local options = tab:CreateSection("Options")
