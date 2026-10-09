@@ -7,6 +7,7 @@ local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.new(0, 0, 0)
 local GREEN = Color3.fromRGB(80, 220, 100)
 local RED = Color3.fromRGB(230, 60, 60)
+local HIGHLIGHT = Color3.new(1, 0, 0)
 
 local esp = {
 	settings = {
@@ -24,18 +25,22 @@ local sets = {}
 
 -- models() returns the models to draw, label(model) their name text
 function esp.addSource(name, color, models, label)
-	table.insert(esp.sources, {
+	local source = {
 		name = name,
 		enabled = true,
 		color = color,
 		maxDistance = 1000,
 		tracers = false,
+		aim = false,
 		models = models,
 		label = label,
-	})
+	}
+	table.insert(esp.sources, source)
+	return source
 end
 
-esp.addSource("Players", WHITE, function()
+-- esp.highlight is a model drawn in red instead of its source colour, set by the aim assist
+local players = esp.addSource("Players", WHITE, function()
 	local characters = {}
 	for _, player in Players:GetPlayers() do
 		if player ~= Players.LocalPlayer and player.Character then
@@ -46,6 +51,7 @@ esp.addSource("Players", WHITE, function()
 end, function(character)
 	return Players:GetPlayerFromCharacter(character).DisplayName
 end)
+players.aim = true
 
 local function draw(class, properties)
 	local object = Drawing.new(class)
@@ -104,6 +110,7 @@ local function update(model, source, camera, viewport)
 		sets[model] = set
 	end
 
+	local color = model == esp.highlight and HIGHLIGHT or source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall
 	local width = height / 2
@@ -114,12 +121,12 @@ local function update(model, source, camera, viewport)
 	set.boxOutline.Position = Vector2.new(x, y)
 	set.boxOutline.Size = Vector2.new(width, height)
 	set.box.Visible = settings.Box
-	set.box.Color = source.color
+	set.box.Color = color
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)
 
 	set.tracer.Visible = source.tracers
-	set.tracer.Color = source.color
+	set.tracer.Color = color
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
@@ -136,14 +143,14 @@ local function update(model, source, camera, viewport)
 	end
 
 	set.name.Visible = settings.Name
-	set.name.Color = source.color
+	set.name.Color = color
 	if settings.Name then
 		set.name.Text = source.label(model)
 		set.name.Position = Vector2.new(x + width / 2, y - 16)
 	end
 
 	set.distance.Visible = settings.Distance
-	set.distance.Color = source.color
+	set.distance.Color = color
 	set.distance.Text = math.floor(distance) .. " studs"
 	set.distance.Position = Vector2.new(x + width / 2, y + height + 2)
 
