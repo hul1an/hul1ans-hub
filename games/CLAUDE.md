@@ -24,7 +24,19 @@
   name in floor loot, containers and corpses, rebuilt on load and by the Refresh button, never on a
   timer) and removed by clicking them in the right-hand section. Saved to
   `hul1ans-hub/walking_dead_online_filter.json` in the executor workspace on every change.
+- Remote seen by the user while looting a fridge: `ReplicatedStorage.CLIENT_REMOTES.UpdateStorageUI`
+  with one argument shown as `Loot_Fridge`. It fired when the fridge was opened, so it is the open /
+  refresh call, not the take action. Not known yet: the remote for taking an item, the method
+  (FireServer / InvokeServer), and whether the argument is the folder instance or a string.
 - Auto Loot is a placeholder toggle only. Per the user it should only act on an inventory that is already
   open (a container or corpse the player opened), so it has no range setting and never walks to loot. Needed from Dex: how the game picks an item up
   (ProximityPrompt, ClickDetector, touch or a remote).
 - The Player and Misc tabs are still placeholders too.
+
+## BloxStrike
+
+- Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
+- `games/bloxstrike.lua` is the universal Combat (aim assist) and ESP tabs plus Eject, players only.
+  Nothing about the game itself has been looked at: whether characters are the normal
+  `player.Character`, how teams are set, or whether its guns fire where the camera looks. There is no
+  team check, so the ESP shows and the aim assist targets teammates too.
