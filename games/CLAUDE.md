@@ -11,7 +11,13 @@
   Corpse ESP (Loot tab) marks each corpse at its pivot with its name, distance and item names. Not known:
   the corpse's ClassName (the marker calls `GetPivot`, so it must be a Model or part) and whether an
   item carries an amount.
-- The Loot ESP and Auto Loot sections of the Loot tab are placeholder controls only. Needed from Dex before
-  either can work: where loot instances live, what they are (Model / Part / Tool), and how the game
-  picks one up (ProximityPrompt, ClickDetector, touch or a remote).
+- Floor loot is the children of `workspace.PhysicalLoot` (path from the user, no child example given, so
+  the marker assumes each child is one item named by its `Name`).
+- Containers are the children of `workspace.Lootables` (1360+). Each keeps its items in a child named
+  `Loot_<kind>` (e.g. `Loot_CarWreck`, containing `Black Ski Mask`); the marker heading is `<kind>` and
+  emptied containers are skipped.
+- The user wants no constant scanning: containers and corpses rescan on a slider (5-60 s, default 10).
+  Floor loot rescans every second.
+- Auto Loot is placeholder controls only. Needed from Dex: how the game picks an item up
+  (ProximityPrompt, ClickDetector, touch or a remote).
 - The Player and Misc tabs are still placeholders too.
