@@ -11,9 +11,7 @@ local RED = Color3.fromRGB(230, 60, 60)
 local esp = {
 	settings = {
 		Enabled = false,
-		MaxDistance = 1000,
 		Box = true,
-		Tracers = false,
 		HealthBar = true,
 		Name = true,
 		Distance = true,
@@ -26,7 +24,15 @@ local sets = {}
 
 -- models() returns the models to draw, label(model) their name text
 function esp.addSource(name, color, models, label)
-	table.insert(esp.sources, { name = name, enabled = true, color = color, models = models, label = label })
+	table.insert(esp.sources, {
+		name = name,
+		enabled = true,
+		color = color,
+		maxDistance = 1000,
+		tracers = false,
+		models = models,
+		label = label,
+	})
 end
 
 esp.addSource("Players", WHITE, function()
@@ -81,7 +87,7 @@ local function update(model, source, camera, viewport)
 
 	local cframe, size = model:GetBoundingBox()
 	local distance = (camera.CFrame.Position - cframe.Position).Magnitude
-	if distance > settings.MaxDistance then
+	if distance > source.maxDistance then
 		return false
 	end
 
@@ -112,7 +118,7 @@ local function update(model, source, camera, viewport)
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)
 
-	set.tracer.Visible = settings.Tracers
+	set.tracer.Visible = source.tracers
 	set.tracer.Color = source.color
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)

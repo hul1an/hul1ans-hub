@@ -8,23 +8,25 @@ local settings = esp.settings
 return function(window)
 	local tab = window:CreateTab("ESP")
 
-	local general = tab:CreateSection("ESP")
-	general:CreateToggle("Enabled", settings.Enabled, function(value)
+	tab:CreateSection("ESP"):CreateToggle("Enabled", settings.Enabled, function(value)
 		settings.Enabled = value
 	end)
-	general:CreateSlider("Max Distance", 0, 3000, settings.MaxDistance, true, function(value)
-		settings.MaxDistance = value
-	end)
 
-	local targets = tab:CreateSection("Targets")
 	for _, source in esp.sources do
-		targets:CreateToggle(source.name, source.enabled, function(value)
+		local section = tab:CreateSection(source.name)
+		section:CreateToggle("Show " .. source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
 		-- a new picker shows black until it is given a colour
-		targets:CreateColorpicker(source.name .. " Color", function(color)
+		section:CreateColorpicker("Color", function(color)
 			source.color = color
 		end):UpdateColor(source.color)
+		section:CreateSlider("Max Distance", 0, 3000, source.maxDistance, true, function(value)
+			source.maxDistance = value
+		end)
+		section:CreateToggle("Tracers", source.tracers, function(value)
+			source.tracers = value
+		end)
 	end
 
 	local options = tab:CreateSection("Options")
@@ -34,7 +36,6 @@ return function(window)
 		end)
 	end
 	toggle("Box", "Box")
-	toggle("Tracers", "Tracers")
 	toggle("Health Bar", "HealthBar")
 	toggle("Name", "Name")
 	toggle("Distance", "Distance")
