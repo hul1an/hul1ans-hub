@@ -31,6 +31,14 @@ end)
 
 hub.require("universal.lua")(window)
 
+local loot = window:CreateTab("Loot")
+local lootEsp = loot:CreateSection("Loot ESP", "LeftSide")
+lootEsp:CreateToggle("Enabled", false, placeholder("Loot ESP"))
+lootEsp:CreateSlider("Max Distance", 0, 3000, 500, true, placeholder("Loot ESP Max Distance"))
+local autoLoot = loot:CreateSection("Auto Loot", "RightSide")
+autoLoot:CreateToggle("Enabled", false, placeholder("Auto Loot"))
+autoLoot:CreateSlider("Range", 0, 50, 15, true, placeholder("Auto Loot Range"))
+
 local player = window:CreateTab("Player")
 local movement = player:CreateSection("Movement")
 movement:CreateSlider("Speed", 16, 100, 16, true, placeholder("Speed"))
@@ -39,7 +47,6 @@ movement:CreateToggle("Infinite Stamina", false, placeholder("Infinite Stamina")
 local misc = window:CreateTab("Misc")
 local utility = misc:CreateSection("Utility")
 utility:CreateButton("Teleport", placeholder("Teleport"))
-utility:CreateToggle("Auto Loot", false, placeholder("Auto Loot"))
 misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)
 
 ready = true
