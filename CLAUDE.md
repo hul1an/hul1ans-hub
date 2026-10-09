@@ -60,8 +60,8 @@ in an executor in the target game and reported what they saw. Say "written, not 
 | `loader.lua` | The only file users run. Holds the repo constant, builds the `hub` table (`fetch`, `load`, `require`, `cleanup`, `unload`, `bracket`), looks the game up in the registry and runs its file |
 | `core/cleanup.lua` | The cleanup list: `add(item)` for connections, instances, functions and threads, `run()` undoes them all |
 | `core/bracket.lua` | Loads AlexR32's BracketV3 (archived, no license, so fetched at a pinned commit instead of copied) and returns `createWindow(title)`. Patches the library at load so its `RunService` / `UserInputService` connections are undone by `unload()`. RightShift toggles the window. Every game window should end with an Eject button that calls `hub.unload()` so the game doesn't need restarting between tests |
-| `core/esp.lua` | Player ESP engine on the Drawing API: box, tracers, health bar, name, distance, max distance (0-3000). `esp.settings` is the state, `esp.start()` begins the RenderStepped loop. Players only, no NPCs |
-| `universal.lua` | Features that work in any game. Starts the ESP and returns `function(window)` that adds the ESP tab to a Bracket window |
+| `core/esp.lua` | ESP engine on the Drawing API: box, tracers, health bar, name, distance, max distance (0-3000). `esp.settings` is the state, `esp.sources` the target lists, `esp.start()` begins the RenderStepped loop. Players are the built-in source; a game file adds its NPCs with `esp.addSource(name, models, label)` before it calls `universal.lua`, and each source gets its own toggle |
+| `universal.lua` | Features that work in any game. Starts the ESP and returns `function(window)` that adds the ESP tab (one toggle per source) to a Bracket window |
 | `games/registry.lua` | Maps `game.GameId` (the universe, covers every place) to a game file |
 | `games/<name>.lua` | One file per supported game, run with `hub` as `...`. Never requires another game file |
 | `games/CLAUDE.md` | Per-game findings: ids, remote names, attribute names, Dex paths, quirks |

@@ -18,10 +18,28 @@ local esp = {
 		Name = true,
 		Distance = true,
 	},
+	sources = {},
 }
 
 local settings = esp.settings
 local sets = {}
+
+-- models() returns the models to draw, label(model) their name text
+function esp.addSource(name, models, label)
+	table.insert(esp.sources, { name = name, enabled = true, models = models, label = label })
+end
+
+esp.addSource("Players", function()
+	local characters = {}
+	for _, player in Players:GetPlayers() do
+		if player ~= Players.LocalPlayer and player.Character then
+			table.insert(characters, player.Character)
+		end
+	end
+	return characters
+end, function(character)
+	return Players:GetPlayerFromCharacter(character).DisplayName
+end)
 
 local function draw(class, properties)
 	local object = Drawing.new(class)
@@ -55,14 +73,13 @@ local function destroy(set)
 	end
 end
 
-local function update(player, set, camera, viewport)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then
+local function update(model, source, camera, viewport)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Health <= 0 then
 		return false
 	end
 
-	local cframe, size = character:GetBoundingBox()
+	local cframe, size = model:GetBoundingBox()
 	local distance = (camera.CFrame.Position - cframe.Position).Magnitude
 	if distance > settings.MaxDistance then
 		return false
@@ -72,6 +89,13 @@ local function update(player, set, camera, viewport)
 	local bottom = camera:WorldToViewportPoint(cframe.Position - Vector3.new(0, size.Y / 2, 0))
 	if top.Z <= 0 or bottom.Z <= 0 then
 		return false
+	end
+
+	-- drawings are only made for models that are in range and in front of the camera
+	local set = sets[model]
+	if not set then
+		set = createSet()
+		sets[model] = set
 	end
 
 	local height = math.abs(bottom.Y - top.Y)
@@ -91,18 +115,23 @@ local function update(player, set, camera, viewport)
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
-	local fraction = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
-	set.healthBack.Visible = settings.HealthBar
-	set.healthBack.Position = Vector2.new(x - 7, y - 1)
-	set.healthBack.Size = Vector2.new(4, height + 2)
-	set.health.Visible = settings.HealthBar
-	set.health.Color = RED:Lerp(GREEN, fraction)
-	set.health.Position = Vector2.new(x - 6, y + height * (1 - fraction))
-	set.health.Size = Vector2.new(2, height * fraction)
+	local showHealth = humanoid ~= nil and settings.HealthBar
+	set.healthBack.Visible = showHealth
+	set.health.Visible = showHealth
+	if showHealth then
+		local fraction = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+		set.healthBack.Position = Vector2.new(x - 7, y - 1)
+		set.healthBack.Size = Vector2.new(4, height + 2)
+		set.health.Color = RED:Lerp(GREEN, fraction)
+		set.health.Position = Vector2.new(x - 6, y + height * (1 - fraction))
+		set.health.Size = Vector2.new(2, height * fraction)
+	end
 
 	set.name.Visible = settings.Name
-	set.name.Text = player.DisplayName
-	set.name.Position = Vector2.new(x + width / 2, y - 16)
+	if settings.Name then
+		set.name.Text = source.label(model)
+		set.name.Position = Vector2.new(x + width / 2, y - 16)
+	end
 
 	set.distance.Visible = settings.Distance
 	set.distance.Text = math.floor(distance) .. " studs"
@@ -121,16 +150,23 @@ local function render()
 
 	local camera = workspace.CurrentCamera
 	local viewport = camera.ViewportSize
-	for _, player in Players:GetPlayers() do
-		if player ~= Players.LocalPlayer then
-			local set = sets[player]
-			if not set then
-				set = createSet()
-				sets[player] = set
+	local seen = {}
+	for _, source in esp.sources do
+		if source.enabled then
+			for _, model in source.models() do
+				seen[model] = true
+				if not update(model, source, camera, viewport) and sets[model] then
+					hide(sets[model])
+				end
 			end
-			if not update(player, set, camera, viewport) then
-				hide(set)
-			end
+		end
+	end
+
+	-- models that despawned or whose source was switched off
+	for model, set in sets do
+		if not seen[model] then
+			destroy(set)
+			sets[model] = nil
 		end
 	end
 end
@@ -142,12 +178,6 @@ function esp.start()
 		end
 		table.clear(sets)
 	end)
-	hub.cleanup.add(Players.PlayerRemoving:Connect(function(player)
-		if sets[player] then
-			destroy(sets[player])
-			sets[player] = nil
-		end
-	end))
 	hub.cleanup.add(RunService.RenderStepped:Connect(render))
 end
 

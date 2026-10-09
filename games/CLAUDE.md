@@ -3,7 +3,7 @@
 ## The Walking Dead Online
 
 - Place id `128039018996175`, universe (`game.GameId`) `7208219743`, from Roblox's universes API.
-- `games/walking_dead_online.lua` is a placeholder window only. No instance paths, remotes or
-  attributes have been looked at yet.
-- Zombie ESP is a placeholder: the universal ESP only covers players, and the zombies' instance
-  paths haven't been looked at.
+- Zombies are the children of `workspace.AI.Walkers` (150+ of them), each with a `HumanoidRootPart`
+  (path given by the user from Dex). Registered as the "Zombies" ESP source, labelled with the model's
+  `Name`. Not known yet: whether they have a `Humanoid` (no health bar without one) and what they are named.
+- Everything else in `games/walking_dead_online.lua` is still a placeholder.

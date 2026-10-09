@@ -8,22 +8,30 @@ local settings = esp.settings
 return function(window)
 	local tab = window:CreateTab("ESP")
 
-	local function toggle(section, name, key)
-		section:CreateToggle(name, settings[key], function(value)
-			settings[key] = value
-		end)
-	end
-
 	local general = tab:CreateSection("ESP")
-	toggle(general, "Enabled", "Enabled")
+	general:CreateToggle("Enabled", settings.Enabled, function(value)
+		settings.Enabled = value
+	end)
 	general:CreateSlider("Max Distance", 0, 3000, settings.MaxDistance, true, function(value)
 		settings.MaxDistance = value
 	end)
 
+	local targets = tab:CreateSection("Targets")
+	for _, source in esp.sources do
+		targets:CreateToggle(source.name, source.enabled, function(value)
+			source.enabled = value
+		end)
+	end
+
 	local options = tab:CreateSection("Options")
-	toggle(options, "Box", "Box")
-	toggle(options, "Tracers", "Tracers")
-	toggle(options, "Health Bar", "HealthBar")
-	toggle(options, "Name", "Name")
-	toggle(options, "Distance", "Distance")
+	local function toggle(name, key)
+		options:CreateToggle(name, settings[key], function(value)
+			settings[key] = value
+		end)
+	end
+	toggle("Box", "Box")
+	toggle("Tracers", "Tracers")
+	toggle("Health Bar", "HealthBar")
+	toggle("Name", "Name")
+	toggle("Distance", "Distance")
 end
