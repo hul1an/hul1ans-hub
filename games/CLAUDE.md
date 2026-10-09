@@ -36,7 +36,18 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike.lua` is the universal Combat (aim assist) and ESP tabs plus Eject, players only.
-  Nothing about the game itself has been looked at: whether characters are the normal
-  `player.Character`, how teams are set, or whether its guns fire where the camera looks. There is no
-  team check, so the ESP shows and the aim assist targets teammates too.
+- `games/bloxstrike.lua` is the universal Combat and ESP tabs, a Silent Aim section in Combat, and Eject.
+  It turns the aim assist's Team Check on by default.
+- Everything below comes from a third-party script the user supplied (`scriptsource.txt`, an unverified
+  ScriptBlox post), not from Dex, so treat it as unconfirmed until seen working:
+  - Bullets go through a class table found only via `getgc(true)`: a table with a `_performRaycast`
+    function and a `getTrueSpread` field. `_performRaycast` returns a result table with `Hits` (array of
+    hit tables with `Instance`, `Position`, `Exit`), `Origin`, `Direction`, `Distance`.
+  - Silent aim hooks `_performRaycast` with `hookfunction` and rewrites the last hit to `aim.target`.
+    It only changes a shot that already hit something. Undone on unload by hooking the original back.
+  - Teams are probably named `Terrorists` / `Counter-Terrorists`; that script guessed at how they are
+    stored, so the hub just compares `player.Team`.
+  - Characters may carry `Dead` and `Invincible` attributes and dead ones may be moved under a
+    `Debris` parent. The hub doesn't use these yet.
+- Not ported from that script: third person camera, anti-aim, night mode, bullet tracers, hit explosion,
+  box-adornment chams, and its auto fire's `mouse1click` path (the hub uses `VirtualInputManager`).

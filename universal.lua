@@ -32,9 +32,11 @@ local function addCombat(window)
 	end)
 
 	local options = tab:CreateSection("Options", "RightSide")
+	toggle(options, "Team Check", "TeamCheck")
 	toggle(options, "Visibility Check", "VisibilityCheck")
 	toggle(options, "Draw FOV", "DrawFov")
 	toggle(options, "Target Color", "TargetColor")
+	toggle(options, "Auto Fire", "AutoFire")
 	-- players are always targeted, the other sources are opt-in
 	for index = 2, #esp.sources do
 		local source = esp.sources[index]
@@ -42,6 +44,8 @@ local function addCombat(window)
 			source.aim = value
 		end)
 	end
+
+	return tab
 end
 
 local function addEsp(window)
@@ -75,13 +79,18 @@ local function addEsp(window)
 			settings[key] = value
 		end)
 	end
+	toggle("Team Check", "TeamCheck")
 	toggle("Box", "Box")
+	toggle("Skeleton", "Skeleton")
+	toggle("Chams", "Chams")
 	toggle("Health Bar", "HealthBar")
 	toggle("Name", "Name")
 	toggle("Distance", "Distance")
+
+	return tab
 end
 
+-- returns the tabs so a game file can add its own sections to them
 return function(window)
-	addCombat(window)
-	addEsp(window)
+	return { combat = addCombat(window), esp = addEsp(window) }
 end

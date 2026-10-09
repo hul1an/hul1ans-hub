@@ -47,4 +47,8 @@ function bracket.createWindow(title)
 	return window
 end
 
+function bracket.visible()
+	return library.Toggle
+end
+
 return bracket

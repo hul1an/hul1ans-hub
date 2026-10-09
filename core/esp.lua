@@ -9,10 +9,37 @@ local GREEN = Color3.fromRGB(80, 220, 100)
 local RED = Color3.fromRGB(230, 60, 60)
 local HIGHLIGHT = Color3.new(1, 0, 0)
 
+local BONES_R15 = {
+	{ "Head", "UpperTorso" },
+	{ "UpperTorso", "LowerTorso" },
+	{ "UpperTorso", "LeftUpperArm" },
+	{ "LeftUpperArm", "LeftLowerArm" },
+	{ "LeftLowerArm", "LeftHand" },
+	{ "UpperTorso", "RightUpperArm" },
+	{ "RightUpperArm", "RightLowerArm" },
+	{ "RightLowerArm", "RightHand" },
+	{ "LowerTorso", "LeftUpperLeg" },
+	{ "LeftUpperLeg", "LeftLowerLeg" },
+	{ "LeftLowerLeg", "LeftFoot" },
+	{ "LowerTorso", "RightUpperLeg" },
+	{ "RightUpperLeg", "RightLowerLeg" },
+	{ "RightLowerLeg", "RightFoot" },
+}
+local BONES_R6 = {
+	{ "Head", "Torso" },
+	{ "Torso", "Left Arm" },
+	{ "Torso", "Right Arm" },
+	{ "Torso", "Left Leg" },
+	{ "Torso", "Right Leg" },
+}
+
 local esp = {
 	settings = {
 		Enabled = false,
+		TeamCheck = false,
 		Box = true,
+		Skeleton = false,
+		Chams = false,
 		HealthBar = true,
 		Name = true,
 		Distance = true,
@@ -22,8 +49,11 @@ local esp = {
 
 local settings = esp.settings
 local sets = {}
+local bones = {}
+local highlights = {}
+local container
 
--- models() returns the models to draw, label(model) their name text
+-- models(skipTeammates) returns the models to draw, label(model) their name text
 function esp.addSource(name, color, models, label)
 	local source = {
 		name = name,
@@ -40,10 +70,11 @@ function esp.addSource(name, color, models, label)
 end
 
 -- esp.highlight is a model drawn in red instead of its source colour, set by the aim assist
-local players = esp.addSource("Players", WHITE, function()
+local players = esp.addSource("Players", WHITE, function(skipTeammates)
 	local characters = {}
+	local team = skipTeammates and Players.LocalPlayer.Team
 	for _, player in Players:GetPlayers() do
-		if player ~= Players.LocalPlayer and player.Character then
+		if player ~= Players.LocalPlayer and player.Character and not (team and player.Team == team) then
 			table.insert(characters, player.Character)
 		end
 	end
@@ -73,16 +104,95 @@ local function createSet()
 	}
 end
 
-local function hide(set)
-	for _, object in set do
+-- bones and highlights only exist for models that have a set
+local function hide(model)
+	for _, object in sets[model] do
 		object.Visible = false
+	end
+	if bones[model] then
+		for _, line in bones[model] do
+			line.Visible = false
+		end
+	end
+	if highlights[model] then
+		highlights[model].Enabled = false
 	end
 end
 
-local function destroy(set)
-	for _, object in set do
+local function destroy(model)
+	for _, object in sets[model] do
 		object:Remove()
 	end
+	sets[model] = nil
+	if bones[model] then
+		for _, line in bones[model] do
+			line:Remove()
+		end
+		bones[model] = nil
+	end
+	if highlights[model] then
+		highlights[model]:Destroy()
+		highlights[model] = nil
+	end
+end
+
+local function updateSkeleton(model, camera, color)
+	local lines = bones[model]
+	if not settings.Skeleton then
+		if lines then
+			for _, line in lines do
+				line.Visible = false
+			end
+		end
+		return
+	end
+	if not lines then
+		lines = {}
+		bones[model] = lines
+	end
+
+	local map = model:FindFirstChild("UpperTorso") and BONES_R15 or BONES_R6
+	for index, pair in map do
+		local line = lines[index]
+		if not line then
+			line = draw("Line", { Thickness = 1 })
+			lines[index] = line
+		end
+		local from, to = model:FindFirstChild(pair[1]), model:FindFirstChild(pair[2])
+		local a = from and camera:WorldToViewportPoint(from.Position)
+		local b = to and camera:WorldToViewportPoint(to.Position)
+		local visible = a ~= nil and b ~= nil and a.Z > 0 and b.Z > 0
+		line.Visible = visible
+		if visible then
+			line.Color = color
+			line.From = Vector2.new(a.X, a.Y)
+			line.To = Vector2.new(b.X, b.Y)
+		end
+	end
+	for index = #map + 1, #lines do
+		lines[index].Visible = false
+	end
+end
+
+local function updateChams(model, color)
+	local highlight = highlights[model]
+	if not settings.Chams then
+		if highlight then
+			highlight.Enabled = false
+		end
+		return
+	end
+	if not highlight then
+		highlight = Instance.new("Highlight")
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.FillTransparency = 0.6
+		highlight.Adornee = model
+		highlight.Parent = container
+		highlights[model] = highlight
+	end
+	highlight.FillColor = color
+	highlight.OutlineColor = color
+	highlight.Enabled = true
 end
 
 local function update(model, source, camera, viewport)
@@ -154,13 +264,16 @@ local function update(model, source, camera, viewport)
 	set.distance.Text = math.floor(distance) .. " studs"
 	set.distance.Position = Vector2.new(x + width / 2, y + height + 2)
 
+	updateSkeleton(model, camera, color)
+	updateChams(model, color)
+
 	return true
 end
 
 local function render()
 	if not settings.Enabled then
-		for _, set in sets do
-			hide(set)
+		for model in sets do
+			hide(model)
 		end
 		return
 	end
@@ -170,30 +283,31 @@ local function render()
 	local seen = {}
 	for _, source in esp.sources do
 		if source.enabled then
-			for _, model in source.models() do
+			for _, model in source.models(settings.TeamCheck) do
 				seen[model] = true
 				if not update(model, source, camera, viewport) and sets[model] then
-					hide(sets[model])
+					hide(model)
 				end
 			end
 		end
 	end
 
 	-- models that despawned or whose source was switched off
-	for model, set in sets do
+	for model in sets do
 		if not seen[model] then
-			destroy(set)
-			sets[model] = nil
+			destroy(model)
 		end
 	end
 end
 
 function esp.start()
+	container = hub.cleanup.add(Instance.new("Folder"))
+	container.Parent = gethui()
+
 	hub.cleanup.add(function()
-		for _, set in sets do
-			destroy(set)
+		for model in sets do
+			destroy(model)
 		end
-		table.clear(sets)
 	end)
 	hub.cleanup.add(RunService.RenderStepped:Connect(render))
 end
