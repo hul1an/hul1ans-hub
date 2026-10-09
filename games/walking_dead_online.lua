@@ -131,9 +131,7 @@ markerSection("Floor Loot ESP", floorLoot, false)
 markerSection("Container ESP", containers, true)
 markerSection("Corpse ESP", corpses, true)
 
-local autoLoot = loot:CreateSection("Auto Loot", "RightSide")
-autoLoot:CreateToggle("Enabled", false, placeholder("Auto Loot"))
-autoLoot:CreateSlider("Range", 0, 50, 15, true, placeholder("Auto Loot Range"))
+loot:CreateSection("Auto Loot", "RightSide"):CreateToggle("Enabled", false, placeholder("Auto Loot"))
 
 local filterTab = window:CreateTab("Loot Filter")
 local filterSection = filterTab:CreateSection("Loot Filter", "LeftSide")

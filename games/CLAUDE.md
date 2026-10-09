@@ -24,6 +24,7 @@
   name in floor loot, containers and corpses, rebuilt on load and by the Refresh button, never on a
   timer) and removed by clicking them in the right-hand section. Saved to
   `hul1ans-hub/walking_dead_online_filter.json` in the executor workspace on every change.
-- Auto Loot is placeholder controls only. Needed from Dex: how the game picks an item up
+- Auto Loot is a placeholder toggle only. Per the user it should only act on an inventory that is already
+  open (a container or corpse the player opened), so it has no range setting and never walks to loot. Needed from Dex: how the game picks an item up
   (ProximityPrompt, ClickDetector, touch or a remote).
 - The Player and Misc tabs are still placeholders too.
