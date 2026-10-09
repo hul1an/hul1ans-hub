@@ -621,4 +621,146 @@ shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
 
-window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+-- temporary: F6 or the Debug button writes what the hub sees and decides for every player, as text
+local DUMP_KEY = Enum.KeyCode.F6
+local dumps = 0
+
+local function attributes(instance)
+	local list = {}
+	for key, value in instance:GetAttributes() do
+		list[key] = tostring(value)
+	end
+	return list
+end
+
+local function describe(model)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	return {
+		path = model:GetFullName(),
+		root = root and tostring(root.Position),
+		attributes = attributes(model),
+	}
+end
+
+-- the same checks the ESP and the aim assist make, as a list of reasons a character is skipped
+local function verdict(player, character, camera, folder)
+	local reasons = {}
+	if not character then
+		return { "player.Character is nil" }
+	end
+	if character.Parent ~= folder then
+		table.insert(reasons, "character is not in workspace.Characters")
+	end
+	if character:GetAttribute("Dead") then
+		table.insert(reasons, "character Dead attribute is set")
+	end
+	if player:GetAttribute("Team") == Players.LocalPlayer:GetAttribute("Team") then
+		table.insert(reasons, "same Team attribute as me (skipped when team check is on)")
+	end
+	local health = character:GetAttribute("Health")
+	if health and health <= 0 then
+		table.insert(reasons, "Health attribute is " .. tostring(health))
+	end
+
+	local part = character:FindFirstChild(aim.settings.TargetPart == "Head" and "Head" or "HumanoidRootPart")
+		or character:FindFirstChild("HumanoidRootPart")
+	if not part then
+		table.insert(reasons, "no Head or HumanoidRootPart")
+		return reasons
+	end
+
+	local origin = camera.CFrame.Position
+	local distance = (part.Position - origin).Magnitude
+	local screen = camera:WorldToViewportPoint(part.Position)
+	local offset = (Vector2.new(screen.X, screen.Y) - camera.ViewportSize / 2).Magnitude
+	table.insert(reasons, "info: distance " .. math.floor(distance) .. ", pixels from crosshair " .. math.floor(offset))
+	if screen.Z <= 0 then
+		table.insert(reasons, "behind the camera")
+	end
+	if distance > players.maxDistance then
+		table.insert(reasons, "esp: beyond Players max distance " .. players.maxDistance)
+	end
+	if distance > aim.settings.MaxDistance then
+		table.insert(reasons, "aim: beyond aim max distance " .. aim.settings.MaxDistance)
+	end
+	if offset > aim.settings.Fov then
+		table.insert(reasons, "aim: outside FOV radius " .. aim.settings.Fov)
+	end
+
+	local ray = RaycastParams.new()
+	ray.FilterType = Enum.RaycastFilterType.Exclude
+	ray.FilterDescendantsInstances = { character, camera, Players.LocalPlayer.Character }
+	local blocker = workspace:Raycast(origin, part.Position - origin, ray)
+	if blocker then
+		table.insert(reasons, "aim: visibility ray blocked by " .. blocker.Instance:GetFullName()
+			.. " (transparency " .. blocker.Instance.Transparency .. ", collide " .. tostring(blocker.Instance.CanCollide) .. ")")
+	end
+	return reasons
+end
+
+local function dump()
+	local camera = workspace.CurrentCamera
+	local folder = workspace:FindFirstChild("Characters")
+	local data = {
+		me = Players.LocalPlayer.Name,
+		myTeam = tostring(Players.LocalPlayer:GetAttribute("Team")),
+		settings = {
+			espEnabled = tostring(esp.settings.Enabled),
+			espTeamCheck = tostring(esp.settings.TeamCheck),
+			showPlayers = tostring(players.enabled),
+			aimEnabled = tostring(aim.settings.Enabled),
+			aimTeamCheck = tostring(aim.settings.TeamCheck),
+			visibilityCheck = tostring(aim.settings.VisibilityCheck),
+			aimTarget = aim.target and aim.target:GetFullName() or "none",
+			silent = tostring(silent.enabled),
+		},
+		players = {},
+		worldCharacters = {},
+		culledCharacters = {},
+	}
+
+	for _, player in Players:GetPlayers() do
+		if player ~= Players.LocalPlayer then
+			local character = player.Character
+			local named = folder and folder:FindFirstChild(player.Name)
+			table.insert(data.players, {
+				name = player.Name,
+				userId = tostring(player.UserId),
+				attributes = attributes(player),
+				character = character and describe(character) or "nil",
+				-- a model in workspace.Characters with this player's name that is not their Character
+				otherModelWithTheirName = named and named ~= character and describe(named) or "none",
+				skippedBecause = verdict(player, character, camera, folder),
+			})
+		end
+	end
+
+	if folder then
+		for _, model in folder:GetChildren() do
+			local entry = describe(model)
+			entry.isSomePlayersCharacter = tostring(Players:GetPlayerFromCharacter(model) ~= nil)
+			table.insert(data.worldCharacters, entry)
+		end
+	end
+	local culled = cloneref(game:GetService("ReplicatedStorage")):FindFirstChild(CULLED_FOLDER)
+	if culled then
+		for _, model in culled:GetChildren() do
+			table.insert(data.culledCharacters, describe(model))
+		end
+	end
+
+	dumps += 1
+	local name = "bloxstrike_dump_" .. dumps
+	hub.require("core/config.lua").save(name, data)
+	print("[hub] wrote hul1ans-hub/" .. name .. ".json")
+end
+
+hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == DUMP_KEY then
+		dump()
+	end
+end))
+
+local misc = window:CreateTab("Misc")
+misc:CreateSection("Debug"):CreateButton("Dump players to file (F6)", dump)
+misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)

@@ -85,7 +85,16 @@
   10) counted from when the cull was first seen. Follows the ESP master toggle, Show Players and the
   players' max distance. If those boxes are seen moving, culled positions are live, which would answer
   the open question below.
-- The temporary Dump button is removed. Still unknown: whether a culled character's root position keeps
+- User report after all of the above: some enemies still have no ESP and aren't picked by silent aim.
+  Leading suspicion, not confirmed: `player.Character` can point at a stale or culled model while the
+  body on screen is a different model in `workspace.Characters` (characters carry `CharacterGeneration`
+  / `PresentationGeneration` and `PresentationOwnerUserId` attributes). If so, the source should be the
+  folder's children matched to players by name or `PresentationOwnerUserId`, not `player.Character`.
+- Temporary, re-added for that: F6 or Misc > Debug writes `hul1ans-hub/bloxstrike_dump_<n>.json` (on
+  this machine under `AppData/Local/Potassium/workspace/`), one file per press. Per player it lists the
+  reasons the ESP / aim would skip them, including what blocks the visibility ray. Remove it (from
+  `DUMP_KEY` to the Debug section) once this is solved.
+- The first Dump button was removed earlier. Still unknown: whether a culled character's root position keeps
   updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
   its hit effect (only the expanding ball is ported), its per-degree "vector FOV" (the pixel FOV covers
