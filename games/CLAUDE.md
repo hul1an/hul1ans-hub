@@ -63,8 +63,8 @@
   - Characters are custom (`CharacterType = PlayerCustomCharacter`): R15 part names, an
     `AnimationController`, no `Humanoid`. Health is the character attributes `Health` / `MaxHealth`,
     death is `Dead` (also mirrored on the Player). A dead player's `Character` is nil.
-  - Sides are the Player attribute `Team`: `Terrorists` or `Counter-Terrorists`. The Teams service is
-    empty and `player.Team` is nil for everyone.
+  - Sides are the attribute `Team`: `Terrorists` or `Counter-Terrorists`, on the Player for players
+    and on the character for bots. The Teams service is empty and `player.Team` is nil for everyone.
   - A player not in the match has a normal Roblox character directly under `workspace` (seen at
     0, 103, 0) with no game attributes. Ignored by the parent check.
   - Character models contain parts parked far away (one bounding box was 10,000 studs tall), which is
@@ -85,16 +85,20 @@
   10) counted from when the cull was first seen. Follows the ESP master toggle, Show Players and the
   players' max distance. If those boxes are seen moving, culled positions are live, which would answer
   the open question below.
-- User report after all of the above: some enemies still have no ESP and aren't picked by silent aim.
-  Leading suspicion, not confirmed: `player.Character` can point at a stale or culled model while the
-  body on screen is a different model in `workspace.Characters` (characters carry `CharacterGeneration`
-  / `PresentationGeneration` and `PresentationOwnerUserId` attributes). If so, the source should be the
-  folder's children matched to players by name or `PresentationOwnerUserId`, not `player.Character`.
-- Temporary, re-added for that: F6 or Misc > Debug writes `hul1ans-hub/bloxstrike_dump_<n>.json` (on
-  this machine under `AppData/Local/Potassium/workspace/`), one file per press. Per player it lists the
-  reasons the ESP / aim would skip them, including what blocks the visibility ray. Remove it (from
-  `DUMP_KEY` to the Debug section) once this is solved.
-- The first Dump button was removed earlier. Still unknown: whether a culled character's root position keeps
+- Bots (found in the user's second dump, `bloxstrike_dump_1.json`): matches are filled with bots. A bot
+  is a model in `workspace.Characters` with `Bot = true`, its own `Team`, `Health`, `MaxHealth`, `Dead`,
+  `ActorId` and `CombatantId` attributes, and no `PresentationOwnerUserId`. It has no Player object, so
+  anything that walks `Players:GetPlayers()` never sees it. That was the "enemies with no ESP that silent
+  aim won't pick". A player's character has `PresentationOwnerUserId` (their UserId) and no `Team`; the
+  side is on the Player. The hub now reads `workspace.Characters` and the culled folder directly, takes
+  the side from the character or its owner (`teamOf`), and labels bots by model name.
+- `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
+  `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
+- `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
+  enemy in that dump, so the aim assist's visibility ray reported everyone as hidden. `core/aim.lua` now
+  looks through parts with Transparency 1.
+- Both temporary dump buttons are removed. The dumps live on this machine in
+  `AppData/Local/Potassium/workspace/hul1ans-hub/`. Still unknown: whether a culled character's root position keeps
   updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
   its hit effect (only the expanding ball is ported), its per-degree "vector FOV" (the pixel FOV covers

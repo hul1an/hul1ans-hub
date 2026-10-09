@@ -37,9 +37,21 @@ local lastShot = 0
 
 local function isVisible(camera, part, model)
 	-- the camera is excluded because first person viewmodels are parented to it
-	rayParams.FilterDescendantsInstances = { model, camera, Players.LocalPlayer.Character }
+	local ignore = { model, camera, Players.LocalPlayer.Character }
 	local origin = camera.CFrame.Position
-	return workspace:Raycast(origin, part.Position - origin, rayParams) == nil
+	-- fully invisible parts (map barriers, clip walls) are looked through, up to a few in a row
+	for _ = 1, 8 do
+		rayParams.FilterDescendantsInstances = ignore
+		local hit = workspace:Raycast(origin, part.Position - origin, rayParams)
+		if not hit then
+			return true
+		end
+		if hit.Instance.Transparency < 1 then
+			return false
+		end
+		table.insert(ignore, hit.Instance)
+	end
+	return false
 end
 
 local function findTarget(camera)

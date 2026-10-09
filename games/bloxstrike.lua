@@ -1,6 +1,7 @@
 local hub = ...
 
 local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local RunService = cloneref(game:GetService("RunService"))
 local UserInputService = cloneref(game:GetService("UserInputService"))
 local Lighting = cloneref(game:GetService("Lighting"))
@@ -37,8 +38,25 @@ local visuals = {
 	hitEffect = false,
 }
 
--- the game moves players it has culled out of workspace.Characters and leaves their last position on them,
--- so only characters still in that folder are real; it has no Humanoids or Roblox teams, only attributes
+-- a player's character names its owner; a bot's has no owner and no Player object at all
+local function ownerOf(character)
+	local userId = tonumber(character:GetAttribute("PresentationOwnerUserId"))
+	return userId and Players:GetPlayerByUserId(userId)
+end
+
+-- a bot carries its side on the character, a player on the Player
+local function teamOf(character)
+	local team = character:GetAttribute("Team")
+	if team then
+		return team
+	end
+	local owner = ownerOf(character)
+	return owner and owner:GetAttribute("Team")
+end
+
+-- the game moves characters it has culled out of workspace.Characters and leaves their last position on them,
+-- so only models still in that folder are real; it has no Humanoids or Roblox teams, only attributes.
+-- the folder is read directly because bots are in it but not in the Players list
 local players = esp.sources[1]
 local charactersWarned = false
 
@@ -54,17 +72,21 @@ players.models = function(skipTeammates)
 	end
 
 	local team = skipTeammates and Players.LocalPlayer:GetAttribute("Team")
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		if player ~= Players.LocalPlayer
-			and character
-			and character.Parent == folder
+	local mine = Players.LocalPlayer.Character
+	for _, character in folder:GetChildren() do
+		if character ~= mine
+			and character:FindFirstChild("HumanoidRootPart")
 			and not character:GetAttribute("Dead")
-			and not (team and player:GetAttribute("Team") == team) then
+			and not (team and teamOf(character) == team) then
 			table.insert(characters, character)
 		end
 	end
 	return characters
+end
+
+players.label = function(character)
+	local owner = ownerOf(character)
+	return owner and owner.DisplayName or character.Name
 end
 
 players.health = function(character)
@@ -72,10 +94,7 @@ players.health = function(character)
 end
 
 players.colorOf = function(character)
-	if not visuals.teamColors then
-		return nil
-	end
-	return TEAM_COLORS[Players:GetPlayerFromCharacter(character):GetAttribute("Team")]
+	return visuals.teamColors and TEAM_COLORS[teamOf(character)] or nil
 end
 
 local window = hub.bracket.createWindow("BloxStrike")
@@ -483,26 +502,17 @@ local function dormantStep()
 	local now = os.clock()
 	local drawing = dormant.enabled and esp.settings.Enabled and players.enabled
 	local team = Players.LocalPlayer:GetAttribute("Team")
+	local folder = ReplicatedStorage:FindFirstChild(CULLED_FOLDER)
 	local shown = {}
 
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local theirTeam = player:GetAttribute("Team")
-		local culled = player ~= Players.LocalPlayer
-			and root
-			and theirTeam
-			and theirTeam ~= team
-			and not player:GetAttribute("Dead")
-			and character.Parent
-			and character.Parent.Name == CULLED_FOLDER
-
-		if not culled then
-			culledSince[player] = nil
-		else
+	-- the culled folder is read directly so that bots are included
+	for _, character in folder and folder:GetChildren() or {} do
+		local root = character:FindFirstChild("HumanoidRootPart")
+		local theirTeam = teamOf(character)
+		if root and theirTeam and theirTeam ~= team and not character:GetAttribute("Dead") then
 			-- timed even while the option is off, so switching it on doesn't show old positions as fresh
-			culledSince[player] = culledSince[player] or now
-			local opacity = 1 - (now - culledSince[player]) / dormant.fadeTime
+			culledSince[character] = culledSince[character] or now
+			local opacity = 1 - (now - culledSince[character]) / dormant.fadeTime
 			local center = root.Position
 			local top = camera:WorldToViewportPoint(center + Vector3.new(0, root.Size.Y * 1.25, 0))
 			local bottom = camera:WorldToViewportPoint(center - Vector3.new(0, root.Size.Y * 1.5, 0))
@@ -511,13 +521,13 @@ local function dormantStep()
 				and top.Z > 0
 				and bottom.Z > 0
 				and (camera.CFrame.Position - center).Magnitude <= players.maxDistance then
-				local boxes = dormantBoxes[player]
+				local boxes = dormantBoxes[character]
 				if not boxes then
 					boxes = { outline = Drawing.new("Square"), box = Drawing.new("Square") }
 					boxes.outline.Thickness = 3
 					boxes.outline.Color = Color3.new(0, 0, 0)
 					boxes.box.Thickness = 1
-					dormantBoxes[player] = boxes
+					dormantBoxes[character] = boxes
 				end
 
 				local height = math.abs(bottom.Y - top.Y)
@@ -530,21 +540,26 @@ local function dormantStep()
 					square.Size = Vector2.new(width, height)
 				end
 				boxes.box.Color = visuals.teamColors and TEAM_COLORS[theirTeam] or players.color
-				shown[player] = true
+				shown[character] = true
 			end
 		end
 	end
 
-	for player, boxes in dormantBoxes do
-		if not shown[player] then
-			if player.Parent then
+	-- a character that is back in the world, dead or gone stops being timed
+	for character in culledSince do
+		if character.Parent ~= folder or character:GetAttribute("Dead") then
+			culledSince[character] = nil
+		end
+	end
+	for character, boxes in dormantBoxes do
+		if not shown[character] then
+			if character.Parent then
 				boxes.outline.Visible = false
 				boxes.box.Visible = false
 			else
 				boxes.outline:Remove()
 				boxes.box:Remove()
-				dormantBoxes[player] = nil
-				culledSince[player] = nil
+				dormantBoxes[character] = nil
 			end
 		end
 	end
@@ -621,146 +636,4 @@ shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
 
--- temporary: F6 or the Debug button writes what the hub sees and decides for every player, as text
-local DUMP_KEY = Enum.KeyCode.F6
-local dumps = 0
-
-local function attributes(instance)
-	local list = {}
-	for key, value in instance:GetAttributes() do
-		list[key] = tostring(value)
-	end
-	return list
-end
-
-local function describe(model)
-	local root = model:FindFirstChild("HumanoidRootPart")
-	return {
-		path = model:GetFullName(),
-		root = root and tostring(root.Position),
-		attributes = attributes(model),
-	}
-end
-
--- the same checks the ESP and the aim assist make, as a list of reasons a character is skipped
-local function verdict(player, character, camera, folder)
-	local reasons = {}
-	if not character then
-		return { "player.Character is nil" }
-	end
-	if character.Parent ~= folder then
-		table.insert(reasons, "character is not in workspace.Characters")
-	end
-	if character:GetAttribute("Dead") then
-		table.insert(reasons, "character Dead attribute is set")
-	end
-	if player:GetAttribute("Team") == Players.LocalPlayer:GetAttribute("Team") then
-		table.insert(reasons, "same Team attribute as me (skipped when team check is on)")
-	end
-	local health = character:GetAttribute("Health")
-	if health and health <= 0 then
-		table.insert(reasons, "Health attribute is " .. tostring(health))
-	end
-
-	local part = character:FindFirstChild(aim.settings.TargetPart == "Head" and "Head" or "HumanoidRootPart")
-		or character:FindFirstChild("HumanoidRootPart")
-	if not part then
-		table.insert(reasons, "no Head or HumanoidRootPart")
-		return reasons
-	end
-
-	local origin = camera.CFrame.Position
-	local distance = (part.Position - origin).Magnitude
-	local screen = camera:WorldToViewportPoint(part.Position)
-	local offset = (Vector2.new(screen.X, screen.Y) - camera.ViewportSize / 2).Magnitude
-	table.insert(reasons, "info: distance " .. math.floor(distance) .. ", pixels from crosshair " .. math.floor(offset))
-	if screen.Z <= 0 then
-		table.insert(reasons, "behind the camera")
-	end
-	if distance > players.maxDistance then
-		table.insert(reasons, "esp: beyond Players max distance " .. players.maxDistance)
-	end
-	if distance > aim.settings.MaxDistance then
-		table.insert(reasons, "aim: beyond aim max distance " .. aim.settings.MaxDistance)
-	end
-	if offset > aim.settings.Fov then
-		table.insert(reasons, "aim: outside FOV radius " .. aim.settings.Fov)
-	end
-
-	local ray = RaycastParams.new()
-	ray.FilterType = Enum.RaycastFilterType.Exclude
-	ray.FilterDescendantsInstances = { character, camera, Players.LocalPlayer.Character }
-	local blocker = workspace:Raycast(origin, part.Position - origin, ray)
-	if blocker then
-		table.insert(reasons, "aim: visibility ray blocked by " .. blocker.Instance:GetFullName()
-			.. " (transparency " .. blocker.Instance.Transparency .. ", collide " .. tostring(blocker.Instance.CanCollide) .. ")")
-	end
-	return reasons
-end
-
-local function dump()
-	local camera = workspace.CurrentCamera
-	local folder = workspace:FindFirstChild("Characters")
-	local data = {
-		me = Players.LocalPlayer.Name,
-		myTeam = tostring(Players.LocalPlayer:GetAttribute("Team")),
-		settings = {
-			espEnabled = tostring(esp.settings.Enabled),
-			espTeamCheck = tostring(esp.settings.TeamCheck),
-			showPlayers = tostring(players.enabled),
-			aimEnabled = tostring(aim.settings.Enabled),
-			aimTeamCheck = tostring(aim.settings.TeamCheck),
-			visibilityCheck = tostring(aim.settings.VisibilityCheck),
-			aimTarget = aim.target and aim.target:GetFullName() or "none",
-			silent = tostring(silent.enabled),
-		},
-		players = {},
-		worldCharacters = {},
-		culledCharacters = {},
-	}
-
-	for _, player in Players:GetPlayers() do
-		if player ~= Players.LocalPlayer then
-			local character = player.Character
-			local named = folder and folder:FindFirstChild(player.Name)
-			table.insert(data.players, {
-				name = player.Name,
-				userId = tostring(player.UserId),
-				attributes = attributes(player),
-				character = character and describe(character) or "nil",
-				-- a model in workspace.Characters with this player's name that is not their Character
-				otherModelWithTheirName = named and named ~= character and describe(named) or "none",
-				skippedBecause = verdict(player, character, camera, folder),
-			})
-		end
-	end
-
-	if folder then
-		for _, model in folder:GetChildren() do
-			local entry = describe(model)
-			entry.isSomePlayersCharacter = tostring(Players:GetPlayerFromCharacter(model) ~= nil)
-			table.insert(data.worldCharacters, entry)
-		end
-	end
-	local culled = cloneref(game:GetService("ReplicatedStorage")):FindFirstChild(CULLED_FOLDER)
-	if culled then
-		for _, model in culled:GetChildren() do
-			table.insert(data.culledCharacters, describe(model))
-		end
-	end
-
-	dumps += 1
-	local name = "bloxstrike_dump_" .. dumps
-	hub.require("core/config.lua").save(name, data)
-	print("[hub] wrote hul1ans-hub/" .. name .. ".json")
-end
-
-hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == DUMP_KEY then
-		dump()
-	end
-end))
-
-local misc = window:CreateTab("Misc")
-misc:CreateSection("Debug"):CreateButton("Dump players to file (F6)", dump)
-misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)
+window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
