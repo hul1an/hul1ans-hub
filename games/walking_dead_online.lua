@@ -1,25 +1,41 @@
 local hub = ...
 
-local window = hub.ui.createWindow("The Walking Dead Online")
+local window = hub.bracket.createWindow("The Walking Dead Online")
+
+-- Bracket fires every callback once while the controls are built
+local ready = false
 
 local function placeholder(name)
-	window.button(name, function()
-		window.notify(name .. " (placeholder)")
-	end)
+	return function(value)
+		if ready then
+			print("[hub] " .. name .. " (placeholder)", value)
+		end
+	end
 end
 
-window.section("Combat")
-placeholder("Aim Assist")
-placeholder("Kill Aura")
+local combat = window:CreateTab("Combat")
+local aim = combat:CreateSection("Aim")
+local aimAssist = aim:CreateToggle("Aim Assist", false, placeholder("Aim Assist"))
+aimAssist:CreateKeybind("NONE")
+aim:CreateSlider("FOV", 0, 360, 90, true, placeholder("FOV"))
+aim:CreateDropdown("Target Part", { "Head", "Torso" }, placeholder("Target Part"), "Head")
+combat:CreateSection("Melee"):CreateToggle("Kill Aura", false, placeholder("Kill Aura"))
 
-window.section("Visuals")
-placeholder("Zombie ESP")
-placeholder("Player ESP")
+local visuals = window:CreateTab("Visuals")
+local esp = visuals:CreateSection("ESP")
+esp:CreateToggle("Zombie ESP", false, placeholder("Zombie ESP"))
+esp:CreateToggle("Player ESP", false, placeholder("Player ESP"))
+esp:CreateColorpicker("ESP Color", placeholder("ESP Color"))
 
-window.section("Player")
-placeholder("Speed")
-placeholder("Infinite Stamina")
+local player = window:CreateTab("Player")
+local movement = player:CreateSection("Movement")
+movement:CreateSlider("Speed", 16, 100, 16, true, placeholder("Speed"))
+movement:CreateToggle("Infinite Stamina", false, placeholder("Infinite Stamina"))
 
-window.section("Misc")
-placeholder("Teleport")
-placeholder("Auto Loot")
+local misc = window:CreateTab("Misc")
+local utility = misc:CreateSection("Utility")
+utility:CreateButton("Teleport", placeholder("Teleport"))
+utility:CreateToggle("Auto Loot", false, placeholder("Auto Loot"))
+misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)
+
+ready = true

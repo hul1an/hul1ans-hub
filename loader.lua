@@ -8,14 +8,14 @@ end
 local hub = {}
 local modules = {}
 
-local function fetch(path)
-	local response = request({ Url = BASE_URL .. path, Method = "GET" })
-	assert(response.StatusCode == 200, path .. " returned " .. response.StatusCode)
+function hub.fetch(url)
+	local response = request({ Url = url, Method = "GET" })
+	assert(response.StatusCode == 200, url .. " returned " .. response.StatusCode)
 	return response.Body
 end
 
 function hub.load(path)
-	return assert(loadstring(fetch(path), "=" .. path))(hub)
+	return assert(loadstring(hub.fetch(BASE_URL .. path), "=" .. path))(hub)
 end
 
 function hub.require(path)
@@ -33,6 +33,7 @@ function hub.unload()
 end
 
 hub.ui = hub.require("core/ui.lua")
+hub.bracket = hub.require("core/bracket.lua")
 getgenv().Hub = hub
 
 local registry = hub.require("games/registry.lua")

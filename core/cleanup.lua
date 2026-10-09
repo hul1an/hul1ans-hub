@@ -6,6 +6,27 @@ function cleanup.add(item)
 	return item
 end
 
+-- wraps a service so connections made through it are undone by run()
+function cleanup.track(service)
+	return setmetatable({}, {
+		__index = function(_, key)
+			local value = service[key]
+			if typeof(value) == "RBXScriptSignal" then
+				return {
+					Connect = function(_, callback)
+						return cleanup.add(value:Connect(callback))
+					end,
+				}
+			elseif type(value) == "function" then
+				return function(_, ...)
+					return value(service, ...)
+				end
+			end
+			return value
+		end,
+	})
+end
+
 function cleanup.run()
 	for index = #items, 1, -1 do
 		local item = items[index]
