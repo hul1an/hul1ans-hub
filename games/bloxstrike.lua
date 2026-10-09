@@ -504,7 +504,7 @@ end)
 local visualsTab = window:CreateTab("Visuals")
 
 local cameraSection = visualsTab:CreateSection("Camera", "LeftSide")
-cameraSection:CreateToggle("Third Person", false, setThirdPerson)
+cameraSection:CreateToggle("Third Person", false, setThirdPerson):CreateKeybind("NONE")
 cameraSection:CreateSlider("Distance", 5, 30, visuals.thirdPersonDistance, true, function(value)
 	visuals.thirdPersonDistance = value
 end)
