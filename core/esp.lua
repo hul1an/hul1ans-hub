@@ -242,7 +242,7 @@ local function update(model, source, camera, viewport)
 		sets[model] = set
 	end
 
-	local color = model == esp.highlight and HIGHLIGHT or source.color
+	local color = model == esp.highlight and HIGHLIGHT or source.colorOf and source.colorOf(model) or source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall
 	local width = height / 2

@@ -36,9 +36,17 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike.lua` is the universal Combat and ESP tabs, a Silent Aim section in Combat, and Eject.
+- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim (Combat),
+  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
-  `models` and `health` with the game's own rules below.
+  `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
+  are gone and Team Check works. Everything in the Visuals tab is unconfirmed.
+- One `_performRaycast` hook does silent aim, tracers and the hit effect, under a single pcall.
+- Third person binds a render step two after the camera's (one after the aim assist), shows the local
+  character and hides every Model under the camera through `LocalTransparencyModifier`, remembering the
+  old values to restore. It does not touch zoom limits or `CameraMode`. Not known: whether shots still
+  come from the right place with the camera pulled back.
+- Night mode saves the six Lighting properties it changes and rewrites them every frame while on.
 - From the user's dump (`hul1ans-hub/bloxstrike_dump.json`, one snapshot of a 10-player match):
   - Fog of war: the game culls players it decides you can't see (it calls this PVS). A live, visible
     player's `player.Character` is `workspace.Characters.<name>`; a culled one is moved to
@@ -65,8 +73,11 @@
   - Silent aim hooks `_performRaycast` with `hookfunction` and rewrites the last hit to `aim.target`.
     It only changes a shot that already hit something. Undone on unload by hooking the original back.
   - Characters may carry an `Invincible` attribute. Not seen in the dump, not used.
-- Temporary, asked for by the user: Misc > Debug > "Dump players to file" writes that dump file. Its
-  first job is done. Kept only to answer whether a culled character's position keeps updating (two dumps
-  a few seconds apart); remove it and its helpers (`names`, `attributes`, `dump`) after that.
-- Not ported from that script: third person camera, anti-aim, night mode, bullet tracers, hit explosion,
-  box-adornment chams, and its auto fire's `mouse1click` path (the hub uses `VirtualInputManager`).
+- The temporary Dump button is removed. Still unknown: whether a culled character's root position keeps
+  updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
+- Not ported from that script, and why: anti-aim (it turns the local character's joints and root, but
+  characters here are client-built presentations with no Humanoid, so it would most likely change only
+  what the user sees; needs the remote that sends view angles), box-adornment chams (Highlight chams
+  cover it), the Explosion instance in its hit effect (only the expanding ball is ported), its
+  per-degree "vector FOV" (the pixel FOV covers it), `mouse1click` auto fire (the hub uses
+  `VirtualInputManager`).
