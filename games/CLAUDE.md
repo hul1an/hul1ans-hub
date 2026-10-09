@@ -18,6 +18,12 @@
   emptied containers are skipped.
 - The user wants no constant scanning: containers and corpses rescan on a slider (5-60 s, default 10).
   Floor loot rescans every second.
+- Loot Filter tab: one global filter for everything loot-related. With it on, only items whose exact
+  name is in `filter.names` pass `allowed(name)`; containers and corpses with no passing item are hidden.
+  Auto loot must go through `allowed` too. Names are added from the Available Loot dropdown (every item
+  name in floor loot, containers and corpses, rebuilt on load and by the Refresh button, never on a
+  timer) and removed by clicking them in the right-hand section. Saved to
+  `hul1ans-hub/walking_dead_online_filter.json` in the executor workspace on every change.
 - Auto Loot is placeholder controls only. Needed from Dex: how the game picks an item up
   (ProximityPrompt, ClickDetector, touch or a remote).
 - The Player and Misc tabs are still placeholders too.

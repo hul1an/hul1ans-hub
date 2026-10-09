@@ -14,6 +14,11 @@ source = source:gsub('local UserInputService = game:GetService%("UserInputServic
 -- sections go to the shorter column unless a side ("LeftSide" / "RightSide") is given
 source = source:gsub("function TabInit:CreateSection%(Name%)", "function TabInit:CreateSection(Name, Side)")
 source = source:gsub("Section%.Parent = GetSide%(false%)", "Section.Parent = Side and Tab[Side] or GetSide(false)")
+-- dropdowns get AddOption: the loop that builds the options becomes a function it can call later
+source = source:gsub("for _,OptionName in pairs%(OptionTable%) do", "local function AddOption(OptionName)")
+source = source:gsub("function DropdownInit:AddToolTip%(Name%)", "for _,OptionName in pairs(OptionTable) do AddOption(OptionName) end function DropdownInit:AddOption(OptionName) AddOption(OptionName) end function DropdownInit:AddToolTip(Name)")
+-- buttons get Remove
+source = source:gsub("function ButtonInit:AddToolTip%(Name%)", "function ButtonInit:Remove() Button:Destroy() end function ButtonInit:AddToolTip(Name)")
 local library = assert(loadstring(source, "=BracketV3"))(hub)
 
 local bracket = {}

@@ -25,6 +25,13 @@ function markers.add(color, instances, label)
 	return group
 end
 
+-- makes every group scan again on the next update, for when what label() returns has changed
+function markers.rescan()
+	for _, group in markers.groups do
+		group.scanned = nil
+	end
+end
+
 local function scan(group)
 	local entries = {}
 	for _, instance in group.instances() do

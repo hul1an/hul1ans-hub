@@ -41,11 +41,23 @@ end, function(model)
 	return model.Name
 end)
 
--- one line per item, to go under a marker's heading
+local config = hub.require("core/config.lua")
+local FILTER_FILE = "walking_dead_online_filter"
+
+-- names are exact item names; with the filter on only those items are shown or looted
+local filter = config.load(FILTER_FILE) or { enabled = false, names = {} }
+
+local function allowed(name)
+	return not filter.enabled or table.find(filter.names, name) ~= nil
+end
+
+-- one line per item that passes the filter, to go under a marker's heading
 local function itemLines(items)
 	local body = ""
 	for _, item in items do
-		body ..= "\n" .. item.Name
+		if allowed(item.Name) then
+			body ..= "\n" .. item.Name
+		end
 	end
 	return body
 end
@@ -53,6 +65,9 @@ end
 local floorLoot = markers.add(Color3.fromRGB(120, 190, 255), function()
 	return children("PhysicalLoot")
 end, function(item)
+	if not allowed(item.Name) then
+		return nil
+	end
 	return item.Name, ""
 end)
 floorLoot.maxDistance = 300
@@ -64,11 +79,11 @@ end, function(container)
 	for _, child in container:GetChildren() do
 		local kind = child.Name:match("^Loot_(.+)")
 		if kind then
-			local items = child:GetChildren()
-			if #items == 0 then
+			local body = itemLines(child:GetChildren())
+			if body == "" then
 				return nil
 			end
-			return kind, itemLines(items)
+			return kind, body
 		end
 	end
 	return nil
@@ -76,11 +91,16 @@ end)
 containers.maxDistance = 300
 containers.interval = 10
 
+-- an empty corpse is still marked unless the filter is on
 local corpses = markers.add(Color3.fromRGB(200, 170, 90), function()
 	return children("Corpses")
 end, function(corpse)
 	local items = corpse:FindFirstChild("Loot_Corpse")
-	return corpse.Name, items and itemLines(items:GetChildren()) or ""
+	local body = items and itemLines(items:GetChildren()) or ""
+	if filter.enabled and body == "" then
+		return nil
+	end
+	return corpse.Name, body
 end)
 corpses.interval = 10
 
@@ -114,6 +134,86 @@ markerSection("Corpse ESP", corpses, true)
 local autoLoot = loot:CreateSection("Auto Loot", "RightSide")
 autoLoot:CreateToggle("Enabled", false, placeholder("Auto Loot"))
 autoLoot:CreateSlider("Range", 0, 50, 15, true, placeholder("Auto Loot Range"))
+
+local filterTab = window:CreateTab("Loot Filter")
+local filterSection = filterTab:CreateSection("Loot Filter", "LeftSide")
+local filterItems = filterTab:CreateSection("Filter (click to remove)", "RightSide")
+local filterButtons = {}
+
+local function filterChanged()
+	config.save(FILTER_FILE, filter)
+	markers.rescan()
+end
+
+local function addFilterButton(name)
+	filterButtons[name] = filterItems:CreateButton(name, function()
+		table.remove(filter.names, table.find(filter.names, name))
+		filterButtons[name]:Remove()
+		filterButtons[name] = nil
+		filterChanged()
+	end)
+end
+
+for _, name in filter.names do
+	addFilterButton(name)
+end
+
+filterSection:CreateToggle("Enabled", filter.enabled, function(value)
+	filter.enabled = value
+	if ready then
+		filterChanged()
+	end
+end)
+
+-- every item name in floor loot, containers and corpses right now
+local function availableLoot()
+	local names = {}
+	local found = {}
+	local function add(items)
+		for _, item in items do
+			if not found[item.Name] then
+				found[item.Name] = true
+				table.insert(names, item.Name)
+			end
+		end
+	end
+
+	add(children("PhysicalLoot"))
+	for _, folder in { "Lootables", "Corpses" } do
+		for _, holder in children(folder) do
+			for _, child in holder:GetChildren() do
+				if child.Name:match("^Loot_") then
+					add(child:GetChildren())
+				end
+			end
+		end
+	end
+
+	table.sort(names)
+	return names
+end
+
+local available = filterSection:CreateDropdown("Available Loot", availableLoot(), function(name)
+	if not table.find(filter.names, name) then
+		table.insert(filter.names, name)
+		addFilterButton(name)
+		filterChanged()
+	end
+end)
+filterSection:CreateButton("Refresh Available Loot", function()
+	available:ClearOptions()
+	for _, name in availableLoot() do
+		available:AddOption(name)
+	end
+end)
+filterSection:CreateButton("Clear Filter", function()
+	for _, button in filterButtons do
+		button:Remove()
+	end
+	table.clear(filterButtons)
+	table.clear(filter.names)
+	filterChanged()
+end)
 
 local player = window:CreateTab("Player")
 local movement = player:CreateSection("Movement")
