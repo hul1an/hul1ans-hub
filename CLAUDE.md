@@ -57,10 +57,9 @@ in an executor in the target game and reported what they saw. Say "written, not 
 
 | Path | What |
 |---|---|
-| `loader.lua` | The only file users run. Holds the base-URL constant, builds the `hub` table (`load`, `require`, `cleanup`, `unload`, `ui`), looks the game up in the registry and runs its file |
+| `loader.lua` | The only file users run. Holds the repo constant, builds the `hub` table (`fetch`, `load`, `require`, `cleanup`, `unload`, `bracket`), looks the game up in the registry and runs its file |
 | `core/cleanup.lua` | The cleanup list: `add(item)` for connections, instances, functions and threads, `run()` undoes them all |
-| `core/bracket.lua` | Loads AlexR32's BracketV3 (archived, no license, so fetched at a pinned commit instead of copied) and returns `createWindow(title)`. Patches the library at load so its `RunService` / `UserInputService` connections are undone by `unload()`. RightShift toggles the window |
-| `core/ui.lua` | Custom window: `createWindow(title)` returns `section`, `button`, `notify`. Draggable, RightShift toggles it, X and the Eject button both call `hub.unload()` so the game doesn't need restarting between tests |
+| `core/bracket.lua` | Loads AlexR32's BracketV3 (archived, no license, so fetched at a pinned commit instead of copied) and returns `createWindow(title)`. Patches the library at load so its `RunService` / `UserInputService` connections are undone by `unload()`. RightShift toggles the window. Every game window should end with an Eject button that calls `hub.unload()` so the game doesn't need restarting between tests |
 | `games/registry.lua` | Maps `game.GameId` (the universe, covers every place) to a game file |
 | `games/<name>.lua` | One file per supported game, run with `hub` as `...`. Never requires another game file |
 | `games/CLAUDE.md` | Per-game findings: ids, remote names, attribute names, Dex paths, quirks |
@@ -69,8 +68,8 @@ in an executor in the target game and reported what they saw. Say "written, not 
   returned value, `hub.load(path)` runs a file fresh.
 - Not written yet: `universal.lua` (features for any game, also for unsupported games) and the
   config save/load in `core/`. Unsupported games currently only get a `warn`.
-- The game window is being tested with Bracket (`hub.bracket`). `core/ui.lua` (custom, `hub.ui`) is kept until
-  one of them is chosen. Any other third-party library needs asking first.
+- The UI library is Bracket (`hub.bracket`), chosen by the user after testing. A different library or a
+  custom UI needs asking first.
 - Bracket builds its UI from the Roblox asset `rbxassetid://7141683860` through `game:GetObjects`
   (public domain, last updated by its owner in 2022). If that asset ever goes away the window won't build.
   Its callbacks fire once while controls are built, so game files guard their placeholders with a `ready` flag.
@@ -106,4 +105,4 @@ not in the game file's comments.
 
 Started from scratch on 2026-10-09 after the old C++ Fragment external and the other product's `bot/`
 were deleted on the user's instruction (unrecoverable). First game is The Walking Dead Online with a
-placeholder window.
+Bracket placeholder window (confirmed working in Potassium).

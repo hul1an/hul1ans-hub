@@ -43,7 +43,6 @@ function hub.unload()
 	getgenv().Hub = nil
 end
 
-hub.ui = hub.require("core/ui.lua")
 hub.bracket = hub.require("core/bracket.lua")
 getgenv().Hub = hub
 
