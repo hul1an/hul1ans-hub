@@ -19,7 +19,6 @@ local aimAssist = aim:CreateToggle("Aim Assist", false, placeholder("Aim Assist"
 aimAssist:CreateKeybind("NONE")
 aim:CreateSlider("FOV", 0, 360, 90, true, placeholder("FOV"))
 aim:CreateDropdown("Target Part", { "Head", "Torso" }, placeholder("Target Part"), "Head")
-combat:CreateSection("Melee"):CreateToggle("Kill Aura", false, placeholder("Kill Aura"))
 
 local warned = false
 hub.require("core/esp.lua").addSource("Zombies", Color3.fromRGB(110, 150, 90), function()
