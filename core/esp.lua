@@ -53,6 +53,18 @@ local bones = {}
 local highlights = {}
 local container
 
+-- health and max health of a model: the source's own health(model) if it has one, else its Humanoid's
+function esp.health(model, source)
+	if source.health then
+		return source.health(model)
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		return humanoid.Health, humanoid.MaxHealth
+	end
+	return nil
+end
+
 -- models(skipTeammates) returns the models to draw, label(model) their name text
 function esp.addSource(name, color, models, label)
 	local source = {
@@ -196,8 +208,8 @@ local function updateChams(model, color)
 end
 
 local function update(model, source, camera, viewport)
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	if humanoid and humanoid.Health <= 0 then
+	local health, maxHealth = esp.health(model, source)
+	if health and health <= 0 then
 		return false
 	end
 
@@ -250,11 +262,11 @@ local function update(model, source, camera, viewport)
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
-	local showHealth = humanoid ~= nil and settings.HealthBar
+	local showHealth = health ~= nil and settings.HealthBar
 	set.healthBack.Visible = showHealth
 	set.health.Visible = showHealth
 	if showHealth then
-		local fraction = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+		local fraction = math.clamp(health / maxHealth, 0, 1)
 		set.healthBack.Position = Vector2.new(x - 7, y - 1)
 		set.healthBack.Size = Vector2.new(4, height + 2)
 		set.health.Color = RED:Lerp(GREEN, fraction)

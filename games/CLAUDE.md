@@ -37,27 +37,36 @@
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs, a Silent Aim section in Combat, and Eject.
-  It turns the aim assist's Team Check on by default.
-- Everything below comes from a third-party script the user supplied (`scriptsource.txt`, an unverified
-  ScriptBlox post), not from Dex, so treat it as unconfirmed until seen working:
+  It turns the aim assist's Team Check on by default and replaces the built-in players source's
+  `models` and `health` with the game's own rules below.
+- From the user's dump (`hul1ans-hub/bloxstrike_dump.json`, one snapshot of a 10-player match):
+  - Fog of war: the game culls players it decides you can't see (it calls this PVS). A live, visible
+    player's `player.Character` is `workspace.Characters.<name>`; a culled one is moved to
+    `ReplicatedStorage._PVS_CulledCharacters.<name>` and keeps a position on its root part. Whether
+    that position keeps updating while culled is NOT known; drawing it gave boxes in the wrong place.
+    The hub only uses characters whose parent is `workspace.Characters`, so ESP and aim cannot see
+    culled players. This is a server-side limit, not a bug.
+  - Characters are custom (`CharacterType = PlayerCustomCharacter`): R15 part names, an
+    `AnimationController`, no `Humanoid`. Health is the character attributes `Health` / `MaxHealth`,
+    death is `Dead` (also mirrored on the Player). A dead player's `Character` is nil.
+  - Sides are the Player attribute `Team`: `Terrorists` or `Counter-Terrorists`. The Teams service is
+    empty and `player.Team` is nil for everyone.
+  - A player not in the match has a normal Roblox character directly under `workspace` (seen at
+    0, 103, 0) with no game attributes. Ignored by the parent check.
+  - Character models contain parts parked far away (one bounding box was 10,000 studs tall), which is
+    why the ESP box must come from `HumanoidRootPart`.
+  - Other top-level folders: `workspace.Debris`, `workspace.ThirdPersonWeaponStash`, `workspace.Map`;
+    the camera holds `ViewmodelStash` and the held gun's model (e.g. `Galil AR`).
+- From a third-party script the user supplied (`scriptsource.txt`, an unverified ScriptBlox post), still
+  unconfirmed:
   - Bullets go through a class table found only via `getgc(true)`: a table with a `_performRaycast`
     function and a `getTrueSpread` field. `_performRaycast` returns a result table with `Hits` (array of
     hit tables with `Instance`, `Position`, `Exit`), `Origin`, `Direction`, `Distance`.
   - Silent aim hooks `_performRaycast` with `hookfunction` and rewrites the last hit to `aim.target`.
     It only changes a shot that already hit something. Undone on unload by hooking the original back.
-  - Teams are probably named `Terrorists` / `Counter-Terrorists`; that script guessed at how they are
-    stored, so the hub just compares `player.Team`.
-  - Characters may carry `Dead` and `Invincible` attributes and dead ones may be moved under a
-    `Debris` parent. The hub doesn't use these yet.
-- User report: the ESP was missing on some players (teammates and enemies, even in plain view) and offset
-  on others. The box then came from `Model:GetBoundingBox()`; it now comes from `HumanoidRootPart`, as
-  that script does. Cause not confirmed: if it persists, the other suspects are an error on one player
-  stopping the loop for the rest, or the game hiding / replacing `player.Character`.
-- The root-part change did not fix it: ESP is still missing on some players. With ESP Team Check on,
-  teammates still showed, so BloxStrike does not mark sides with `player.Team`.
-- Temporary, asked for by the user: Misc > Debug > "Dump players to file" writes
-  `hul1ans-hub/bloxstrike_dump.json` (every player's team fields, attributes, character path, children,
-  health, positions, plus every Humanoid in the workspace). Remove it and its helpers once the missing
-  ESP and the team marking are understood.
+  - Characters may carry an `Invincible` attribute. Not seen in the dump, not used.
+- Temporary, asked for by the user: Misc > Debug > "Dump players to file" writes that dump file. Its
+  first job is done. Kept only to answer whether a culled character's position keeps updating (two dumps
+  a few seconds apart); remove it and its helpers (`names`, `attributes`, `dump`) after that.
 - Not ported from that script: third person camera, anti-aim, night mode, bullet tracers, hit explosion,
   box-adornment chams, and its auto fire's `mouse1click` path (the hub uses `VirtualInputManager`).

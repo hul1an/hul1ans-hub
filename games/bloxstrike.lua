@@ -1,7 +1,44 @@
 local hub = ...
 
+local Players = cloneref(game:GetService("Players"))
+
+local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
 aim.settings.TeamCheck = true
+
+-- the game moves players it has culled out of workspace.Characters and leaves their last position on them,
+-- so only characters still in that folder are real; it has no Humanoids or Roblox teams, only attributes
+local players = esp.sources[1]
+local warned = false
+
+players.models = function(skipTeammates)
+	local characters = {}
+	local folder = workspace:FindFirstChild("Characters")
+	if not folder then
+		if not warned then
+			warned = true
+			warn("[hub] workspace.Characters not found")
+		end
+		return characters
+	end
+
+	local team = skipTeammates and Players.LocalPlayer:GetAttribute("Team")
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		if player ~= Players.LocalPlayer
+			and character
+			and character.Parent == folder
+			and not character:GetAttribute("Dead")
+			and not (team and player:GetAttribute("Team") == team) then
+			table.insert(characters, character)
+		end
+	end
+	return characters
+end
+
+players.health = function(character)
+	return character:GetAttribute("Health"), character:GetAttribute("MaxHealth")
+end
 
 local window = hub.bracket.createWindow("BloxStrike")
 local tabs = hub.require("universal.lua")(window)
@@ -131,7 +168,6 @@ local function attributes(instance)
 end
 
 local function dump()
-	local Players = cloneref(game:GetService("Players"))
 	local camera = workspace.CurrentCamera
 	local data = {
 		localPlayer = Players.LocalPlayer.Name,

@@ -50,9 +50,9 @@ local function findTarget(camera)
 	for _, source in esp.sources do
 		if source.aim then
 			for _, model in source.models(settings.TeamCheck) do
-				local humanoid = model:FindFirstChildOfClass("Humanoid")
+				local health = esp.health(model, source)
 				local part = model:FindFirstChild(PARTS[settings.TargetPart]) or model:FindFirstChild("HumanoidRootPart")
-				if part and not (humanoid and humanoid.Health <= 0) then
+				if part and not (health and health <= 0) then
 					local distance = (part.Position - origin).Magnitude
 					local screen = camera:WorldToViewportPoint(part.Position)
 					local offset = (Vector2.new(screen.X, screen.Y) - center).Magnitude
@@ -61,7 +61,7 @@ local function findTarget(camera)
 						if settings.Mode == "Crosshair" then
 							score = offset
 						elseif settings.Mode == "Health" then
-							score = humanoid and humanoid.Health or math.huge
+							score = health or math.huge
 						end
 						if (not bestScore or score < bestScore)
 							and (not settings.VisibilityCheck or isVisible(camera, part, model)) then
