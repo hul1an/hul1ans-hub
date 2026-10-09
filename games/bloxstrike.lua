@@ -113,4 +113,81 @@ section:CreateToggle("Enabled", silent.enabled, function(value)
 end)
 section:CreateLabel("Uses the aim assist target")
 
-window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+-- temporary: everything is written as text so the file shows how the game stores characters and sides
+local function names(instance)
+	local list = {}
+	for _, child in instance:GetChildren() do
+		table.insert(list, child.Name .. " (" .. child.ClassName .. ")")
+	end
+	return list
+end
+
+local function attributes(instance)
+	local list = {}
+	for key, value in instance:GetAttributes() do
+		list[key] = tostring(value)
+	end
+	return list
+end
+
+local function dump()
+	local Players = cloneref(game:GetService("Players"))
+	local camera = workspace.CurrentCamera
+	local data = {
+		localPlayer = Players.LocalPlayer.Name,
+		workspace = names(workspace),
+		teams = names(cloneref(game:GetService("Teams"))),
+		camera = names(camera),
+		players = {},
+		humanoids = {},
+	}
+
+	for _, player in Players:GetPlayers() do
+		local entry = {
+			name = player.Name,
+			team = tostring(player.Team),
+			teamColor = tostring(player.TeamColor),
+			neutral = tostring(player.Neutral),
+			attributes = attributes(player),
+			children = names(player),
+		}
+		local character = player.Character
+		if character then
+			local root = character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			local cframe, size = character:GetBoundingBox()
+			entry.character = {
+				path = character:GetFullName(),
+				attributes = attributes(character),
+				children = names(character),
+				health = humanoid and tostring(humanoid.Health) .. " / " .. tostring(humanoid.MaxHealth),
+				root = root and tostring(root.Position),
+				boxCentre = tostring(cframe.Position),
+				boxSize = tostring(size),
+				distance = root and tostring(math.floor((camera.CFrame.Position - root.Position).Magnitude)),
+				inFront = root and tostring(camera:WorldToViewportPoint(root.Position).Z > 0),
+			}
+		end
+		table.insert(data.players, entry)
+	end
+
+	-- every humanoid in the world, to spot bodies that are not a player's Character
+	for _, descendant in workspace:GetDescendants() do
+		if descendant:IsA("Humanoid") and descendant.Parent then
+			local owner = Players:GetPlayerFromCharacter(descendant.Parent)
+			table.insert(data.humanoids, {
+				path = descendant.Parent:GetFullName(),
+				player = owner and owner.Name or "none",
+				health = tostring(descendant.Health) .. " / " .. tostring(descendant.MaxHealth),
+				attributes = attributes(descendant.Parent),
+			})
+		end
+	end
+
+	hub.require("core/config.lua").save("bloxstrike_dump", data)
+	print("[hub] wrote hul1ans-hub/bloxstrike_dump.json")
+end
+
+local misc = window:CreateTab("Misc")
+misc:CreateSection("Debug"):CreateButton("Dump players to file", dump)
+misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)

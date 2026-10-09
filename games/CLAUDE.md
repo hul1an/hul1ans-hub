@@ -53,5 +53,11 @@
   on others. The box then came from `Model:GetBoundingBox()`; it now comes from `HumanoidRootPart`, as
   that script does. Cause not confirmed: if it persists, the other suspects are an error on one player
   stopping the loop for the rest, or the game hiding / replacing `player.Character`.
+- The root-part change did not fix it: ESP is still missing on some players. With ESP Team Check on,
+  teammates still showed, so BloxStrike does not mark sides with `player.Team`.
+- Temporary, asked for by the user: Misc > Debug > "Dump players to file" writes
+  `hul1ans-hub/bloxstrike_dump.json` (every player's team fields, attributes, character path, children,
+  health, positions, plus every Humanoid in the workspace). Remove it and its helpers once the missing
+  ESP and the team marking are understood.
 - Not ported from that script: third person camera, anti-aim, night mode, bullet tracers, hit explosion,
   box-adornment chams, and its auto fire's `mouse1click` path (the hub uses `VirtualInputManager`).
