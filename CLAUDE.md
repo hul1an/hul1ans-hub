@@ -80,6 +80,8 @@ in an executor in the target game and reported what they saw. Say "written, not 
 
 Public GitHub repo `hul1an/hul1ans-hub` (branch `main`), so everything pushed is world-readable: no
 tokens, keys or private notes in it. The base URL is the single constant at the top of `loader.lua`.
+Raw URLs are cached for 5 minutes, so `hub.load` appends `?t=<os.time()>` to every hub file. The user's
+one-liner for `loader.lua` itself is not covered: add a changing `?t=` to it after a push, or wait.
 
 ## Conventions
 
@@ -101,4 +103,4 @@ not in the game file's comments.
 
 Started from scratch on 2026-10-09 after the old C++ Fragment external and the other product's `bot/`
 were deleted on the user's instruction (unrecoverable). First game is The Walking Dead Online with a
-placeholder window. Raw GitHub URLs are cached for a few minutes, so a test right after a push can still load the old files.
+placeholder window. 

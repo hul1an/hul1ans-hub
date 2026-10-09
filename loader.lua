@@ -15,7 +15,7 @@ function hub.fetch(url)
 end
 
 function hub.load(path)
-	return assert(loadstring(hub.fetch(BASE_URL .. path), "=" .. path))(hub)
+	return assert(loadstring(hub.fetch(BASE_URL .. path .. "?t=" .. os.time()), "=" .. path))(hub)
 end
 
 function hub.require(path)
