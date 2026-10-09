@@ -8,12 +8,12 @@ local settings = esp.settings
 return function(window)
 	local tab = window:CreateTab("ESP")
 
-	tab:CreateSection("ESP"):CreateToggle("Enabled", settings.Enabled, function(value)
+	tab:CreateSection("ESP", "LeftSide"):CreateToggle("Enabled", settings.Enabled, function(value)
 		settings.Enabled = value
 	end)
 
 	for _, source in esp.sources do
-		local section = tab:CreateSection(source.name)
+		local section = tab:CreateSection(source.name, "RightSide")
 		section:CreateToggle("Show " .. source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
@@ -29,7 +29,7 @@ return function(window)
 		end)
 	end
 
-	local options = tab:CreateSection("Options")
+	local options = tab:CreateSection("Options", "LeftSide")
 	local function toggle(name, key)
 		options:CreateToggle(name, settings[key], function(value)
 			settings[key] = value

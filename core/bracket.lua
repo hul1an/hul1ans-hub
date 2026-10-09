@@ -11,6 +11,9 @@ local ACCENT = Color3.fromRGB(90, 140, 255)
 local source = "local hub = ... " .. hub.fetch(SOURCE_URL)
 source = source:gsub('local RunService = game:GetService%("RunService"%)', 'local RunService = hub.cleanup.track(game:GetService("RunService"))')
 source = source:gsub('local UserInputService = game:GetService%("UserInputService"%)', 'local UserInputService = hub.cleanup.track(game:GetService("UserInputService"))')
+-- sections go to the shorter column unless a side ("LeftSide" / "RightSide") is given
+source = source:gsub("function TabInit:CreateSection%(Name%)", "function TabInit:CreateSection(Name, Side)")
+source = source:gsub("Section%.Parent = GetSide%(false%)", "Section.Parent = Side and Tab[Side] or GetSide(false)")
 local library = assert(loadstring(source, "=BracketV3"))(hub)
 
 local bracket = {}
