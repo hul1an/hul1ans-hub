@@ -24,8 +24,9 @@ combat:CreateSection("Melee"):CreateToggle("Kill Aura", false, placeholder("Kill
 local visuals = window:CreateTab("Visuals")
 local esp = visuals:CreateSection("ESP")
 esp:CreateToggle("Zombie ESP", false, placeholder("Zombie ESP"))
-esp:CreateToggle("Player ESP", false, placeholder("Player ESP"))
 esp:CreateColorpicker("ESP Color", placeholder("ESP Color"))
+
+hub.require("universal.lua")(window)
 
 local player = window:CreateTab("Player")
 local movement = player:CreateSection("Movement")

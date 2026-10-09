@@ -49,7 +49,9 @@ getgenv().Hub = hub
 local registry = hub.require("games/registry.lua")
 local gamePath = registry[game.GameId]
 if not gamePath then
-	warn("[hub] unsupported game " .. game.GameId)
+	local window = hub.bracket.createWindow("Universal")
+	hub.require("universal.lua")(window)
+	window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
 	return
 end
 
