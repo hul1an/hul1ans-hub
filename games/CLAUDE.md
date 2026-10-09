@@ -40,7 +40,7 @@
   Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
-  are gone and Team Check works. Everything in the Visuals tab is unconfirmed.
+  are gone, Team Check works and silent aim works. Everything in the Visuals tab is unconfirmed.
 - One `_performRaycast` hook does silent aim, tracers and the hit effect, under a single pcall.
 - Third person binds a render step two after the camera's (one after the aim assist), shows the local
   character and hides every Model under the camera through `LocalTransparencyModifier`, remembering the
@@ -65,8 +65,8 @@
     why the ESP box must come from `HumanoidRootPart`.
   - Other top-level folders: `workspace.Debris`, `workspace.ThirdPersonWeaponStash`, `workspace.Map`;
     the camera holds `ViewmodelStash` and the held gun's model (e.g. `Galil AR`).
-- From a third-party script the user supplied (`scriptsource.txt`, an unverified ScriptBlox post), still
-  unconfirmed:
+- From a third-party script the user supplied (`scriptsource.txt`, a ScriptBlox post). The user confirmed
+  silent aim works well, so the bullet class and hit-result shape below are right:
   - Bullets go through a class table found only via `getgc(true)`: a table with a `_performRaycast`
     function and a `getTrueSpread` field. `_performRaycast` returns a result table with `Hits` (array of
     hit tables with `Instance`, `Position`, `Exit`), `Origin`, `Direction`, `Distance`.
