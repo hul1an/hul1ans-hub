@@ -37,7 +37,7 @@
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
-  Team Colors, Dormant ESP and Sound ESP (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
+  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
@@ -79,11 +79,6 @@
   - Silent aim hooks `_performRaycast` with `hookfunction` and rewrites the last hit to `aim.target`.
     It only changes a shot that already hit something. Undone on unload by hooking the original back.
   - Characters may carry an `Invincible` attribute. Not seen in the dump, not used.
-- Dormant ESP (ESP tab, off by default): for an enemy who is alive (`Dead` attribute false on the Player)
-  but culled (character's parent is named `_PVS_CulledCharacters`), a box is drawn at the root position
-  still on the culled character, with opacity falling to zero over the Fade Time slider (1-30 s, default
-  10) counted from when the cull was first seen. Follows the ESP master toggle, Show Players and the
-  players' max distance. The box is where the enemy was last shown, never where they are now.
 - Bots (found in the user's second dump, `bloxstrike_dump_1.json`): matches are filled with bots. A bot
   is a model in `workspace.Characters` with `Bot = true`, its own `Team`, `Health`, `MaxHealth`, `Dead`,
   `ActorId` and `CombatantId` attributes, and no `PresentationOwnerUserId`. It has no Player object, so
@@ -133,20 +128,13 @@
     `.Character.Action` (`ActionId`, `UserId`, `Generation`), `.UI.UIPlayerKilled`. Present but silent in the
     run: `.VFX.CreateCharacterMuzzleFlash`, `.Character.CharacterDamaged`, `.Ping.CreatePlayerPositionPing`,
     `.Spectate.UpdateCameraCFrame`, `MovementV2Remotes.BotCombat`.
-- Sound ESP (ESP tab, off by default, written 2026-10-10 and not run): a ring and a distance at every `Sound`
-  that appears under `workspace.Debris` more than 8 studs from the local character and from every living
-  character that is shown, fading over the Sound Fade Time slider (1-10 s, default 3). It follows the ESP
-  master toggle, Show Players and the players' max distance. It cannot tell a footstep from a bullet impact
-  or a grenade: which sounds turn out to be noise is for the user to report.
-- Temporary, asked for by the user on 2026-10-10 after being told the server may reject or flag it: the
-  spectate probe (two buttons in a Debug section on the Misc tab, `recordSpectate` and `trySpectate` at the end
-  of `games/bloxstrike.lua`), to learn whether the server sends a hidden enemy to a client that asks to
-  spectate them. Record hooks `__namecall` to log the game's own `FireServer` calls on
-  `NetworkRemotes.Spectate.*` (none has been seen yet, so the request format is unknown), what those remotes
-  send back, and the game functions whose constants mention `Spectat`. Try replays the last recorded request
-  that names another player with a living enemy's UserId swapped in, after a recorded `StartSpectating` and
-  before a recorded `StopSpectating` if there were any, and samples for 8 s. Both write
-  `hul1ans-hub/bloxstrike_spectate.json`. Remove it once it has answered.
+- Removed at the user's request on 2026-10-10, so the hub has nothing for hidden enemies now:
+  - Dormant ESP, a fading box at a culled enemy's last shown position.
+  - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.
+  - The spectate probe, which hooked `__namecall` to record the game's `NetworkRemotes.Spectate.*` requests
+    and could replay one with an enemy's UserId.
+  The last two were merged as PR #1 (commit `82cc35b`) and run by the user, who reported that it didn't work
+  without saying how; the spectate probe left no output file. Dormant ESP's code is in the commits before.
 - `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
   `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
 - `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
