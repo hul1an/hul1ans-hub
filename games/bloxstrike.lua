@@ -11,6 +11,8 @@ local Debris = cloneref(game:GetService("Debris"))
 local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
 aim.settings.TeamCheck = true
+-- adding this puts the Silent Aim toggle under the aim's Enabled; the shot hook reads it
+aim.settings.SilentAim = false
 
 local THIRD_PERSON_STEP = "HubThirdPerson"
 -- where the game parks the characters it has culled, under ReplicatedStorage
@@ -28,7 +30,6 @@ local NIGHT = {
 	ExposureCompensation = 0.5,
 }
 
-local silent = { enabled = false }
 local visuals = {
 	teamColors = false,
 	thirdPersonDistance = 12,
@@ -211,7 +212,7 @@ local function shotEnd(result, origin, target)
 end
 
 local function onShot(result)
-	local target = silent.enabled and aim.target
+	local target = aim.settings.SilentAim and aim.target
 	if not (target and target.Parent and redirect(result, target)) then
 		target = nil
 	end
@@ -425,9 +426,7 @@ local function antiAimStep()
 		table.clear(originals)
 	end
 
-	local firing = aim.settings.AutoFire and aim.target ~= nil
-		or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-	if antiAim.disableOnFire and firing then
+	if antiAim.disableOnFire and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
 		restoreJoints()
 		return
 	end
@@ -573,12 +572,6 @@ hub.cleanup.add(function()
 	table.clear(dormantBoxes)
 end)
 hub.cleanup.add(RunService.RenderStepped:Connect(dormantStep))
-
-local silentSection = tabs.combat:CreateSection("Silent Aim", "RightSide")
-silentSection:CreateToggle("Enabled", silent.enabled, function(value)
-	silent.enabled = value
-end)
-silentSection:CreateLabel("Uses the aim assist target")
 
 local antiAimSection = tabs.combat:CreateSection("Anti-Aim", "RightSide")
 antiAimSection:CreateToggle("Enabled", antiAim.enabled, function(value)

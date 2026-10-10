@@ -36,7 +36,7 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim (Combat),
+- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
   Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
@@ -102,9 +102,11 @@
   `AppData/Local/Potassium/workspace/hul1ans-hub/`. Still unknown: whether a culled character's root position keeps
   updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
-  its hit effect (only the expanding ball is ported), `mouse1click` auto fire (the hub uses
-  `VirtualInputManager`).
-- `games/bloxstrike.lua` was not touched by the starline combat port of 2026-10-10: Silent Aim and Anti-Aim
-  are still its own sections on the Combat tab and silent aim still redirects to `aim.target`. The aim core
-  under them is new, so Team Check, the silent aim target and Auto Fire need seeing again. Not known:
-  whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage.
+  its hit effect (only the expanding ball is ported), `mouse1click` auto fire (the hub's triggerbot clicks
+  through `VirtualInputManager`).
+- Since the starline combat port of 2026-10-10 silent aim is the setting `aim.settings.SilentAim`, which the
+  game file adds so that `universal.lua` draws its toggle under the aim's Enabled; the shot hook reads it and
+  still redirects to `aim.target`. The aim core under it is new and Auto Fire is gone, so Team Check and the
+  silent aim target need seeing again. Anti-aim's Disable On Fire now only looks at the left mouse button.
+  Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage, and whether
+  the triggerbot's `VirtualInputManager` click shows as that button being held.

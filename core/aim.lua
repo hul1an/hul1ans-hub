@@ -7,7 +7,6 @@ local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
 
 local esp = hub.require("core/esp.lua")
 
-local AIM_BUTTON = Enum.UserInputType.MouseButton2
 local FIRE_BUTTON = Enum.UserInputType.MouseButton1
 local STEP_NAME = "HubAim"
 -- seconds between clicks, and how long each click is held
@@ -70,7 +69,6 @@ local aim = {
 		VisibilityCheck = true,
 		MaxDistance = 500,
 		TargetColor = false,
-		AutoFire = false,
 	},
 }
 
@@ -436,8 +434,9 @@ local function roll(milliseconds)
 	return settings.TriggerRandomize and random:NextNumber(seconds * 0.5, seconds * 1.5) or seconds
 end
 
--- starline's triggerbot: clicks while a target is under the crosshair, once its delays have run
-local function trigger(camera, now)
+-- starline's triggerbot: clicks while a target is under the crosshair, once its delays have run.
+-- aimed is the model the aim has, or nil
+local function trigger(camera, now, aimed)
 	-- the user is firing themselves
 	if UserInputService:IsMouseButtonPressed(FIRE_BUTTON) and not clicking then
 		return
@@ -457,7 +456,8 @@ local function trigger(camera, now)
 		burstUntil = nil
 	end
 
-	local model = underCrosshair(camera)
+	-- a silent shot goes to the aim's target wherever the crosshair is, so that target counts as under it
+	local model = settings.SilentAim and aimed or underCrosshair(camera)
 	if not model then
 		acquired, served, reaction = nil, false, nil
 		return
@@ -515,17 +515,15 @@ function aim.start()
 		if model and settings.SwitchDelay > 0 and model ~= switchTarget then
 			switchTarget, switchUntil = model, now + settings.SwitchDelay / 1000
 		end
-		if point and now >= switchUntil and UserInputService:IsMouseButtonPressed(AIM_BUTTON) then
+		-- SilentAim is a game file's setting: its shot hook redirects to aim.target, so the view is left alone
+		if point and now >= switchUntil and not settings.SilentAim then
 			pull(camera, part, point, dt)
 		else
 			wrote, onTarget, progress = nil, false, 0
 		end
 
-		if part and settings.AutoFire then
-			fire(camera)
-		end
 		if settings.Trigger and not blocked then
-			trigger(camera, now)
+			trigger(camera, now, model)
 		end
 	end)
 

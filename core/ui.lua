@@ -677,7 +677,8 @@ function Container:CreateToggle(name, default, callback)
 	local container = self
 	local toggle = setmetatable({ row = row }, Control)
 
-	-- bind is a KeyCode name or "NONE"; pressed, if given, is called with it after the toggle flips
+	-- bind is a KeyCode name, a mouse button's UserInputType name or "NONE"; pressed, if given, is called with it
+	-- after the toggle flips
 	function toggle:CreateKeybind(bind, pressed)
 		local key = bind
 		local waiting = false
@@ -696,7 +697,7 @@ function Container:CreateToggle(name, default, callback)
 		make("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), Parent = chip })
 
 		local function show()
-			chip.Text = waiting and "..." or key:lower()
+			chip.Text = waiting and "..." or key:gsub("MouseButton", "Mouse"):lower()
 			chip.TextColor3 = waiting and ACCENT or MUTED
 		end
 		show()
@@ -705,16 +706,18 @@ function Container:CreateToggle(name, default, callback)
 			show()
 		end)
 		hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
-			if input.UserInputType ~= Enum.UserInputType.Keyboard then
+			-- left, right and middle are the only mouse buttons Roblox reports
+			local name = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name
+				or input.UserInputType.Name:match("^MouseButton%d$")
+			if not name then
 				return
 			end
 			if waiting then
 				waiting = false
 				-- escape and backspace clear the bind
-				local clear = input.KeyCode == Enum.KeyCode.Escape or input.KeyCode == Enum.KeyCode.Backspace
-				key = clear and "NONE" or input.KeyCode.Name
+				key = (name == "Escape" or name == "Backspace") and "NONE" or name
 				show()
-			elseif not processed and input.KeyCode.Name == key then
+			elseif not processed and name == key then
 				set(not state)
 				if pressed then
 					pressed(key)

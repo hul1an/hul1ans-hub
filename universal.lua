@@ -33,7 +33,10 @@ local function addCombat(window)
 
 	local general = tab:CreateSection("General", "LeftSide")
 	toggle(general, "Enabled", "Enabled"):CreateKeybind("NONE")
-	general:CreateLabel("Hold right mouse to aim")
+	-- only a game file with a shot hook has this: it adds the setting before it calls this file
+	if settings.SilentAim ~= nil then
+		toggle(general, "Silent Aim", "SilentAim")
+	end
 	toggle(general, "Draw FOV", "DrawFov")
 	general:CreateColorpicker("FOV Color", function(color)
 		settings.FovColor = color
@@ -84,7 +87,6 @@ local function addCombat(window)
 	toggle(options, "Visibility Check", "VisibilityCheck")
 	slider(options, "Max Distance", "MaxDistance", 0, 3000, true)
 	toggle(options, "Target Color", "TargetColor")
-	toggle(options, "Auto Fire", "AutoFire")
 	-- players are always targeted, the other sources are opt-in
 	for index = 2, #esp.sources do
 		local source = esp.sources[index]
