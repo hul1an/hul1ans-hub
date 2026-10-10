@@ -7,6 +7,7 @@ local UserInputService = cloneref(game:GetService("UserInputService"))
 local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local Debris = cloneref(game:GetService("Debris"))
+local HttpService = cloneref(game:GetService("HttpService"))
 
 local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
@@ -629,4 +630,353 @@ shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
 
-window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+-- temporary: the PVS probe. Its button records what the client is told about other characters for PROBE_SECONDS,
+-- to learn whether a hidden enemy's position still arrives, and writes hul1ans-hub/bloxstrike_pvs.json
+local PROBE_SECONDS = 10
+local probing = false
+
+-- a value as something JSONEncode takes; binary is written as hex, 2048 bytes of it at most
+local function plain(value)
+	local kind = typeof(value)
+	if kind == "boolean" then
+		return value
+	elseif kind == "number" then
+		return (value ~= value or math.abs(value) == math.huge) and tostring(value) or value
+	elseif kind == "string" and not value:find("[^ -~]") then
+		return value:sub(1, 200)
+	elseif kind == "string" or kind == "buffer" then
+		local bytes = kind == "buffer" and buffer.tostring(value) or value
+		local hex = bytes:sub(1, 2048):gsub(".", function(byte)
+			return ("%02x"):format(byte:byte())
+		end)
+		return ("%s[%d] %s"):format(kind, #bytes, hex)
+	elseif kind == "Instance" then
+		return value.ClassName .. " " .. value:GetFullName()
+	end
+	return kind .. " " .. tostring(value)
+end
+
+-- a table as nested plain values, cut off at a depth and at 40 keys
+local function shape(value, depth)
+	if type(value) ~= "table" then
+		return plain(value)
+	elseif depth == 0 then
+		return "table"
+	end
+	local out, count = {}, 0
+	for key, item in next, value do
+		count += 1
+		if count > 40 then
+			out["..."] = "more"
+			break
+		end
+		out[tostring(plain(key))] = shape(item, depth - 1)
+	end
+	return out
+end
+
+local function spot(position)
+	return ("%.2f, %.2f, %.2f"):format(position.X, position.Y, position.Z)
+end
+
+local function positionOf(value)
+	local kind = typeof(value)
+	if kind == "Vector3" then
+		return value
+	elseif kind == "CFrame" then
+		return value.Position
+	end
+	return nil
+end
+
+-- the name and distance of whichever of the positions is nearest
+local function nearest(spots, position)
+	local name, best
+	for other, at in spots do
+		local distance = (at - position).Magnitude
+		if not best or distance < best then
+			name, best = other, distance
+		end
+	end
+	return name, best
+end
+
+-- a table's string keys in order, to tell tables built the same way apart from the rest
+local function signature(object)
+	local keys = {}
+	for key in next, object do
+		if type(key) == "string" then
+			table.insert(keys, key)
+			if #keys == 64 then
+				break
+			end
+		end
+	end
+	table.sort(keys)
+	return table.concat(keys, ",")
+end
+
+-- every character in the world and culled folders, and what the game says of it
+local function roster()
+	local list = {}
+	local folders = { world = workspace:FindFirstChild("Characters"), culled = ReplicatedStorage:FindFirstChild(CULLED_FOLDER) }
+	for where, folder in folders do
+		for _, character in folder:GetChildren() do
+			local root = character:FindFirstChild("HumanoidRootPart")
+			if root then
+				list[character.Name] = {
+					where = where,
+					position = spot(root.Position),
+					dead = character:GetAttribute("Dead"),
+					health = character:GetAttribute("Health"),
+					team = teamOf(character),
+					visible = character:GetAttribute("ClientCharacterPresentationVisible"),
+				}
+			end
+		end
+	end
+	return list
+end
+
+local function probe()
+	if probing then
+		return
+	end
+	probing = true
+	hub.ui.notify("PVS probe running: keep playing until it says it is written")
+
+	local started = os.clock()
+	local data = {
+		me = Players.LocalPlayer.Name,
+		team = Players.LocalPlayer:GetAttribute("Team"),
+		errors = {},
+		remotes = {},
+		sounds = {},
+		code = {},
+		shapes = {},
+		snapshots = {},
+	}
+	-- a part that fails is noted and the rest is still written: a run costs the user a match to set up
+	local function part(name, run)
+		local ok, err = pcall(run)
+		if not ok then
+			data.errors[name] = tostring(err)
+		end
+	end
+
+	-- every remote the server fires at this client: how often, and what a few of its events carried
+	local connections = {}
+	part("remotes", function()
+		for _, root in { ReplicatedStorage, workspace, Players.LocalPlayer } do
+			for _, remote in root:GetDescendants() do
+				if remote:IsA("BaseRemoteEvent") then
+					local entry = { path = remote:GetFullName(), class = remote.ClassName, count = 0, samples = {} }
+					local due = 0
+					table.insert(data.remotes, entry)
+					table.insert(connections, hub.cleanup.add(remote.OnClientEvent:Connect(function(...)
+						entry.count += 1
+						local at = os.clock() - started
+						-- six samples a remote, 1.5 s apart, each with where the characters were at that moment
+						if #entry.samples < 6 and at >= due then
+							due = at + 1.5
+							table.insert(entry.samples, {
+								at = at,
+								arguments = shape(table.pack(...), 4),
+								characters = roster(),
+							})
+						end
+					end)))
+				end
+			end
+		end
+
+		-- sounds are what a server still has to send about an enemy it hides
+		table.insert(connections, hub.cleanup.add(workspace.DescendantAdded:Connect(function(sound)
+			local parent = sound.Parent
+			if sound:IsA("Sound") and parent and #data.sounds < 150 then
+				local position = parent:IsA("BasePart") and parent.Position
+					or parent:IsA("Attachment") and parent.WorldPosition
+				table.insert(data.sounds, {
+					at = os.clock() - started,
+					name = sound.Name,
+					id = sound.SoundId,
+					parent = parent:GetFullName(),
+					position = position and spot(position) or nil,
+				})
+			end
+		end)))
+	end)
+
+	-- the game's functions that mention the cull, with their strings and the instances they hold
+	part("code", function()
+		for index, value in getgc() do
+			if type(value) == "function"
+				and islclosure(value)
+				and not isexecutorclosure(value)
+				and #data.code < 120 then
+				local constants = debug.getconstants(value)
+				local hit = false
+				for _, constant in constants do
+					if type(constant) == "string" and (constant:find("PVS") or constant:find("Culled")) then
+						hit = true
+						break
+					end
+				end
+				if hit then
+					local entry = {
+						source = debug.info(value, "s"),
+						name = debug.info(value, "n"),
+						line = debug.info(value, "l"),
+						strings = {},
+						instances = {},
+					}
+					for _, constant in constants do
+						if type(constant) == "string" and #entry.strings < 80 then
+							table.insert(entry.strings, plain(constant))
+						end
+					end
+					for _, upvalue in debug.getupvalues(value) do
+						if typeof(upvalue) == "Instance" then
+							table.insert(entry.instances, plain(upvalue))
+						end
+					end
+					table.insert(data.code, entry)
+				end
+			end
+			if index % 20000 == 0 then
+				task.wait()
+			end
+		end
+	end)
+
+	-- the game's own record of where characters are: tables holding a position within 3 studs of another
+	-- living character's root, then every table built the same way, which is where a hidden one would show
+	local tracked = {}
+	part("tables", function()
+		local mine = Players.LocalPlayer.Character
+		local world, everyone = {}, {}
+		local function locate()
+			table.clear(world)
+			table.clear(everyone)
+			local folders = { world = workspace.Characters, culled = ReplicatedStorage:FindFirstChild(CULLED_FOLDER) }
+			for where, folder in folders do
+				for _, character in folder:GetChildren() do
+					local root = character:FindFirstChild("HumanoidRootPart")
+					if root and character ~= mine then
+						everyone[character.Name] = root.Position
+						if where == "world" and not character:GetAttribute("Dead") then
+							world[character.Name] = root.Position
+						end
+					end
+				end
+			end
+		end
+		locate()
+
+		local objects = getgc(true)
+		local shapes = {}
+		for index, object in objects do
+			if type(object) == "table" and object ~= world and object ~= everyone then
+				local seen = 0
+				for key, value in next, object do
+					seen += 1
+					if seen > 32 then
+						break
+					end
+					local position = positionOf(value)
+					local name, distance
+					if position then
+						name, distance = nearest(world, position)
+					end
+					if distance and distance <= 3 then
+						local id = type(key) == "string" and key or "#"
+						local sign = id == "#" and "#" .. #object or signature(object)
+						local found = shapes[sign .. "|" .. id]
+						if not found and #data.shapes < 60 then
+							found = {
+								key = id,
+								signature = sign,
+								count = 0,
+								near = name,
+								example = shape(object, 1),
+								records = {},
+							}
+							shapes[sign .. "|" .. id] = found
+							table.insert(data.shapes, found)
+						end
+						if found then
+							found.count += 1
+						end
+						break
+					end
+				end
+			end
+			-- the characters have moved on by the time the scan is resumed
+			if index % 50000 == 0 then
+				task.wait()
+				locate()
+			end
+		end
+
+		table.sort(data.shapes, function(a, b)
+			return a.count > b.count
+		end)
+		local wanted = {}
+		for _, found in data.shapes do
+			if found.key ~= "#" and #wanted < 8 then
+				table.insert(wanted, found)
+			end
+		end
+		for index, object in objects do
+			if type(object) == "table" then
+				for _, found in wanted do
+					local position = #found.records < 60 and positionOf(rawget(object, found.key))
+					if position and signature(object) == found.signature then
+						local name, distance = nearest(everyone, position)
+						local record = {
+							position = spot(position),
+							near = name,
+							distance = distance and math.floor(distance),
+							fields = shape(object, 1),
+						}
+						table.insert(found.records, record)
+						table.insert(tracked, { object = object, key = found.key, record = record })
+					end
+				end
+			end
+			if index % 50000 == 0 then
+				task.wait()
+				locate()
+			end
+		end
+	end)
+
+	local recording = os.clock()
+	while os.clock() - recording < PROBE_SECONDS and not unloaded do
+		table.insert(data.snapshots, { at = os.clock() - started, characters = roster() })
+		task.wait(0.25)
+	end
+
+	-- a record that has moved since it was read is live, whether or not its character is shown
+	for _, item in tracked do
+		local position = positionOf(rawget(item.object, item.key))
+		item.record.later = position and spot(position) or nil
+	end
+	for _, connection in connections do
+		connection:Disconnect()
+	end
+
+	-- a section JSON can't take is dropped rather than losing the file
+	for name, section in data do
+		if not pcall(HttpService.JSONEncode, HttpService, section) then
+			data[name] = "could not be encoded"
+		end
+	end
+	hub.require("core/config.lua").save("bloxstrike_pvs", data)
+	probing = false
+	hub.ui.notify("PVS probe written to hul1ans-hub/bloxstrike_pvs.json", "success")
+end
+
+local misc = window:CreateTab("Misc", "settings")
+misc:CreateSection("Debug"):CreateButton("PVS Probe", probe)
+misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)

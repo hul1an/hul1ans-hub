@@ -93,6 +93,24 @@
   side is on the Player. The hub now reads `workspace.Characters` and the culled folder directly, takes
   the side from the character or its owner (`teamOf`), and labels bots by model name. Confirmed by the
   user: bots have ESP now.
+- Read again on 2026-10-10 for the fog of war work: in `bloxstrike_dump_1.json` all 7 characters in
+  `_PVS_CulledCharacters` were dead, their root positions being where they died (the "boxes in the wrong
+  place"), and all 5 living enemies were in `workspace.Characters`, 75 to 110 studs from the local player.
+  A living enemy in the culled folder has not been captured, so "server-side limit" above is an assumption.
+- Every character has `ClientOwnedCharacterPresentation = true` and `ClientCharacterPresentationVisible`
+  (false on the culled ones): the client builds the models itself, so positions reach it through the game's
+  own networking, not Roblox character replication. Which remote carries them is not known.
+- Player objects replicate for everyone, with `Health`, `Armor`, `Dead`, `Team`, `Money`, `CurrentEquipped`,
+  `LastKiller`, `IsWalking` / `IsCrouching` / `IsJumping` / `IsClimbing` / `IsSniperScoped` and
+  `PresentationSpawnPosition` / `PresentationSpawnYaw` (where they spawned this round), but no live position.
+- Seen by the user (2026-10-10): enemies are completely invisible until they are close enough to wallbang,
+  so living enemies are hidden, though none was in the culled folder in either dump.
+- Temporary, to be removed once it has answered: the PVS Probe button on the Misc tab (`probe` at the end of
+  `games/bloxstrike.lua`). Over about 15 s it writes `hul1ans-hub/bloxstrike_pvs.json` with every incoming
+  remote's rate and sample arguments, the sounds added under `workspace`, the game functions whose constants
+  mention `PVS` or `Culled`, the game tables that hold another character's position (and every table of the
+  same shape, read again 10 s later), and both character folders every 0.25 s. It decides between reading a
+  hidden enemy's position from the client and tracking last-known positions from sounds.
 - `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
   `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
 - `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
