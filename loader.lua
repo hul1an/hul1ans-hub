@@ -25,8 +25,12 @@ function hub.fetch(url)
 	return response.Body
 end
 
+function hub.read(path)
+	return hub.fetch(BASE_URL .. path)
+end
+
 function hub.load(path)
-	return assert(loadstring(hub.fetch(BASE_URL .. path), "=" .. path))(hub)
+	return assert(loadstring(hub.read(path), "=" .. path))(hub)
 end
 
 function hub.require(path)
@@ -43,19 +47,20 @@ function hub.unload()
 	getgenv().Hub = nil
 end
 
-hub.bracket = hub.require("core/bracket.lua")
+hub.ui = hub.require("core/ui.lua")
 getgenv().Hub = hub
 
 local registry = hub.require("games/registry.lua")
 local gamePath = registry[game.GameId]
 if not gamePath then
-	local window = hub.bracket.createWindow("Universal")
+	local window = hub.ui.createWindow("Universal")
 	hub.require("universal.lua")(window)
-	window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+	window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
 	return
 end
 
 local ok, err = pcall(hub.load, gamePath)
 if not ok then
 	warn("[hub] " .. gamePath .. " failed: " .. tostring(err))
+	hub.ui.notify(gamePath .. " failed: " .. tostring(err), "error")
 end

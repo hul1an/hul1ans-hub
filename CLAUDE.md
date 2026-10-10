@@ -58,14 +58,16 @@ in an executor in the target game and reported what they saw. Say "written, not 
 
 | Path | What |
 |---|---|
-| `loader.lua` | The only file users run. Holds the repo constant, builds the `hub` table (`fetch`, `load`, `require`, `cleanup`, `unload`, `bracket`), looks the game up in the registry and runs its file |
+| `loader.lua` | The only file users run. Holds the repo constant, builds the `hub` table (`fetch`, `read`, `load`, `require`, `cleanup`, `unload`, `ui`), looks the game up in the registry and runs its file |
 | `core/cleanup.lua` | The cleanup list: `add(item)` for connections, instances, functions and threads, `run()` undoes them all |
-| `core/bracket.lua` | Loads AlexR32's BracketV3 (archived, no license, so fetched at a pinned commit instead of copied) and returns `createWindow(title)`. Patches the library at load so its `RunService` / `UserInputService` connections are undone by `unload()`. Also adds an optional side to `tab:CreateSection(name, "LeftSide" | "RightSide")`; without it Bracket picks the shorter column. Two more patches: dropdowns get `:AddOption(name)` and buttons get `:Remove()`, neither of which Bracket has. RightShift toggles the window and `bracket.visible()` says whether it is showing. Every game window should end with an Eject button that calls `hub.unload()` so the game doesn't need restarting between tests |
-| `core/config.lua` | `config.load(name)` / `config.save(name, table)`: JSON files in the `hul1ans-hub` folder of the executor workspace. `load` returns nil when the file doesn't exist |
+| `core/ui.lua` | The menu (`hub.ui`): a port of the "starline" CS2 menu's look from the static dump in `D:\intruigingFolder\zzzclaude\starline-dump-gui` (`docs/P22_gui_visual_spec.md` there is the spec). Built from GUI instances under `gethui()`, not Drawing. `ui.createWindow(title)` returns the window, `ui.visible()` says whether it is showing, `ui.notify(text, "error" | "success" | nil)` shows a toast for 5 s. RightShift toggles the window. `window:CreateTab(name, icon)` takes an icon name from the `ICONS` table; `tab:CreateSection(name, "LeftSide" | "RightSide")` goes to the shorter column without a side; `tab:CreateSubTab(name)` gives a page with its own `CreateSection`, and the bottom strip only shows once a tab has more than one. A section has `CreateLabel`, `CreateButton` (`:Remove()`), `CreateToggle` (`:CreateKeybind(bind)`), `CreateSlider(name, min, max, default, precise, callback, format)`, `CreateDropdown` / `CreateMultiDropdown` (`:AddOption`, `:ClearOptions`), `CreateColorpicker` (`:UpdateColor`), `CreateTextBox(name, placeholder, numbersOnly, callback)` and `CreateGroup(name, default, callback)`, which returns a foldable container with the same methods. Every control has `:AddToolTip(text)`. The header's search steps through controls by name, and its save button opens the config popup. Every game window should end with an Eject button that calls `hub.unload()` so the game doesn't need restarting between tests |
+| `core/bracket.lua` | No longer loaded. Kept only until `core/ui.lua` has been seen working in Potassium, then delete it. Loads AlexR32's BracketV3 (archived, no license, so fetched at a pinned commit instead of copied) and returns `createWindow(title)`. Patches the library at load so its `RunService` / `UserInputService` connections are undone by `unload()`. Also adds an optional side to `tab:CreateSection(name, "LeftSide" | "RightSide")`; without it Bracket picks the shorter column. Two more patches: dropdowns get `:AddOption(name)` and buttons get `:Remove()`, neither of which Bracket has. RightShift toggles the window and `bracket.visible()` says whether it is showing. Every game window should end with an Eject button that calls `hub.unload()` so the game doesn't need restarting between tests |
+| `core/config.lua` | `config.load(name)` / `config.save(name, table)`: JSON files in the `hul1ans-hub` folder of the executor workspace. `load` returns nil when the file doesn't exist. `config.list(prefix)` gives the saved names that start with a prefix and `config.delete(name)` removes one |
 | `core/esp.lua` | ESP engine on the Drawing API. `esp.settings` holds the shared options (enabled, team check, box, skeleton, chams, health bar, name, distance), `esp.sources` the target lists, `esp.start()` begins the RenderStepped loop. Each source has its own `enabled`, `color`, `maxDistance` (0-3000), `tracers` and `aim` (whether the aim assist may target it). Players are the built-in source; a game file adds its NPCs with `esp.addSource(name, color, models, label)` before it calls `universal.lua`. `models(skipTeammates)` gets the caller's team check; only the players source uses it, comparing `player.Team`. A source may also have `health(model)` returning health and max health (without it `esp.health` reads the model's Humanoid) and `colorOf(model)` returning a colour to use in place of the source's, or nil. A game whose characters, teams or health aren't the Roblox defaults overrides `esp.sources[1].models` and `.health` in its game file (see BloxStrike). The box is placed and sized from `HumanoidRootPart` (falling back to the model's bounding box when there is none), because a bounding box is thrown off by parts a game keeps elsewhere. The colour covers box, skeleton, chams, tracer and text; the health bar stays red to green. Chams are `Highlight` instances in a folder under `gethui()`; skeleton lines are only created while Skeleton is on |
 | `core/aim.lua` | Aim assist. While right mouse is held it turns the camera to the best target (no smoothing), bound with `BindToRenderStep` just after the camera update. Targets come from `esp.sources` whose `aim` flag is set: players always, other sources opt-in. `aim.settings`: team check, visibility check (raycast from the camera that looks through fully invisible parts, since maps have invisible barrier walls), max distance, mode (Distance / Crosshair / Health), target part, FOV radius in pixels around the screen centre, draw FOV circle, target colour (sets `esp.highlight` so the ESP draws that model red), auto fire (left clicks through `VirtualInputManager` while there is a target and the menu is hidden). `aim.target` is the current target part for game files to read |
 | `core/markers.lua` | Text-only world markers on the Drawing API, for things that aren't characters (corpses, loot). `markers.add(color, instances, label)` returns a group with `enabled`, `color`, `maxDistance` and `interval` (seconds between scans, default 1). `instances()` and `label(instance)` only run on a scan; `label` returns a heading and the text under it, or nil to skip. Between scans it re-checks distance 4 times a second from cached positions and only moves the labels per frame. `markers.start()` begins the loop. Game files start it and build the controls themselves |
-| `universal.lua` | Features that work in any game. Starts the ESP and aim assist and returns `function(window)` that adds the Combat tab (aim assist) and the ESP tab (master toggle, one section per source, shared options) to a Bracket window, and returns `{ combat, esp }` so a game file can add sections to those tabs |
+| `universal.lua` | Features that work in any game. Starts the ESP and aim assist and returns `function(window)` that adds the Combat tab (aim assist) and the ESP tab (master toggle, one section per source, shared options) to a window, and returns `{ combat, esp }` so a game file can add sections to those tabs |
+| `assets/` | Files `core/ui.lua` fetches once and then reads from `hul1ans-hub/assets` in the executor workspace through `getcustomasset`, so a changed asset needs a new file name. `GeistMono-Medium.ttf` is the menu font (SIL OFL 1.1, licence in `OFL.txt`). `icons.png` is a sheet of the dump's 21 `sl-*` SVG icons drawn at twice their shown size, made with a throwaway script because Roblox can't render SVG |
 | `games/registry.lua` | Maps `game.GameId` (the universe, covers every place) to a game file |
 | `games/<name>.lua` | One file per supported game, run with `hub` as `...`. Never requires another game file |
 | `games/CLAUDE.md` | Per-game findings: ids, remote names, attribute names, Dex paths, quirks |
@@ -74,13 +76,21 @@ in an executor in the target game and reported what they saw. Say "written, not 
   returned value, `hub.load(path)` runs a file fresh.
 - Game files call `hub.require("universal.lua")(window)` to add the universal tabs before their own
   Misc / Eject tab. An unsupported game gets a "Universal" window with just those tabs and Eject.
-- Only the Walking Dead Online loot filter is saved so far; the other settings reset on every load.
-- The UI library is Bracket (`hub.bracket`), chosen by the user after testing. A different library or a
-  custom UI needs asking first.
-- Bracket builds its UI from the Roblox asset `rbxassetid://7141683860` through `game:GetObjects`
-  (public domain, last updated by its owner in 2022). If that asset ever goes away the window won't build.
-  Its callbacks fire once while controls are built, so game files guard their placeholders with a `ready` flag.
-  A new colorpicker shows black until `:UpdateColor(color)` is called on it.
+- Settings reset on every load unless a config is loaded from the menu's save button. A config is every
+  control's value keyed by its tab / section / name path, saved as `<window title>_config_<name>.json`.
+  The Walking Dead Online loot filter is still saved on its own.
+- The UI library is `core/ui.lua` (`hub.ui`), asked for by the user on 2026-10-10 to replace Bracket and
+  given the method names the game files already called. A different library needs asking first.
+- `core/ui.lua` does not call a control's callback while it is built, only on a change, a config load or
+  `:UpdateColor`. Bracket did, which is why Walking Dead Online still has a `ready` flag; it can go when
+  `core/bracket.lua` does. A new colorpicker is white until `:UpdateColor(color)` is called on it.
+- Decided by the user for the port: no backdrop blur and no drop shadow (Roblox has neither), brand text
+  "bloxline", and built from scratch in the dump's palette because the dump had no exact draw for them:
+  button, label, keybind chip, colour picker layout, dropdown field, text input, tooltip, group header,
+  search behaviour, config popup and toasts. Hover, popup fade, open / close and wheel speeds weren't
+  recovered either; they are the guessed constants at the top of the file.
+- Left out of the port: the CS2-only screens (inventory, side panel, preset chips), Divider, ListBox,
+  typing a slider's value, and the picker's alpha bar and RGB sliders (hub colours are `Color3`).
 - Shared code lives in `core/`. Don't copy it between game files.
 
 ## Hosting
@@ -114,3 +124,7 @@ not in the game file's comments.
 Started from scratch on 2026-10-09 after the old C++ Fragment external and the other product's `bot/`
 were deleted on the user's instruction (unrecoverable). First game is The Walking Dead Online with a
 Bracket placeholder window (confirmed working in Potassium).
+
+`core/ui.lua` and the switch away from Bracket were written on 2026-10-10 and have not been run. Open
+until the user reports back: whether Potassium loads the font and the icon sheet through
+`getcustomasset`, and whether the window draws and behaves as intended.

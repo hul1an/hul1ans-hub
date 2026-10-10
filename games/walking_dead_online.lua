@@ -1,6 +1,6 @@
 local hub = ...
 
-local window = hub.bracket.createWindow("The Walking Dead Online")
+local window = hub.ui.createWindow("The Walking Dead Online")
 
 -- Bracket fires every callback once while the controls are built
 local ready = false
@@ -106,7 +106,7 @@ corpses.interval = 10
 
 hub.require("universal.lua")(window)
 
-local loot = window:CreateTab("Loot")
+local loot = window:CreateTab("Loot", "folder")
 
 local function markerSection(title, group, rescan)
 	local section = loot:CreateSection(title, "LeftSide")
@@ -133,7 +133,7 @@ markerSection("Corpse ESP", corpses, true)
 
 loot:CreateSection("Auto Loot", "RightSide"):CreateToggle("Enabled", false, placeholder("Auto Loot"))
 
-local filterTab = window:CreateTab("Loot Filter")
+local filterTab = window:CreateTab("Loot Filter", "layers")
 local filterSection = filterTab:CreateSection("Loot Filter", "LeftSide")
 local filterItems = filterTab:CreateSection("Filter (click to remove)", "RightSide")
 local filterButtons = {}
@@ -213,12 +213,12 @@ filterSection:CreateButton("Clear Filter", function()
 	filterChanged()
 end)
 
-local player = window:CreateTab("Player")
+local player = window:CreateTab("Player", "hanger")
 local movement = player:CreateSection("Movement")
 movement:CreateSlider("Speed", 16, 100, 16, true, placeholder("Speed"))
 movement:CreateToggle("Infinite Stamina", false, placeholder("Infinite Stamina"))
 
-local misc = window:CreateTab("Misc")
+local misc = window:CreateTab("Misc", "settings")
 local utility = misc:CreateSection("Utility")
 utility:CreateButton("Teleport", placeholder("Teleport"))
 misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)

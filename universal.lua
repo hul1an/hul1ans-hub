@@ -7,7 +7,7 @@ aim.start()
 
 local function addCombat(window)
 	local settings = aim.settings
-	local tab = window:CreateTab("Combat")
+	local tab = window:CreateTab("Combat", "crosshairs")
 
 	local function toggle(section, name, key)
 		return section:CreateToggle(name, settings[key], function(value)
@@ -50,7 +50,7 @@ end
 
 local function addEsp(window)
 	local settings = esp.settings
-	local tab = window:CreateTab("ESP")
+	local tab = window:CreateTab("ESP", "users")
 
 	tab:CreateSection("ESP", "LeftSide"):CreateToggle("Enabled", settings.Enabled, function(value)
 		settings.Enabled = value

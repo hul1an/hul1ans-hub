@@ -91,7 +91,7 @@ end
 -- a left click at the screen centre; skipped while the menu is open so it can't click the menu
 local function fire(camera)
 	local now = os.clock()
-	if now - lastShot < FIRE_DELAY or hub.bracket.visible() then
+	if now - lastShot < FIRE_DELAY or hub.ui.visible() then
 		return
 	end
 	lastShot = now

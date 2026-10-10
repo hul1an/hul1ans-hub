@@ -97,7 +97,7 @@ players.colorOf = function(character)
 	return visuals.teamColors and TEAM_COLORS[teamOf(character)] or nil
 end
 
-local window = hub.bracket.createWindow("BloxStrike")
+local window = hub.ui.createWindow("BloxStrike")
 local tabs = hub.require("universal.lua")(window)
 
 -- tracers and hit effects live under the camera, where the aim assist's visibility ray ignores them
@@ -611,7 +611,7 @@ espSection:CreateSlider("Dormant Fade Time", 1, 30, dormant.fadeTime, true, func
 	dormant.fadeTime = value
 end)
 
-local visualsTab = window:CreateTab("Visuals")
+local visualsTab = window:CreateTab("Visuals", "eye")
 
 local cameraSection = visualsTab:CreateSection("Camera", "LeftSide")
 cameraSection:CreateToggle("Third Person", false, setThirdPerson):CreateKeybind("NONE")
@@ -636,4 +636,4 @@ shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
 
-window:CreateTab("Misc"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
