@@ -7,7 +7,6 @@ local UserInputService = cloneref(game:GetService("UserInputService"))
 local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local Debris = cloneref(game:GetService("Debris"))
-local HttpService = cloneref(game:GetService("HttpService"))
 
 local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
@@ -18,6 +17,8 @@ aim.settings.SilentAim = false
 local THIRD_PERSON_STEP = "HubThirdPerson"
 -- where the game parks the characters it has culled, under ReplicatedStorage
 local CULLED_FOLDER = "_PVS_CulledCharacters"
+-- a sound this close to a character that is shown is that character's, not a hidden enemy's
+local SOUND_OWNER_RANGE = 8
 local TEAM_COLORS = {
 	Terrorists = Color3.fromRGB(204, 170, 80),
 	["Counter-Terrorists"] = Color3.fromRGB(100, 149, 200),
@@ -574,6 +575,91 @@ hub.cleanup.add(function()
 end)
 hub.cleanup.add(RunService.RenderStepped:Connect(dormantStep))
 
+-- sound esp: the server stops sending an enemy's position once it decides you can't see them, but it still
+-- sends the sounds they make, and the game plays each one from a part it puts under workspace.Debris
+local heard = { enabled = false, fadeTime = 3 }
+local noises = {}
+
+local function owned(position)
+	local mine = Players.LocalPlayer.Character
+	local root = mine and mine:FindFirstChild("HumanoidRootPart")
+	if root and (root.Position - position).Magnitude <= SOUND_OWNER_RANGE then
+		return true
+	end
+	for _, character in players.models(false) do
+		if (character.HumanoidRootPart.Position - position).Magnitude <= SOUND_OWNER_RANGE then
+			return true
+		end
+	end
+	return false
+end
+
+local debris = workspace:FindFirstChild("Debris")
+if debris then
+	hub.cleanup.add(debris.DescendantAdded:Connect(function(sound)
+		local parent = sound.Parent
+		if not (heard.enabled and sound:IsA("Sound") and parent) then
+			return
+		end
+		local position = parent:IsA("BasePart") and parent.Position or parent:IsA("Attachment") and parent.WorldPosition
+		if position and not owned(position) then
+			local ring = Drawing.new("Circle")
+			ring.Thickness = 1
+			ring.NumSides = 24
+			ring.Radius = 6
+			local text = Drawing.new("Text")
+			text.Size = 13
+			text.Center = true
+			text.Outline = true
+			table.insert(noises, { position = position, at = os.clock(), ring = ring, text = text })
+		end
+	end))
+else
+	warn("[hub] workspace.Debris not found: sound esp unavailable")
+	hub.ui.notify("workspace.Debris not found: sound esp unavailable", "error")
+end
+
+local function soundStep()
+	local camera = workspace.CurrentCamera
+	local now = os.clock()
+	local drawing = heard.enabled and esp.settings.Enabled and players.enabled
+
+	for index = #noises, 1, -1 do
+		local noise = noises[index]
+		local opacity = 1 - (now - noise.at) / heard.fadeTime
+		if opacity <= 0 then
+			noise.ring:Remove()
+			noise.text:Remove()
+			table.remove(noises, index)
+		else
+			local screen = camera:WorldToViewportPoint(noise.position)
+			local distance = (camera.CFrame.Position - noise.position).Magnitude
+			local visible = drawing and screen.Z > 0 and distance <= players.maxDistance
+			noise.ring.Visible = visible
+			noise.text.Visible = visible
+			if visible then
+				local at = Vector2.new(screen.X, screen.Y)
+				noise.ring.Color = players.color
+				noise.ring.Transparency = opacity
+				noise.ring.Position = at
+				noise.text.Color = players.color
+				noise.text.Transparency = opacity
+				noise.text.Position = at + Vector2.new(0, 8)
+				noise.text.Text = math.floor(distance) .. " studs"
+			end
+		end
+	end
+end
+
+hub.cleanup.add(function()
+	for _, noise in noises do
+		noise.ring:Remove()
+		noise.text:Remove()
+	end
+	table.clear(noises)
+end)
+hub.cleanup.add(RunService.RenderStepped:Connect(soundStep))
+
 local antiAimSection = tabs.combat:CreateSection("Anti-Aim", "RightSide")
 antiAimSection:CreateToggle("Enabled", antiAim.enabled, function(value)
 	antiAim.enabled = value
@@ -604,6 +690,12 @@ end)
 espSection:CreateSlider("Dormant Fade Time", 1, 30, dormant.fadeTime, true, function(value)
 	dormant.fadeTime = value
 end)
+espSection:CreateToggle("Sound ESP", heard.enabled, function(value)
+	heard.enabled = value
+end)
+espSection:CreateSlider("Sound Fade Time", 1, 10, heard.fadeTime, true, function(value)
+	heard.fadeTime = value
+end)
 
 local visualsTab = window:CreateTab("Visuals", "eye")
 
@@ -630,10 +722,22 @@ shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
 
--- temporary: the PVS probe. Its button records what the client is told about other characters for PROBE_SECONDS,
--- to learn whether a hidden enemy's position still arrives, and writes hul1ans-hub/bloxstrike_pvs.json
-local PROBE_SECONDS = 10
-local probing = false
+-- temporary: the spectate probe, to see whether the server will send a hidden enemy to a client that asks to
+-- spectate them. Record logs the game's own spectate requests (die and spectate a teammate while it runs) and
+-- what comes back. Try replays the last one with a living enemy's UserId in the teammate's place.
+-- Both write hul1ans-hub/bloxstrike_spectate.json
+local spectate = {
+	recording = false,
+	trying = false,
+	started = 0,
+	sent = {},
+	received = {},
+	counts = {},
+	latest = {},
+	code = {},
+	attempts = {},
+	dirty = false,
+}
 
 -- a value as something JSONEncode takes; binary is written as hex, 2048 bytes of it at most
 local function plain(value)
@@ -675,308 +779,272 @@ local function shape(value, depth)
 	return out
 end
 
-local function spot(position)
-	return ("%.2f, %.2f, %.2f"):format(position.X, position.Y, position.Z)
+local function saveSpectate()
+	local sent = {}
+	for _, entry in spectate.sent do
+		table.insert(sent, {
+			at = entry.at - spectate.started,
+			remote = entry.remote.Name,
+			arguments = shape(entry.arguments, 3),
+		})
+	end
+	hub.require("core/config.lua").save("bloxstrike_spectate", {
+		me = Players.LocalPlayer.Name,
+		sent = sent,
+		received = spectate.received,
+		counts = spectate.counts,
+		code = spectate.code,
+		attempts = spectate.attempts,
+	})
 end
 
-local function positionOf(value)
-	local kind = typeof(value)
-	if kind == "Vector3" then
-		return value
-	elseif kind == "CFrame" then
-		return value.Position
+-- runs inside the __namecall hook ahead of the game's own call, so it makes no method call on an instance:
+-- that could replace the method name the game's call is about to use
+local function capture(remote, ...)
+	local arguments = table.pack(...)
+	local buffers = {}
+	for index = 1, arguments.n do
+		if typeof(arguments[index]) == "buffer" then
+			arguments[index] = buffer.tostring(arguments[index])
+			buffers[index] = true
+		end
+	end
+	table.insert(spectate.sent, { at = os.clock(), remote = remote, arguments = arguments, buffers = buffers })
+	spectate.dirty = true
+end
+
+local function recordSpectate()
+	if spectate.recording then
+		return
+	end
+	local remotes = ReplicatedStorage:FindFirstChild("NetworkRemotes")
+	local folder = remotes and remotes:FindFirstChild("Spectate")
+	if not folder then
+		warn("[hub] ReplicatedStorage.NetworkRemotes.Spectate not found")
+		hub.ui.notify("ReplicatedStorage.NetworkRemotes.Spectate not found", "error")
+		return
+	end
+	spectate.recording = true
+	spectate.started = os.clock()
+
+	for _, remote in folder:GetChildren() do
+		if remote:IsA("BaseRemoteEvent") then
+			spectate.counts[remote.Name] = 0
+			hub.cleanup.add(remote.OnClientEvent:Connect(function(...)
+				local arguments = shape(table.pack(...), 4)
+				spectate.counts[remote.Name] += 1
+				spectate.latest[remote.Name] = arguments
+				-- the camera remote fires many times a second: thirty of each are enough to read a format from
+				if spectate.counts[remote.Name] <= 30 then
+					table.insert(spectate.received, {
+						at = os.clock() - spectate.started,
+						remote = remote.Name,
+						arguments = arguments,
+					})
+					spectate.dirty = true
+				end
+			end))
+		end
+	end
+
+	local warned = false
+	local original
+	original = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if getnamecallmethod() == "FireServer" and self.Parent == folder and not checkcaller() then
+			local ok, err = pcall(capture, self, ...)
+			if not ok and not warned then
+				warned = true
+				warn("[hub] spectate hook failed: " .. tostring(err))
+			end
+		end
+		return original(self, ...)
+	end))
+	hub.cleanup.add(function()
+		hookmetamethod(game, "__namecall", original)
+	end)
+
+	-- the game's functions that mention spectating, with their strings and what they hold
+	for index, value in getgc() do
+		if type(value) == "function"
+			and islclosure(value)
+			and not isexecutorclosure(value)
+			and #spectate.code < 80 then
+			local constants = debug.getconstants(value)
+			local hit = false
+			for _, constant in constants do
+				if type(constant) == "string" and constant:find("Spectat") then
+					hit = true
+					break
+				end
+			end
+			if hit then
+				local entry = {
+					source = debug.info(value, "s"),
+					name = debug.info(value, "n"),
+					line = debug.info(value, "l"),
+					strings = {},
+					upvalues = {},
+				}
+				for _, constant in constants do
+					if type(constant) == "string" and #entry.strings < 80 then
+						table.insert(entry.strings, plain(constant))
+					end
+				end
+				for _, upvalue in debug.getupvalues(value) do
+					if (typeof(upvalue) == "Instance" or type(upvalue) == "table") and #entry.upvalues < 8 then
+						table.insert(entry.upvalues, shape(upvalue, 1))
+					end
+				end
+				table.insert(spectate.code, entry)
+			end
+		end
+		if index % 20000 == 0 then
+			task.wait()
+		end
+	end
+
+	saveSpectate()
+	hub.ui.notify("spectate probe recording: die and spectate a teammate, then press Try while alive", "success")
+	while not unloaded do
+		if spectate.dirty then
+			spectate.dirty = false
+			saveSpectate()
+		end
+		task.wait(2)
+	end
+end
+
+-- the UserId a recorded request names, in the bytes it is written as: a double or its digits
+local function idIn(bytes)
+	for _, player in Players:GetPlayers() do
+		if player ~= Players.LocalPlayer then
+			if bytes:find(string.pack("<d", player.UserId), 1, true) then
+				return string.pack("<d", player.UserId), "double"
+			elseif bytes:find(tostring(player.UserId), 1, true) then
+				return tostring(player.UserId), "digits"
+			end
+		end
 	end
 	return nil
 end
 
--- the name and distance of whichever of the positions is nearest
-local function nearest(spots, position)
-	local name, best
-	for other, at in spots do
-		local distance = (at - position).Magnitude
-		if not best or distance < best then
-			name, best = other, distance
+local function lastSent(name)
+	for index = #spectate.sent, 1, -1 do
+		if spectate.sent[index].remote.Name == name then
+			return spectate.sent[index]
 		end
 	end
-	return name, best
+	return nil
 end
 
--- a table's string keys in order, to tell tables built the same way apart from the rest
-local function signature(object)
-	local keys = {}
-	for key in next, object do
-		if type(key) == "string" then
-			table.insert(keys, key)
-			if #keys == 64 then
+-- sends a recorded request again, with other bytes for its first buffer if they are given
+local function replay(entry, bytes)
+	local arguments = table.clone(entry.arguments)
+	for index in entry.buffers do
+		arguments[index] = buffer.fromstring(index == 1 and bytes or arguments[index])
+	end
+	entry.remote:FireServer(table.unpack(arguments, 1, arguments.n))
+end
+
+local function trySpectate()
+	if spectate.trying then
+		return
+	end
+	local me = Players.LocalPlayer
+	local world = workspace:FindFirstChild("Characters")
+	local culled = ReplicatedStorage:FindFirstChild(CULLED_FOLDER)
+
+	-- the last request the game sent that names another player; that name is what gets swapped
+	local template, old, form
+	for index = #spectate.sent, 1, -1 do
+		local entry = spectate.sent[index]
+		if entry.buffers[1] then
+			old, form = idIn(entry.arguments[1])
+			if old then
+				template = entry
 				break
 			end
 		end
 	end
-	table.sort(keys)
-	return table.concat(keys, ",")
-end
-
--- every character in the world and culled folders, and what the game says of it
-local function roster()
-	local list = {}
-	local folders = { world = workspace:FindFirstChild("Characters"), culled = ReplicatedStorage:FindFirstChild(CULLED_FOLDER) }
-	for where, folder in folders do
-		for _, character in folder:GetChildren() do
-			local root = character:FindFirstChild("HumanoidRootPart")
-			if root then
-				list[character.Name] = {
-					where = where,
-					position = spot(root.Position),
-					dead = character:GetAttribute("Dead"),
-					health = character:GetAttribute("Health"),
-					team = teamOf(character),
-					visible = character:GetAttribute("ClientCharacterPresentationVisible"),
-				}
-			end
-		end
-	end
-	return list
-end
-
-local function probe()
-	if probing then
+	if not template then
+		hub.ui.notify("no spectate request naming a player recorded yet: Record, then die and spectate", "error")
 		return
 	end
-	probing = true
-	hub.ui.notify("PVS probe running: keep playing until it says it is written")
 
-	local started = os.clock()
-	local data = {
-		me = Players.LocalPlayer.Name,
-		team = Players.LocalPlayer:GetAttribute("Team"),
-		errors = {},
-		remotes = {},
-		sounds = {},
-		code = {},
-		shapes = {},
-		snapshots = {},
-	}
-	-- a part that fails is noted and the rest is still written: a run costs the user a match to set up
-	local function part(name, run)
-		local ok, err = pcall(run)
-		if not ok then
-			data.errors[name] = tostring(err)
+	-- a living enemy player, one the server is hiding if there is one
+	local target, hidden
+	for _, player in Players:GetPlayers() do
+		local team = player:GetAttribute("Team")
+		if team and team ~= me:GetAttribute("Team") and not player:GetAttribute("Dead") then
+			target = player
+			hidden = culled ~= nil and culled:FindFirstChild(player.Name) ~= nil
+			if hidden then
+				break
+			end
 		end
 	end
+	if not target then
+		hub.ui.notify("no living enemy player to ask for (bots have no UserId)", "error")
+		return
+	end
 
-	-- every remote the server fires at this client: how often, and what a few of its events carried
-	local connections = {}
-	part("remotes", function()
-		for _, root in { ReplicatedStorage, workspace, Players.LocalPlayer } do
-			for _, remote in root:GetDescendants() do
-				if remote:IsA("BaseRemoteEvent") then
-					local entry = { path = remote:GetFullName(), class = remote.ClassName, count = 0, samples = {} }
-					local due = 0
-					table.insert(data.remotes, entry)
-					table.insert(connections, hub.cleanup.add(remote.OnClientEvent:Connect(function(...)
-						entry.count += 1
-						local at = os.clock() - started
-						-- six samples a remote, 1.5 s apart, each with where the characters were at that moment
-						if #entry.samples < 6 and at >= due then
-							due = at + 1.5
-							table.insert(entry.samples, {
-								at = at,
-								arguments = shape(table.pack(...), 4),
-								characters = roster(),
-							})
-						end
-					end)))
-				end
-			end
-		end
+	local id = form == "double" and string.pack("<d", target.UserId) or tostring(target.UserId)
+	if #id ~= #old then
+		hub.ui.notify("that enemy's UserId is a different length from the recorded one: try again later", "error")
+		return
+	end
+	local bytes = template.arguments[1]
+	local at = bytes:find(old, 1, true)
+	local swapped = bytes:sub(1, at - 1) .. id .. bytes:sub(at + #old)
 
-		-- sounds are what a server still has to send about an enemy it hides
-		table.insert(connections, hub.cleanup.add(workspace.DescendantAdded:Connect(function(sound)
-			local parent = sound.Parent
-			if sound:IsA("Sound") and parent and #data.sounds < 150 then
-				local position = parent:IsA("BasePart") and parent.Position
-					or parent:IsA("Attachment") and parent.WorldPosition
-				table.insert(data.sounds, {
-					at = os.clock() - started,
-					name = sound.Name,
-					id = sound.SoundId,
-					parent = parent:GetFullName(),
-					position = position and spot(position) or nil,
-				})
-			end
-		end)))
-	end)
+	spectate.trying = true
+	hub.ui.notify("asking to spectate " .. target.Name .. ", watching for 8 s")
+	local attempt = {
+		at = os.clock() - spectate.started,
+		dead = me:GetAttribute("Dead"),
+		target = target.Name,
+		hidden = hidden,
+		request = template.remote.Name,
+		form = form,
+		sent = plain(swapped),
+		before = table.clone(spectate.counts),
+		samples = {},
+	}
 
-	-- the game's functions that mention the cull, with their strings and the instances they hold
-	part("code", function()
-		for index, value in getgc() do
-			if type(value) == "function"
-				and islclosure(value)
-				and not isexecutorclosure(value)
-				and #data.code < 120 then
-				local constants = debug.getconstants(value)
-				local hit = false
-				for _, constant in constants do
-					if type(constant) == "string" and (constant:find("PVS") or constant:find("Culled")) then
-						hit = true
-						break
-					end
-				end
-				if hit then
-					local entry = {
-						source = debug.info(value, "s"),
-						name = debug.info(value, "n"),
-						line = debug.info(value, "l"),
-						strings = {},
-						instances = {},
-					}
-					for _, constant in constants do
-						if type(constant) == "string" and #entry.strings < 80 then
-							table.insert(entry.strings, plain(constant))
-						end
-					end
-					for _, upvalue in debug.getupvalues(value) do
-						if typeof(upvalue) == "Instance" then
-							table.insert(entry.instances, plain(upvalue))
-						end
-					end
-					table.insert(data.code, entry)
-				end
-			end
-			if index % 20000 == 0 then
-				task.wait()
-			end
-		end
-	end)
+	-- the game's own order, if it was seen: start, then the request that names the player
+	local start, stop = lastSent("StartSpectating"), lastSent("StopSpectating")
+	if start and start ~= template then
+		replay(start)
+	end
+	replay(template, swapped)
 
-	-- the game's own record of where characters are: tables holding a position within 3 studs of another
-	-- living character's root, then every table built the same way, which is where a hidden one would show
-	local tracked = {}
-	part("tables", function()
-		local mine = Players.LocalPlayer.Character
-		local world, everyone = {}, {}
-		local function locate()
-			table.clear(world)
-			table.clear(everyone)
-			local folders = { world = workspace.Characters, culled = ReplicatedStorage:FindFirstChild(CULLED_FOLDER) }
-			for where, folder in folders do
-				for _, character in folder:GetChildren() do
-					local root = character:FindFirstChild("HumanoidRootPart")
-					if root and character ~= mine then
-						everyone[character.Name] = root.Position
-						if where == "world" and not character:GetAttribute("Dead") then
-							world[character.Name] = root.Position
-						end
-					end
-				end
-			end
-		end
-		locate()
-
-		local objects = getgc(true)
-		local shapes = {}
-		for index, object in objects do
-			if type(object) == "table" and object ~= world and object ~= everyone then
-				local seen = 0
-				for key, value in next, object do
-					seen += 1
-					if seen > 32 then
-						break
-					end
-					local position = positionOf(value)
-					local name, distance
-					if position then
-						name, distance = nearest(world, position)
-					end
-					if distance and distance <= 3 then
-						local id = type(key) == "string" and key or "#"
-						local sign = id == "#" and "#" .. #object or signature(object)
-						local found = shapes[sign .. "|" .. id]
-						if not found and #data.shapes < 60 then
-							found = {
-								key = id,
-								signature = sign,
-								count = 0,
-								near = name,
-								example = shape(object, 1),
-								records = {},
-							}
-							shapes[sign .. "|" .. id] = found
-							table.insert(data.shapes, found)
-						end
-						if found then
-							found.count += 1
-						end
-						break
-					end
-				end
-			end
-			-- the characters have moved on by the time the scan is resumed
-			if index % 50000 == 0 then
-				task.wait()
-				locate()
-			end
-		end
-
-		table.sort(data.shapes, function(a, b)
-			return a.count > b.count
-		end)
-		local wanted = {}
-		for _, found in data.shapes do
-			if found.key ~= "#" and #wanted < 8 then
-				table.insert(wanted, found)
-			end
-		end
-		for index, object in objects do
-			if type(object) == "table" then
-				for _, found in wanted do
-					local position = #found.records < 60 and positionOf(rawget(object, found.key))
-					if position and signature(object) == found.signature then
-						local name, distance = nearest(everyone, position)
-						local record = {
-							position = spot(position),
-							near = name,
-							distance = distance and math.floor(distance),
-							fields = shape(object, 1),
-						}
-						table.insert(found.records, record)
-						table.insert(tracked, { object = object, key = found.key, record = record })
-					end
-				end
-			end
-			if index % 50000 == 0 then
-				task.wait()
-				locate()
-			end
-		end
-	end)
-
-	local recording = os.clock()
-	while os.clock() - recording < PROBE_SECONDS and not unloaded do
-		table.insert(data.snapshots, { at = os.clock() - started, characters = roster() })
+	for _ = 1, 32 do
+		local character = world and world:FindFirstChild(target.Name) or culled and culled:FindFirstChild(target.Name)
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		table.insert(attempt.samples, {
+			at = os.clock() - spectate.started,
+			where = character and character.Parent.Name or nil,
+			position = root and plain(root.Position) or nil,
+			spectating = me:GetAttribute("IsSpectating"),
+			spectatingUserId = me:GetAttribute("SpectatingUserId"),
+			camera = plain(workspace.CurrentCamera.CFrame.Position),
+		})
 		task.wait(0.25)
 	end
-
-	-- a record that has moved since it was read is live, whether or not its character is shown
-	for _, item in tracked do
-		local position = positionOf(rawget(item.object, item.key))
-		item.record.later = position and spot(position) or nil
-	end
-	for _, connection in connections do
-		connection:Disconnect()
+	if stop then
+		replay(stop)
 	end
 
-	-- a section JSON can't take is dropped rather than losing the file
-	for name, section in data do
-		if not pcall(HttpService.JSONEncode, HttpService, section) then
-			data[name] = "could not be encoded"
-		end
-	end
-	hub.require("core/config.lua").save("bloxstrike_pvs", data)
-	probing = false
-	hub.ui.notify("PVS probe written to hul1ans-hub/bloxstrike_pvs.json", "success")
+	attempt.after = table.clone(spectate.counts)
+	attempt.latest = table.clone(spectate.latest)
+	table.insert(spectate.attempts, attempt)
+	saveSpectate()
+	spectate.trying = false
+	hub.ui.notify("spectate attempt written to hul1ans-hub/bloxstrike_spectate.json", "success")
 end
 
 local misc = window:CreateTab("Misc", "settings")
-misc:CreateSection("Debug"):CreateButton("PVS Probe", probe)
+local probes = misc:CreateSection("Debug")
+probes:CreateButton("Spectate Probe: Record", recordSpectate)
+probes:CreateButton("Spectate Probe: Try", trySpectate)
 misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)
