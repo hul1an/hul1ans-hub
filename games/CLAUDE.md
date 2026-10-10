@@ -37,7 +37,7 @@
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
-  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
+  Team Colors, Dormant ESP and Sound ESP (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
@@ -56,10 +56,10 @@
 - From the user's dump (`hul1ans-hub/bloxstrike_dump.json`, one snapshot of a 10-player match):
   - Fog of war: the game culls players it decides you can't see (it calls this PVS). A live, visible
     player's `player.Character` is `workspace.Characters.<name>`; a culled one is moved to
-    `ReplicatedStorage._PVS_CulledCharacters.<name>` and keeps a position on its root part. Whether
-    that position keeps updating while culled is NOT known; drawing it gave boxes in the wrong place.
-    The hub only uses characters whose parent is `workspace.Characters`, so ESP and aim cannot see
-    culled players. This is a server-side limit, not a bug.
+    `ReplicatedStorage._PVS_CulledCharacters.<name>` and keeps a position on its root part, frozen
+    where the model was last shown (the spawn, for one not seen yet this round). The hub only uses
+    characters whose parent is `workspace.Characters`, so ESP and aim cannot see culled players. This is
+    a server-side limit, confirmed by the probe below.
   - Characters are custom (`CharacterType = PlayerCustomCharacter`): R15 part names, an
     `AnimationController`, no `Humanoid`. Health is the character attributes `Health` / `MaxHealth`,
     death is `Dead` (also mirrored on the Player). A dead player's `Character` is nil.
@@ -83,8 +83,7 @@
   but culled (character's parent is named `_PVS_CulledCharacters`), a box is drawn at the root position
   still on the culled character, with opacity falling to zero over the Fade Time slider (1-30 s, default
   10) counted from when the cull was first seen. Follows the ESP master toggle, Show Players and the
-  players' max distance. If those boxes are seen moving, culled positions are live, which would answer
-  the open question below.
+  players' max distance. The box is where the enemy was last shown, never where they are now.
 - Bots (found in the user's second dump, `bloxstrike_dump_1.json`): matches are filled with bots. A bot
   is a model in `workspace.Characters` with `Bot = true`, its own `Team`, `Health`, `MaxHealth`, `Dead`,
   `ActorId` and `CombatantId` attributes, and no `PresentationOwnerUserId`. It has no Player object, so
@@ -96,29 +95,65 @@
 - Read again on 2026-10-10 for the fog of war work: in `bloxstrike_dump_1.json` all 7 characters in
   `_PVS_CulledCharacters` were dead, their root positions being where they died (the "boxes in the wrong
   place"), and all 5 living enemies were in `workspace.Characters`, 75 to 110 studs from the local player.
-  A living enemy in the culled folder has not been captured, so "server-side limit" above is an assumption.
+  The probe below is what caught living enemies in it.
 - Every character has `ClientOwnedCharacterPresentation = true` and `ClientCharacterPresentationVisible`
   (false on the culled ones): the client builds the models itself, so positions reach it through the game's
-  own networking, not Roblox character replication. Which remote carries them is not known.
+  own networking, not Roblox character replication.
 - Player objects replicate for everyone, with `Health`, `Armor`, `Dead`, `Team`, `Money`, `CurrentEquipped`,
   `LastKiller`, `IsWalking` / `IsCrouching` / `IsJumping` / `IsClimbing` / `IsSniperScoped` and
   `PresentationSpawnPosition` / `PresentationSpawnYaw` (where they spawned this round), but no live position.
-- Seen by the user (2026-10-10): enemies are completely invisible until they are close enough to wallbang,
-  so living enemies are hidden, though none was in the culled folder in either dump.
-- Temporary, to be removed once it has answered: the PVS Probe button on the Misc tab (`probe` at the end of
-  `games/bloxstrike.lua`). Over about 15 s it writes `hul1ans-hub/bloxstrike_pvs.json` with every incoming
-  remote's rate and sample arguments, the sounds added under `workspace`, the game functions whose constants
-  mention `PVS` or `Culled`, the game tables that hold another character's position (and every table of the
-  same shape, read again 10 s later), and both character folders every 0.25 s. It decides between reading a
-  hidden enemy's position from the client and tracking last-known positions from sounds.
+- Seen by the user (2026-10-10): enemies are completely invisible until they are close enough to wallbang.
+- The PVS probe (a temporary button, run by the user on 2026-10-10 and removed again; its output is
+  `bloxstrike_pvs.json` beside the dumps, its code is in commit `adf9679`) settled the fog of war:
+  - Other characters' movement arrives on `ReplicatedStorage.MovementV2Remotes.RemoteSnapshot`, an
+    UnreliableRemoteEvent firing about 45 times a second with one buffer; your own on `OwnerSnapshot`.
+    After a header (sequence, baseline sequence and server tick as u32 from byte 2; the tick runs at 60 a
+    second) and a u16 count it lists only the actors that changed: the ActorId as a LEB128 varint, a mask
+    byte, then per mask bit a position delta (3 i16), velocity (3 i16), yaw (u16), vertical look (1 byte)
+    and, for bit 0x20, one more byte.
+  - The server leaves a hidden enemy out of that stream. `luckyluis2` (ActorId 3945, running the whole
+    time) was in the samples taken while his model was shown and in none of those taken while it was
+    culled, and the client's records of two enemy bots culled all round still carried the round-start tick.
+    So no script can read a hidden enemy's position: it is not on the client.
+  - The cull is by line of sight, not distance: the same enemy was hidden at 229 and at 85 studs and shown
+    at 107 and at 45.
+  - The cull code is `ReplicatedStorage.Controllers.CharacterController.RemoteCharacters` (`setEntryVisible`,
+    `tryBind`; an entry has `Player`, `Shell`, `Visible`, `LastPosePosition`, `LookYaw`) and `.BotCharacters`
+    (`hide`, `LastPosition`), with `ReplicatedStorage.Components.Common.ClientCharacterPresentation`
+    (`GetCulledFolder`). Players have ActorIds as bots do; the game's movement records are tables with
+    `ActorId`, `UserId` (0 for a bot), `Position`, `Velocity`, `LookYaw`, `Stance`, `MovementMode`.
+  - What the server does still send about a hidden enemy is sound. `NetworkRemotes.Sound.ReplicateSound`
+    carries `Class` (`FloorSounds` for a footstep), `Name` (`Concrete`, `LandingConcrete`) and an exact
+    `Position`, and the game plays it from a `Sound` under `workspace.Debris.Sound` at that position. While
+    that enemy was culled and running 85 studs away, three such sounds traced his path in 1.3 s; none came
+    while he was beyond about 107 studs. Your own footsteps are Sounds on your own `HumanoidRootPart`.
+  - Every `NetworkRemotes` payload is a buffer of one byte and a zstd frame (magic `28 B5 2F FD`); small
+    ones are stored uncompressed, so their strings can be read, larger ones can't without a decompressor.
+  - Remotes seen firing that could give more: `NetworkRemotes.VFX.CreateImpact`, `.Projectile.Spawn`,
+    `.Character.Action` (`ActionId`, `UserId`, `Generation`), `.UI.UIPlayerKilled`. Present but silent in the
+    run: `.VFX.CreateCharacterMuzzleFlash`, `.Character.CharacterDamaged`, `.Ping.CreatePlayerPositionPing`,
+    `.Spectate.UpdateCameraCFrame`, `MovementV2Remotes.BotCombat`.
+- Sound ESP (ESP tab, off by default, written 2026-10-10 and not run): a ring and a distance at every `Sound`
+  that appears under `workspace.Debris` more than 8 studs from the local character and from every living
+  character that is shown, fading over the Sound Fade Time slider (1-10 s, default 3). It follows the ESP
+  master toggle, Show Players and the players' max distance. It cannot tell a footstep from a bullet impact
+  or a grenade: which sounds turn out to be noise is for the user to report.
+- Temporary, asked for by the user on 2026-10-10 after being told the server may reject or flag it: the
+  spectate probe (two buttons in a Debug section on the Misc tab, `recordSpectate` and `trySpectate` at the end
+  of `games/bloxstrike.lua`), to learn whether the server sends a hidden enemy to a client that asks to
+  spectate them. Record hooks `__namecall` to log the game's own `FireServer` calls on
+  `NetworkRemotes.Spectate.*` (none has been seen yet, so the request format is unknown), what those remotes
+  send back, and the game functions whose constants mention `Spectat`. Try replays the last recorded request
+  that names another player with a living enemy's UserId swapped in, after a recorded `StartSpectating` and
+  before a recorded `StopSpectating` if there were any, and samples for 8 s. Both write
+  `hul1ans-hub/bloxstrike_spectate.json`. Remove it once it has answered.
 - `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
   `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
 - `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
   enemy in that dump, so the aim assist's visibility ray reported everyone as hidden. `core/aim.lua` now
   looks through parts with Transparency 1.
 - Both temporary dump buttons are removed. The dumps live on this machine in
-  `AppData/Local/Potassium/workspace/hul1ans-hub/`. Still unknown: whether a culled character's root position keeps
-  updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
+  `AppData/Local/Potassium/workspace/hul1ans-hub/`. The probe's file is there too.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
   its hit effect (only the expanding ball is ported), `mouse1click` auto fire (the hub's triggerbot clicks
   through `VirtualInputManager`).
