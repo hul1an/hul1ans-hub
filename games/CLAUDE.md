@@ -102,5 +102,9 @@
   `AppData/Local/Potassium/workspace/hul1ans-hub/`. Still unknown: whether a culled character's root position keeps
   updating. To find out, re-add a dump and compare two snapshots a few seconds apart.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
-  its hit effect (only the expanding ball is ported), its per-degree "vector FOV" (the pixel FOV covers
-  it), `mouse1click` auto fire (the hub uses `VirtualInputManager`).
+  its hit effect (only the expanding ball is ported), `mouse1click` auto fire (the hub uses
+  `VirtualInputManager`).
+- `games/bloxstrike.lua` was not touched by the starline combat port of 2026-10-10: Silent Aim and Anti-Aim
+  are still its own sections on the Combat tab and silent aim still redirects to `aim.target`. The aim core
+  under them is new, so Team Check, the silent aim target and Auto Fire need seeing again. Not known:
+  whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage.
