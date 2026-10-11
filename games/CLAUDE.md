@@ -61,7 +61,8 @@
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
-  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect) and Eject.
+  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
+  (Auto Bunnyhop) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
@@ -158,8 +159,30 @@
   The fields that matter for a bunnyhop: `OnGround`, `PreviousButtons` (a button bitmask, 0 at start),
   `LastJumpCommandNumber`, `JumpBufferTicksRemaining`, `JumpHullActive`, `Stamina` (100 at start), `Velocity`,
   `VelocityModifier`, `MovementTick`. Beside it are `Simulation.Config` (`Default.DefaultBaseMoveSpeed`) and
-  `MovementV2.Types`. Not known: which bit is jump, where the commands are built and sent, whether a jump
-  needs a fresh press, and what stamina costs on landing.
+  `MovementV2.Types`. It also has `MovementMode` (`Walking` or `Ladder`).
+- Jumping, from modules decompiled through the bridge on 2026-10-11:
+  - `MovementV2.Buttons`: `Jump = 1`, `Duck = 2`, `Walk = 4`, `Scoped = 8`.
+  - The Jump keybind (`Controllers.InputController.Actions.Jump`) calls `CharacterController.jump(true / false)`,
+    or `jump()` for the mouse wheel. `Classes.Character:SampleInput` then sets the Jump button on every command
+    while the key is held, and on one command for a wheel notch.
+  - `MovementV2.Simulation` runs each command on the state before it: `Tick` is the command number, `JumpHeld`
+    is the Jump bit of `PreviousButtons`. `Simulation.ProvenSimulator` jumps when the state is `OnGround`, the
+    button is down and wasn't on the command before (or `Config.AutoBunnyHop`, or a buffered press), and the
+    last jump was more than one command ago. A jump on the first ground command skips that command's friction.
+    So a held key jumps once.
+  - `Simulation.Config` profiles: `Competitive` is the default one, with no jump buffer; `Casual` and
+    `Deathmatch` buffer a press for a tenth of a second and cut horizontal speed above 19 studs a second on
+    landing; `Surf` has `AutoBunnyHop`. Stamina (100, floor 20, back at 60 a second) drops 0.08 per Hammer unit
+    of jump speed and 0.05 per unit of landing speed outside Surf, and jump speed is scaled by it. The server
+    runs the same simulation, so none of that can be changed from the client.
+  - Commands are built in `MovementV2.Client.Runtime._stepPrediction`: `_options.SampleInput` gives the input
+    (`Move`, `LookYaw`, `VerticalLook`, `Buttons`), `_buildCommandInput(input, state, ...)` finishes it with the
+    predicted state the command will run on, and the result is both simulated locally and sent.
+- Auto Bunnyhop (written 2026-10-11, not run) hooks `Runtime._buildCommandInput`, the class being found through
+  `getgc(true)`. While walking it takes the Jump button out of a command unless the state is on the ground and
+  the command before had no Jump, so a held key becomes a fresh press on the first ground command. Ladders and
+  everything else about the input are left alone. Not known: whether the hook takes on a method of a frozen
+  class table, and how much speed stamina and the casual landing cut leave over a run of hops.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,

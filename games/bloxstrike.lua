@@ -488,6 +488,53 @@ hub.cleanup.add(RunService.RenderStepped:Connect(function()
 end))
 hub.cleanup.add(restoreJoints)
 
+-- the game sends the jump button for as long as the key is held and its simulation only jumps on a fresh press,
+-- so bunnyhop drops the button from every command but the first one on the ground
+local JUMP = 1
+local movement = { bunnyhop = false }
+
+local function hop(input, state)
+	if bit32.band(input.Buttons, JUMP) == 0 or state.MovementMode ~= "Walking" then
+		return
+	end
+	-- on the ground with the button already down the jump was refused, so it is released to be pressed again
+	if not state.OnGround or bit32.band(state.PreviousButtons, JUMP) ~= 0 then
+		input.Buttons -= JUMP
+	end
+end
+
+-- the movement runtime's class, whose _buildCommandInput gets each command's input and the state it will run on
+local runtime
+for _, object in getgc(true) do
+	if type(object) == "table" and type(rawget(object, "_buildCommandInput")) == "function" then
+		runtime = object
+		break
+	end
+end
+
+if runtime then
+	local hopWarned = false
+	local original
+	original = hookfunction(runtime._buildCommandInput, function(self, input, state, ...)
+		if movement.bunnyhop then
+			-- an error here would otherwise stop the game's own movement
+			local ok, err = pcall(hop, input, state)
+			if not ok and not hopWarned then
+				hopWarned = true
+				warn("[hub] bunnyhop hook failed: " .. tostring(err))
+			end
+		end
+		return original(self, input, state, ...)
+	end)
+
+	hub.cleanup.add(function()
+		hookfunction(runtime._buildCommandInput, original)
+	end)
+else
+	warn("[hub] BloxStrike movement runtime (_buildCommandInput) not found: bunnyhop unavailable")
+	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop", "error")
+end
+
 local antiAimSection = tabs.combat:CreateSection("Anti-Aim", "RightSide")
 antiAimSection:CreateToggle("Enabled", antiAim.enabled, function(value)
 	antiAim.enabled = value
@@ -537,5 +584,12 @@ end)
 shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
 	visuals.hitEffect = value
 end)
+
+local jumping = window:CreateTab("Movement", "layers"):CreateSection("Jumping", "LeftSide")
+if runtime then
+	jumping:CreateToggle("Auto Bunnyhop", movement.bunnyhop, function(value)
+		movement.bunnyhop = value
+	end)
+end
 
 window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
