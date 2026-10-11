@@ -17,8 +17,9 @@ Nothing here has run in Matcha yet.
   and team check; those cover the shooting.
 - `task.delay` and `task.defer` never run their callbacks and `task.spawn` drops extra arguments, so
   nothing here uses them. The triggerbot presses and releases its click from the render loop.
-- A chunk's `loadstring` return is dropped, so `hub.load` wraps each module in a function and takes
-  the module from the chunk's environment.
+- A chunk's `loadstring` return is dropped and its `setfenv` refuses a loadstring'd function (seen
+  on the first run), so `hub.load` wraps each module in a call that runs it with `hub` and reads the
+  module back out of the chunk's own environment under a named key.
 - No `WorldToViewportPoint`: the global `WorldToScreen` returns a Vector2 and an on-screen boolean.
 - `RaycastParams` isn't documented. The aim's visibility check branches on whether the class exists;
   without it a hit on the target model itself counts as visible, the jump disabler's ground ray
