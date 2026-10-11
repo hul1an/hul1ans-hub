@@ -518,9 +518,9 @@ local function trigger(camera, now, aimed)
 		served = true
 	end
 
-	-- a silent shot goes to its target whatever the spread
+	-- a silent shot goes to its target whatever the spread. The chance is that of an untouched shot, Seeded or not
 	local angle = settings.TriggerHitchance > 0 and not settings.SilentAim and aim.spread and aim.spread()
-	if angle and hitChance(camera, model, angle * kept()) < settings.TriggerHitchance then
+	if angle and hitChance(camera, model, angle) < settings.TriggerHitchance then
 		return
 	end
 

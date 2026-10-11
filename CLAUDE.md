@@ -108,7 +108,8 @@ in an executor in the target game and reported what they saw. Say "written, not 
   starline's: the user asked for the trigger to fire when the spread seed lands on a hitbox, and where the seed
   can't be read (BloxStrike) for a Legitimacy slider instead, 0% removing the spread, 100% leaving it alone so
   that only Hitchance decides. Restricted and Strength are not drawn beside it. Hitchance is measured on the
-  spread that Legitimacy leaves, and is skipped with Silent Aim on.
+  gun's real spread, not on what Legitimacy leaves (asked for by the user the same day: Seeded must not fire
+  where a regular shot wouldn't pass), and is skipped with Silent Aim on.
 - Kept in the Combat tab though starline has no such thing: the Enabled keybind, a game file's Silent Aim
   toggle, and the Options card (Team Check, Visibility Check, Max Distance in place of starline's weapon
   range, Target Color, the per-source target toggles).
