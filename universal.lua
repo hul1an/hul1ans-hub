@@ -151,7 +151,7 @@ local function addEsp(window)
 
 	for _, source in esp.sources do
 		local section = tab:CreateSection(source.name, "RightSide")
-		section:CreateToggle("Show " .. source.name, source.enabled, function(value)
+		section:CreateToggle(source.toggle or "Show " .. source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
 		-- a new picker shows black until it is given a colour

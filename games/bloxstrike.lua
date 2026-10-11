@@ -272,6 +272,7 @@ end, function(model)
 	return players.label(ghost.character) .. (ghost.certain and "" or "?")
 end)
 
+heardSource.toggle = "Dormant ESP"
 heardSource.opacityOf = function(model)
 	return 1 - (os.clock() - ghosts[model].at) / heard.memory
 end

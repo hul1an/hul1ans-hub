@@ -305,7 +305,8 @@
   `_PVS_CulledCharacters` where it had been, and the user's `IsSpectating` was still false. A stop sent in
   between changed nothing either. Not tried: a bot's key, and the other two packets.
 - Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `universal.lua` so it gets its
-  own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
+  own section and a Target toggle. Its show toggle reads "Dormant ESP" (`toggle` on the source), renamed at the
+  user's request the same day; the section and the Target toggle still say Heard. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
   a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Heard Memory seconds (1-10,
   default 3) without a sound or once a shown enemy is within 15 studs. Only heard while ESP and the source
