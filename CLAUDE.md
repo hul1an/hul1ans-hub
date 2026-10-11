@@ -76,6 +76,7 @@ in an executor in the target game and reported what they saw. Say "written, not 
 | `games/registry.lua` | Maps `game.GameId` (the universe, covers every place) to a game file |
 | `games/<name>.lua` | One file per supported game, run with `hub` as `...`. Never requires another game file |
 | `games/CLAUDE.md` | Per-game findings: ids, remote names, attribute names, Dex paths, quirks |
+| `matcha/` | The same hub for Matcha, an external LuaVM executor that hooks nothing and can't create instances; what that takes away and the adapter's mapping are in `matcha/CLAUDE.md` |
 
 - Every fetched file starts with `local hub = ...` if it needs the hub. `hub.require(path)` caches the
   returned value, `hub.load(path)` runs a file fresh.
@@ -178,3 +179,5 @@ used `execute_script` only to start the bridge; running the hub through it hasn'
 user. With Potassium set to redirect output and errors to its console, `read_console` returns `print`, `warn`
 and `error()` with its stack. The setting only takes full effect after the game is rejoined: before
 that only errors came through.
+
+The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
