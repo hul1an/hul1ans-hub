@@ -17,15 +17,14 @@ local UNIT = 0.075
 local AVATAR_SIZE = 14
 local ICON_SIZE = Vector2.new(48, 16)
 local ARROW_SHADOW = Vector2.new(2, 2)
--- where a copy that isn't to be drawn is put
-local PARKED = CFrame.new(0, -100000, 0)
+-- seconds between the invisible chams' looks at which parts of a body are in plain sight, a ray a part
+local SIGHT_TIME = 0.1
 -- how much bigger than the body an overlay or an on hit copy is, so that it wraps it
 local SHELL = 1.05
 -- the game's tick, which backtrack chams draw one copy for
 local TICK = 1 / 60
 -- the chams materials as they go on a part, glass see-through even at full opacity. Each takes the part's Color.
--- solid is a colour with no shading, which no material is: on a real model it is a Highlight's fill, and a copy gets
--- this and is drawn in the viewport that has no light
+-- solid is a colour with no shading, which no material is: it is a Highlight's fill, over this on an on hit copy
 local MATERIALS = {
 	solid = { material = Enum.Material.SmoothPlastic },
 	flat = { material = Enum.Material.SmoothPlastic },
@@ -86,7 +85,7 @@ local esp = {
 		BacktrackChams = false,
 		BacktrackChamsColor = WHITE,
 		BacktrackChamsOpacity = 1,
-		BacktrackChamsMaterial = "solid",
+		BacktrackChamsMaterial = "flat",
 		BacktrackChamsPerTick = false,
 		BacktrackChamsGradient = false,
 		BacktrackChamsOldest = RED,
@@ -151,9 +150,8 @@ local skins = {}
 local shades, shells, trails, flashes = {}, {}, {}, {}
 -- the ragdolls the ragdoll chams had last frame
 local ragdolls = {}
--- two viewports over the whole screen, which is the one way to draw a part over walls, and a folder in the world for
--- the copies that walls should hide
-local lit, unlit, world
+-- the folder in the world the copies are kept in
+local world
 local container, screen
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -368,8 +366,8 @@ end
 
 -- the hub's Highlight on a model: a fill colour and an outline colour, each with its opacity and either left out for
 -- none. A model shows one Highlight and that has one depth mode, so an outline, which is there to be seen through
--- walls, takes the fill through them with it
-local function light(model, fill, fillOpacity, line, lineOpacity)
+-- walls, takes the fill through them with it; through does that for a fill with no outline
+local function light(model, fill, fillOpacity, line, lineOpacity, through)
 	local highlight = highlights[model]
 	if not (fill or line) then
 		if highlight then
@@ -383,7 +381,7 @@ local function light(model, fill, fillOpacity, line, lineOpacity)
 		highlight.Parent = container
 		highlights[model] = highlight
 	end
-	highlight.DepthMode = line and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+	highlight.DepthMode = (line or through) and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
 	highlight.FillColor = fill or WHITE
 	highlight.FillTransparency = fill and 1 - fillOpacity or 1
 	highlight.OutlineColor = line or WHITE
@@ -540,6 +538,7 @@ local function copyParts(model, parts, parent, scale, welded)
 			copy.CastShadow = false
 			copy.Massless = true
 			copy.LocalTransparencyModifier = 0
+			copy.Material = Enum.Material.SmoothPlastic
 			copy.MaterialVariant = ""
 			copy.Size = part.Size * scale
 			if copy:IsA("MeshPart") then
@@ -573,34 +572,40 @@ local function dress(set, name, color, opacity)
 	end
 end
 
--- puts a set of copies on screen over the world: in the viewport with no light for solid, the lit one for the rest
-local function stage(set, name)
-	set.model.Parent = name == "solid" and unlit or lit
-end
-
 -- destroys the copies kept by model for those that are gone, or all of them with the row off
 local function prune(kept, on, seen)
 	for model, set in kept do
 		if not (on and seen[model]) then
+			unlight(set.model)
 			set.model:Destroy()
 			kept[model] = nil
 		end
 	end
 end
 
--- invisible chams: copies drawn over the world, so through walls, of the parts the camera has no line to
+-- invisible chams: a Highlight through walls, solid its fill and glow its outline, on copies riding on the body
+-- that can't themselves be seen. It is on copies so that it can leave out what is in plain sight, which the model's
+-- own Highlight couldn't
 local function shade(model, camera)
 	local set = shades[model]
 	if not set then
-		set = copyParts(model, bodyParts(model), nil, 1)
+		set = copyParts(model, bodyParts(model), world, 1, true)
 		shades[model] = set
 	end
-	local name = settings.InvisibleChamsMaterial
-	dress(set, name, settings.InvisibleChamsColor, settings.InvisibleChamsOpacity)
-	stage(set, name)
-	for part, copy in set.copies do
-		-- a part in plain sight is left to the model itself, and to the visible chams
-		copy.CFrame = esp.visible(camera, part.Position, model) and PARKED or part.CFrame
+	local now = os.clock()
+	if now - (set.checked or 0) > SIGHT_TIME then
+		set.checked = now
+		for part, copy in set.copies do
+			-- a Highlight leaves a fully transparent part out and draws one that is all but. A part in plain sight is
+			-- left to the model itself, and to the visible chams
+			copy.Transparency = esp.visible(camera, part.Position, model) and 1 or 0.99
+		end
+	end
+	local color, opacity = settings.InvisibleChamsColor, settings.InvisibleChamsOpacity
+	if settings.InvisibleChamsMaterial == "solid" then
+		light(set.model, color, opacity, nil, nil, true)
+	else
+		light(set.model, nil, nil, color, opacity)
 	end
 end
 
@@ -614,7 +619,7 @@ local function shell(model)
 	dress(set, settings.OverlayChamsMaterial, settings.OverlayChamsColor, settings.OverlayChamsOpacity)
 end
 
--- backtrack chams: copies where the aim's backtrack has the model's parts on record, drawn over the world. The
+-- backtrack chams: copies standing in the world where the aim's backtrack has the model's parts on record. The
 -- oldest place only, or with per tick one for every game tick on record, in a gradient from oldest to newest if set
 local function trail(model)
 	local sets = trails[model]
@@ -640,17 +645,17 @@ local function trail(model)
 			for part in record.frames do
 				table.insert(parts, part)
 			end
-			set = copyParts(model, parts, nil, 1)
+			set = copyParts(model, parts, world, 1)
 			sets[index] = set
 		end
+		set.model.Parent = world
 		local color = settings.BacktrackChamsColor
 		if settings.BacktrackChamsPerTick and settings.BacktrackChamsGradient and #shown > 1 then
 			color = settings.BacktrackChamsOldest:Lerp(settings.BacktrackChamsNewest, (index - 1) / (#shown - 1))
 		end
 		dress(set, name, color, settings.BacktrackChamsOpacity)
-		stage(set, name)
 		for part, copy in set.copies do
-			copy.CFrame = record.frames[part] or PARKED
+			copy.CFrame = record.frames[part]
 		end
 	end
 	for index = #shown + 1, #sets do
@@ -958,8 +963,6 @@ local function render()
 		clearChams()
 		return
 	end
-	lit.CurrentCamera = camera
-	unlit.CurrentCamera = camera
 
 	-- solid is the Highlight's fill; every other visible chams material goes on the players' own parts
 	local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
@@ -1023,16 +1026,6 @@ function esp.start()
 	screen.ResetOnSpawn = false
 	screen.DisplayOrder = -1
 	screen.Parent = gethui()
-	lit = Instance.new("ViewportFrame")
-	unlit = Instance.new("ViewportFrame")
-	-- with all ambient and no light a part is its colour and nothing more
-	unlit.Ambient = WHITE
-	unlit.LightColor = BLACK
-	for _, frame in { lit, unlit } do
-		frame.BackgroundTransparency = 1
-		frame.Size = UDim2.fromScale(1, 1)
-		frame.Parent = screen
-	end
 	-- under the camera, where the game's bullets and the aim's line of sight look past it
 	world = hub.cleanup.add(Instance.new("Folder"))
 	world.Parent = workspace.CurrentCamera

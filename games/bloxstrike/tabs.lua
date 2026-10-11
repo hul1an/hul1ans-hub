@@ -11,8 +11,10 @@ local HITGROUPS = { "head", "upper torso", "lower torso", "arms", "hands", "legs
 local FLAGS = { "money", "armor", "kit", "scoped", "bot" }
 -- the hub's chams materials; starline's are default, flat, glow, ghost, pearlescent, galaxy and more
 local MATERIALS = { "solid", "flat", "glow", "ghost", "glass" }
--- an overlay is a second skin on a body in plain sight, where solid has nothing to draw with
-local OVERLAYS = { "flat", "glow", "ghost", "glass" }
+-- the two that show through walls, which only a Highlight does: its fill and its outline
+local THROUGH = { "solid", "glow" }
+-- overlay and backtrack are copies standing in the world, where solid has nothing to draw with
+local COPIES = { "flat", "glow", "ghost", "glass" }
 -- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
 -- has been seen, so teammates get the same rows and local gets every one
 local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
@@ -244,11 +246,11 @@ local function addPlayerPage(tab, name, live)
 			return row
 		end
 		fold("visible", "VisibleChams", MATERIALS)
-		fold("invisible", "InvisibleChams", MATERIALS)
-		fold("overlay", "OverlayChams", OVERLAYS)
+		fold("invisible", "InvisibleChams", THROUGH)
+		fold("overlay", "OverlayChams", COPIES)
 		fold("ragdoll", "RagdollChams", MATERIALS)
 		-- the hub's own: per tick and its gradient. Without per tick only the oldest place is drawn
-		local ticks = group(fold("backtrack", "BacktrackChams", MATERIALS), "per tick", settings, "BacktrackChamsPerTick")
+		local ticks = group(fold("backtrack", "BacktrackChams", COPIES), "per tick", settings, "BacktrackChamsPerTick")
 		toggle(ticks, "gradient", settings, "BacktrackChamsGradient")
 		for _, key in { "Oldest", "Newest" } do
 			ticks:CreateColorpicker(key:lower(), function(value)
