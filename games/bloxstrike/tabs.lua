@@ -365,7 +365,7 @@ local function addVisuals(window, features)
 	off.multi(off.group(bomb, "world info"), "show", { "name", "timer", "distance" })
 end
 
-local function addMisc(window, movement)
+local function addMisc(window, movement, logs)
 	local tab = window:CreateTab("misc", "settings")
 	local general = tab:CreateSubTab("general")
 
@@ -399,7 +399,8 @@ local function addMisc(window, movement)
 	for _, label in { "opposite hand knife", "instant hand switch", "fake 0ms", "automatic pistol" } do
 		off.toggle(others, label)
 	end
-	off.multi(others, "logs", { "hurt", "harm", "votes", "edgebug", "pixelsurf" })
+	-- the hub's own two in place of starline's hurt, harm, votes, edgebug and pixelsurf
+	multi(others, "logs", logs, "kinds", { "hits", "misses" })
 	off.multi(others, "log output", { "chat", "console", "screen" })
 	off.group(others, "custom bomb code"):CreateTextBox("text (placeholder)", "", false, nothing):Disable()
 	off.multi(off.group(others, "region changer"), "allowed regions")
@@ -449,14 +450,14 @@ local function addMisc(window, movement)
 	off.slider(graph, "bg opacity", 0, 1, "%.2f")
 end
 
--- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals and
--- movement settings, setNight and setThirdPerson
+-- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals, movement
+-- and logs settings, setNight and setThirdPerson
 return function(window, features)
 	addAimbot(window)
 	addPlayers(window)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
-	addMisc(window, features.movement)
+	addMisc(window, features.movement, features.logs)
 	window:CreateTab("scripts", "code"):CreateSubTab("list")
 end

@@ -13,6 +13,9 @@ local BRAND = "bloxline"
 local ASSETS = "hul1ans-hub/assets"
 -- not in the dump, picked by eye: hover and popup fade times, the open / close time, pixels per wheel notch
 local HOVER_TIME = 0.12
+-- how long a log line stays, and how long it takes to fade after that
+local LOG_TIME = 6
+local LOG_FADE = 0.5
 local FADE_TIME = 0.1
 local OPEN_TIME = 0.2
 local WHEEL_STEP = 40
@@ -418,6 +421,52 @@ function ui.notify(text, kind)
 		Parent = toast,
 	})
 	task.delay(5, toast.Destroy, toast)
+end
+
+-- log lines stack upwards from the lower left, where the game's chat is
+local feed = frame({
+	BackgroundTransparency = 1,
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 14, 0.7, 0),
+	Size = UDim2.fromOffset(700, 0),
+	Parent = screen,
+})
+make("UIListLayout", {
+	VerticalAlignment = Enum.VerticalAlignment.Bottom,
+	Padding = UDim.new(0, 3),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	Parent = feed,
+})
+local logged = 0
+
+-- a line like one of the game chat's: the brand in the accent, then the text
+function ui.log(text)
+	logged += 1
+	local row = frame({ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = logged, Parent = feed })
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Parent = row })
+	local words = {}
+	for order, word in { BRAND, " » " .. text } do
+		words[order] = label(LABEL, {
+			Text = word,
+			TextColor3 = order == 1 and ACCENT or TEXT,
+			TextStrokeTransparency = 0.4,
+			Size = UDim2.fromScale(0, 1),
+			AutomaticSize = Enum.AutomaticSize.X,
+			LayoutOrder = order,
+			Parent = row,
+		})
+	end
+	task.delay(LOG_TIME, function()
+		tween(LOG_FADE, linear, function(amount)
+			for _, word in words do
+				word.TextTransparency = amount
+				word.TextStrokeTransparency = 0.4 + 0.6 * amount
+			end
+			if amount == 1 then
+				row:Destroy()
+			end
+		end)(1)
+	end)
 end
 
 -- one colour picker shared by every swatch: hue, saturation and value of the colour being edited

@@ -557,10 +557,117 @@ local function shotEnd(result, origin, target)
 	return nil
 end
 
-local function onShot(result)
+-- the hit and miss logs. kinds is which of the two are written
+local logs = { kinds = {} }
+-- shots that got to an enemy, by character and oldest first, each waiting for the server's damage to show in its Health
+local awaited = {}
+-- how long a shot waits for that before it counts as missed
+local REGISTER_TIME = 1
+
+-- a line goes on screen and to the console, where Potassium's read_console gets at it
+local function log(text)
+	hub.ui.log(text)
+	print("[hub] " .. text)
+end
+
+-- how a log names the part of the body a part is
+local function limb(part)
+	local name = part.Name
+	for _, word in { "Arm", "Hand", "Leg", "Foot" } do
+		if name:find(word) then
+			return word:lower()
+		end
+	end
+	return name == "UpperTorso" and "upper torso" or name == "LowerTorso" and "lower torso" or name:lower()
+end
+
+-- the enemy a part belongs to
+local function enemyOf(part)
+	local folder = workspace:FindFirstChild("Characters")
+	local character = part
+	while character and character.Parent ~= folder do
+		character = character.Parent
+	end
+	if folder and character and teamOf(character) ~= Players.LocalPlayer:GetAttribute("Team") then
+		return character
+	end
+	return nil
+end
+
+-- the end of a log line: what the shot was meant for, left out when it got just that
+local function expectation(shot, got)
+	if not shot.expected then
+		return ""
+	end
+	local chance = string.format(" with %.0f%% hitchance", shot.chance)
+	return (shot.expected == got and "" or " | expected " .. shot.expected) .. chance
+end
+
+-- angle is how far off the view ray the shot's spread could take it
+local function logShot(result, angle)
+	local camera = workspace.CurrentCamera
+	local model, part, chance = aim.expected(camera, angle)
+	local shot = { at = os.clock(), expected = part and limb(part), chance = chance }
+
+	for _, hit in rawget(result, "Hits") do
+		local victim = enemyOf(hit.Instance)
+		if victim then
+			local queue = awaited[victim] or {}
+			awaited[victim] = queue
+			-- a shotgun's pellets are one shot
+			if not (queue[#queue] and shot.at - queue[#queue].at < 0.02) then
+				shot.struck = limb(hit.Instance)
+				shot.health = victim:GetAttribute("Health")
+				table.insert(queue, shot)
+			end
+			return
+		end
+	end
+
+	-- a shot at no one that got to no one isn't a miss
+	if model and table.find(logs.kinds, "misses") then
+		local reason = aim.missed(camera, model, part, rawget(result, "Origin"), rawget(result, "Direction"))
+		local name = ghosts[model] and "heard enemy" or players.label(model)
+		log("Missed " .. name .. " due to " .. reason .. expectation(shot))
+	end
+end
+
+hub.cleanup.add(RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	for victim, queue in awaited do
+		local shot = queue[1]
+		-- a dead character is taken out of the folder or marked
+		local dead = victim.Parent == nil or victim:GetAttribute("Dead")
+		local health = dead and 0 or victim:GetAttribute("Health")
+		if health < shot.health then
+			if table.find(logs.kinds, "hits") then
+				local damage = string.format(" for %.0f damage in ", shot.health - health)
+				log("Hit " .. players.label(victim) .. damage .. shot.struck .. expectation(shot, shot.struck))
+			end
+			table.remove(queue, 1)
+			-- the shots after it are measured from what this one left
+			for _, later in queue do
+				later.health = health
+			end
+		elseif now - shot.at > REGISTER_TIME then
+			if table.find(logs.kinds, "misses") then
+				log("Missed " .. players.label(victim) .. " due to no registration" .. expectation(shot))
+			end
+			table.remove(queue, 1)
+		end
+		if #queue == 0 then
+			awaited[victim] = nil
+		end
+	end
+end))
+
+local function onShot(result, spread)
 	local target = aim.settings.SilentAim and aim.target
 	if not (target and target.Parent and redirect(result, target)) then
 		target = nil
+	end
+	if #logs.kinds > 0 then
+		logShot(result, math.min(spread, MAX_SPREAD) / 2)
 	end
 
 	if visuals.tracers or visuals.hitEffect then
@@ -611,10 +718,11 @@ task.spawn(function()
 	local original
 	original = hookfunction(bullets._performRaycast, function(self, spread, ...)
 		-- the trigger's Seeded narrows its own shots
-		local returns = table.pack(original(self, spread * aim.spreadScale(), ...))
+		spread *= aim.spreadScale()
+		local returns = table.pack(original(self, spread, ...))
 		if type(returns[1]) == "table" then
 			-- an error here would otherwise break the game's own shooting
-			local ok, err = pcall(onShot, returns[1])
+			local ok, err = pcall(onShot, returns[1], spread)
 			if not ok and not shotWarned then
 				shotWarned = true
 				warn("[hub] shot hook failed: " .. tostring(err))
@@ -814,6 +922,7 @@ local window = hub.ui.createWindow("BloxStrike")
 hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
+	logs = logs,
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })

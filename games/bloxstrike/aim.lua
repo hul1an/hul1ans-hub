@@ -35,6 +35,7 @@ local HITGROUPS = {
 	legs = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg" },
 	feet = { "LeftFoot", "RightFoot" },
 }
+local EVERY = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" }
 -- what force baim and baim if lethal aim at in place of the chosen hitgroups
 local BODY = { "upper torso", "lower torso" }
 -- how long "between shots" keeps the auto stop on after a shot of the trigger's
@@ -499,11 +500,10 @@ function aim.spreadScale()
 	return os.clock() - lastShot < TRIGGER_SHOT and kept() or 1
 end
 
--- the percentage of shots spread up to an angle off the view ray that would enter a model's trigger hitgroups.
+-- the percentage of shots spread up to an angle off the view ray that would enter one of some parts.
 -- a shot is taken to be as likely at one angle out as at any other, which bunches them towards the middle
-local function hitChance(camera, model, angle)
+local function hitChance(camera, parts, angle)
 	local view = camera.CFrame
-	local parts = hitParts(model, settings.TriggerHitgroups)
 	local hits = 0
 	for ring = 1, CHANCE_RINGS do
 		local out = CFrame.Angles(math.rad(angle * (ring - 0.5) / CHANCE_RINGS), 0, 0)
@@ -518,6 +518,49 @@ local function hitChance(camera, model, angle)
 		end
 	end
 	return hits / (CHANCE_RINGS * CHANCE_SPOKES) * 100
+end
+
+-- for main.lua's shot logs: the model and part the shot being fired is meant for, and the percentage of its spread, an
+-- angle off the view ray, that would enter the part. That is the aim's target with Silent Aim, which always gets
+-- there, else the part of a target under the crosshair, else the aim's target though the view isn't on it yet
+function aim.expected(camera, angle)
+	local target = aim.target
+	if target and settings.SilentAim then
+		return target.Parent, target, 100
+	end
+
+	local eye = camera.CFrame.Position
+	local forward = camera.CFrame.LookVector
+	local model, part, best
+	eachTarget(function(candidate)
+		for _, other in hitParts(candidate, EVERY) do
+			local distance = crosses(other, eye, forward)
+			if distance and (not best or distance < best) then
+				model, part, best = candidate, other, distance
+			end
+		end
+	end)
+	if not part and target then
+		model, part = target.Parent, target
+	end
+	if part then
+		return model, part, hitChance(camera, { part }, angle)
+	end
+	return nil
+end
+
+-- for the same logs: why a shot from origin along direction, meant for a part of a model, got to no one. Its line
+-- went through the model, so something stopped it; or only the view ray did, so its spread took it off; or neither
+function aim.missed(camera, model, part, origin, direction)
+	for _, other in hitParts(model, EVERY) do
+		if crosses(other, origin, direction) then
+			return "wall"
+		end
+	end
+	if crosses(part, camera.CFrame.Position, camera.CFrame.LookVector) then
+		return "spread"
+	end
+	return "aim"
 end
 
 -- a target that drops out of the list or out of sight starts over
@@ -608,7 +651,7 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 
 	-- a silent shot goes to its target whatever the spread. The chance is that of an untouched shot, Seeded or not
 	local angle = settings.TriggerHitchance > 0 and not settings.SilentAim and aim.spread and aim.spread()
-	if angle and hitChance(camera, model, angle) < settings.TriggerHitchance then
+	if angle and hitChance(camera, hitParts(model, settings.TriggerHitgroups), angle) < settings.TriggerHitchance then
 		return
 	end
 
