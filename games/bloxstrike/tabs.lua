@@ -365,7 +365,7 @@ local function addVisuals(window, features)
 	off.multi(off.group(bomb, "world info"), "show", { "name", "timer", "distance" })
 end
 
-local function addMisc(window, movement, logs)
+local function addMisc(window, movement, logs, backtrack)
 	local tab = window:CreateTab("misc", "settings")
 	local general = tab:CreateSubTab("general")
 
@@ -407,6 +407,12 @@ local function addMisc(window, movement, logs)
 	local lagger = off.group(others, "server lagger")
 	off.slider(lagger, "frequency", 1, 20)
 	off.slider(lagger, "strength", 10, 6000)
+
+	-- temporary, see main.lua
+	local test = general:CreateSection("backtrack test")
+	toggle(test, "enabled", backtrack, "enabled")
+	slider(test, "ticks back", backtrack, "ticks", 1, 30, true)
+	toggle(test, "send old tick", backtrack, "oldTick")
 
 	local page = tab:CreateSubTab("movement")
 
@@ -458,6 +464,6 @@ return function(window, features)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
-	addMisc(window, features.movement, features.logs)
+	addMisc(window, features.movement, features.logs, features.backtrack)
 	window:CreateTab("scripts", "code"):CreateSubTab("list")
 end

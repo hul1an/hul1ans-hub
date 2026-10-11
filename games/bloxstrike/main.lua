@@ -675,6 +675,151 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 	end
 end))
 
+-- temporary: the backtrack test. A shot tells the server which moment of the enemy movement stream the client was
+-- looking at (ViewTick), taken to be for rewinding enemies to where the shooter saw them. While the test is on every
+-- shot is sent along the line to where the enemy nearest the crosshair stood some ticks ago, with the tick moved back
+-- as far or left as it was, and the damage that follows says whether the server rewound
+local backtrack = { enabled = false, ticks = 6, oldTick = true }
+-- the server's ticks a second
+local TICK_RATE = 60
+-- an enemy must be this many studs off the old line of fire for a shot along it to say anything
+local MOVED = 3
+-- by character: where its upper torso was on each frame of the last second, oldest first
+local trail = {}
+-- test shots waiting for the server's damage: at, victim, health, and text, the line so far
+local tested = {}
+
+hub.cleanup.add(RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	local shown = {}
+	if backtrack.enabled then
+		for _, character in players.models(true) do
+			local torso = character:FindFirstChild("UpperTorso")
+			if torso then
+				local points = trail[character] or {}
+				trail[character] = points
+				shown[character] = true
+				table.insert(points, { at = now, position = torso.Position })
+				while now - points[1].at > 1 do
+					table.remove(points, 1)
+				end
+			end
+		end
+	end
+	for character in trail do
+		if not shown[character] then
+			trail[character] = nil
+		end
+	end
+
+	for index = #tested, 1, -1 do
+		local shot = tested[index]
+		local dead = shot.victim.Parent == nil or shot.victim:GetAttribute("Dead")
+		local health = dead and 0 or shot.victim:GetAttribute("Health")
+		if health < shot.health then
+			log(shot.text .. string.format(": %.0f damage", shot.health - health))
+			table.remove(tested, index)
+		elseif now - shot.at > REGISTER_TIME then
+			log(shot.text .. ": no damage")
+			table.remove(tested, index)
+		end
+	end
+end))
+
+-- payload is the game's shot packet: Bullets, each an Origin and a Direction, and ViewTick
+local function backtrackShot(payload)
+	local first = payload.Bullets[1]
+	if not first then
+		return
+	end
+	local forward = workspace.CurrentCamera.CFrame.LookVector
+	local victim, torso, best
+	for character in trail do
+		local part = character:FindFirstChild("UpperTorso")
+		local angle = part and forward:Angle(part.Position - first.Origin)
+		if angle and (not best or angle < best) then
+			victim, torso, best = character, part, angle
+		end
+	end
+	if not victim then
+		return
+	end
+
+	-- the latest point at least that many ticks old, or the oldest there is of an enemy only just shown
+	local points = trail[victim]
+	local now = os.clock()
+	local old = points[1]
+	for _, point in points do
+		if now - point.at >= backtrack.ticks / TICK_RATE then
+			old = point
+		end
+	end
+	local back = (now - old.at) * TICK_RATE
+	local toward = (old.position - first.Origin).Unit
+	local off = (torso.Position - first.Origin):Cross(toward).Magnitude
+	local name = players.label(victim)
+	if off < MOVED then
+		table.insert(written, string.format("backtrack test: %s is %.1f studs off the old line, shot left alone", name, off))
+		return
+	end
+
+	for _, bullet in payload.Bullets do
+		bullet.Direction = toward
+	end
+	local tick = "real tick"
+	if backtrack.oldTick and payload.ViewTick then
+		payload.ViewTick -= back
+		tick = "old tick"
+	end
+	table.insert(tested, {
+		at = now,
+		victim = victim,
+		health = victim:GetAttribute("Health"),
+		text = string.format("backtrack test: %s, %.1f ticks back, %s, %.1f studs off", name, back, tick, off),
+	})
+end
+
+-- the game's packet table for Inventory.ShootWeapon
+local shotPacket
+for _, object in getgc(true) do
+	if type(object) == "table" then
+		local packet = rawget(object, "ShootWeapon")
+		if type(packet) == "table" and type(rawget(packet, "Send")) == "function" then
+			shotPacket = packet
+			break
+		end
+	end
+end
+
+if shotPacket then
+	local testWarned = false
+	local send = shotPacket.Send
+	-- the field is swapped, not the function hooked: every packet's Send is a closure of the same function
+	local readonly = isreadonly(shotPacket)
+	setreadonly(shotPacket, false)
+	shotPacket.Send = function(payload)
+		if backtrack.enabled then
+			-- an error here would otherwise stop the game's own shot
+			local ok, err = pcall(backtrackShot, payload)
+			if not ok and not testWarned then
+				testWarned = true
+				warn("[hub] backtrack test failed: " .. tostring(err))
+			end
+		end
+		return send(payload)
+	end
+	setreadonly(shotPacket, readonly)
+
+	hub.cleanup.add(function()
+		setreadonly(shotPacket, false)
+		shotPacket.Send = send
+		setreadonly(shotPacket, readonly)
+	end)
+else
+	warn("[hub] BloxStrike packet Inventory.ShootWeapon not found: backtrack test unavailable")
+	hub.ui.notify("Remotes.Inventory.ShootWeapon not found, no backtrack test", "error")
+end
+
 local function onShot(result, spread)
 	local target = aim.settings.SilentAim and aim.target
 	if not (target and target.Parent and redirect(result, target)) then
@@ -937,6 +1082,7 @@ hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
 	logs = logs,
+	backtrack = backtrack,
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })

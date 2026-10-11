@@ -281,6 +281,22 @@
   - Auto stop (`stop` in `main.lua`'s `_buildCommandInput` hook, written, not run) sets `Move` to the direction
     against `state.Velocity` while the horizontal speed is over 6.4 studs a second, and to zero under that. Not known:
     whether the server minds a move input the keys didn't make.
+- What a shot sends, from `Weapon:shoot` and `Database.Security.Remotes` read through the bridge on 2026-10-11:
+  `Remotes.Inventory.ShootWeapon.Send({ ShootingHand, Identifier, Seq, IsSniperScoped, Bullets, ViewTick })`, at most
+  20 a second. `Bullets` is an array of `{ Origin, Direction }` and nothing else: the client's `Hits` are not sent, so
+  the server casts the line itself. That is why silent aim works (it rewrites the direction) and why a hitbox made
+  bigger on the client would register nothing. `ViewTick` is an optional Float64 from
+  `Runtime:getRemoteViewTick()`, the presentation clock less `RenderInterpolationTicks`, in the server's 60 ticks a
+  second: the moment of the enemy stream the client was shown. The client keeps 0.25 s of remote history.
+- Temporary: the backtrack test (misc › general, written 2026-10-11 at the user's request, not run), to learn whether
+  the server rewinds enemies by `ViewTick` and how far back it takes one. The `ShootWeapon` packet table is found
+  through `getgc(true)` and its `Send` swapped. While on, a shot's bullets are turned to where the upper torso of the
+  enemy nearest the crosshair was `ticks back` ago (from a one second trail the hub records) and, with `send old
+  tick`, `ViewTick` is lowered by as much. A shot is left alone when the enemy is under 3 studs off that old line,
+  since it would hit either way. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
+  <n> ticks back, old tick | real tick, <n> studs off: <n> damage | no damage`. Damage with the old tick and none
+  with the real one means the server rewinds. Remove it once that is answered, and make starline's backtrack real
+  from it if it is a yes.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
