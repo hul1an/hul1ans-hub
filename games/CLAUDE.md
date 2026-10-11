@@ -62,7 +62,7 @@
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
   Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
-  (Auto Bunnyhop) and Eject.
+  (Bhop) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
@@ -184,7 +184,7 @@
   - Commands are built in `MovementV2.Client.Runtime._stepPrediction`: `_options.SampleInput` gives the input
     (`Move`, `LookYaw`, `VerticalLook`, `Buttons`), `_buildCommandInput(input, state, ...)` finishes it with the
     predicted state the command will run on, and the result is both simulated locally and sent.
-- Auto Bunnyhop (written 2026-10-11, not run) hooks `Runtime._buildCommandInput`, the class being found through
+- Bhop, the auto bunnyhop toggle (written 2026-10-11, not run), hooks `Runtime._buildCommandInput`, the class being found through
   `getgc(true)`. While walking it takes the Jump button out of a command unless the state is on the ground and
   the command before had no Jump, so a held key becomes a fresh press on the first ground command. Ladders and
   everything else about the input are left alone. Not known: whether the hook takes on a method of a frozen

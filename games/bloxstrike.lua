@@ -592,7 +592,7 @@ end)
 
 local jumping = window:CreateTab("Movement", "layers"):CreateSection("Jumping", "LeftSide")
 if runtime then
-	jumping:CreateToggle("Auto Bunnyhop", movement.bunnyhop, function(value)
+	jumping:CreateToggle("Bhop",movement.bunnyhop, function(value)
 		movement.bunnyhop = value
 	end)
 end
