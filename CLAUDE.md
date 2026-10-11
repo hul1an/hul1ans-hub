@@ -351,7 +351,9 @@ version and reported that only visible and overlay work, without saying what the
 bridge in that session: the invisible copies and their Highlights were there and set as written, so why nothing
 drew isn't known; no backtrack copies existed; and the game's ragdolls had taken on the visible chams' paint (see
 `games/CLAUDE.md`), which is not fixed. Since then the invisible copies are opaque and backtrack chams keep their own
-records; not run. Open: whether a Highlight draws on a part at 0.99
+records; not run. Asked the same day, the user said: the `glow` row draws, the glow inside invisible didn't, invisible
+was only tried while spectating, on hit was never tried with a hit landed, and the ragdoll leak is to be left for now
+(visible chams stay on the enemy's own parts). So invisible, backtrack and on hit still need a run while alive. Open: whether a Highlight draws on a part at 0.99
 transparency and skips one at 1; whether a weld to a body part upsets the game; whether a ragdoll carries its owner's
 id for the team check; whether a killed enemy's parts are still there to copy when the hit is confirmed.
 
