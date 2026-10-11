@@ -53,6 +53,17 @@ local function allowed(name)
 	return not filter.enabled or table.find(filter.names, name) ~= nil
 end
 
+-- a container's loot part also holds its own SurfaceAppearance, Highlight and Sound; only an item has an ID
+local function lootItems(holder)
+	local items = {}
+	for _, child in holder:GetChildren() do
+		if child:GetAttribute("ID") then
+			table.insert(items, child)
+		end
+	end
+	return items
+end
+
 -- one line per item that passes the filter, to go under a marker's heading
 local function itemLines(items)
 	local body = ""
@@ -81,7 +92,7 @@ end, function(container)
 	for _, child in container:GetChildren() do
 		local kind = child.Name:match("^Loot_(.+)")
 		if kind then
-			local body = itemLines(child:GetChildren())
+			local body = itemLines(lootItems(child))
 			if body == "" then
 				return nil
 			end
@@ -105,6 +116,71 @@ end, function(corpse)
 	return corpse.Name, body
 end)
 corpses.interval = 10
+
+-- seconds between takes: by hand they went through 0.22 apart, faster is untried
+local TAKE_DELAY = 0.2
+-- source is the loot part of the inventory the game last opened, fresh until auto loot has gone through it
+local autoLoot = { enabled = false }
+
+-- ReplicatedStorage.CLIENT_REMOTES.<name>, with a notice if it is missing
+local function clientRemote(name)
+	local folder = ReplicatedStorage:FindFirstChild("CLIENT_REMOTES")
+	local remote = folder and folder:FindFirstChild(name)
+	if not remote then
+		local message = "ReplicatedStorage.CLIENT_REMOTES." .. name .. " not found: auto loot unavailable"
+		warn("[hub] " .. message)
+		hub.ui.notify(message, "error")
+	end
+	return remote
+end
+
+local updateStorage = clientRemote("UpdateStorageUI")
+local transferItem = clientRemote("TransferItem")
+local toggleInventory = clientRemote("ToggleInventory")
+
+if updateStorage and transferItem and toggleInventory then
+	-- the game sends UpdateStorageUI with the loot part when an inventory is opened and ToggleInventory when it is closed
+	local original
+	original = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if getnamecallmethod() == "FireServer" then
+			if self == updateStorage then
+				autoLoot.source = (...)
+				autoLoot.fresh = true
+			elseif self == toggleInventory then
+				autoLoot.source = nil
+			end
+		end
+		return original(self, ...)
+	end))
+	hub.cleanup.add(function()
+		hookmetamethod(game, "__namecall", original)
+	end)
+
+	-- the server answers an open, and every take, with an empty UpdateStorageUI
+	hub.cleanup.add(updateStorage.OnClientEvent:Connect(function()
+		local source = autoLoot.source
+		if not (source and autoLoot.fresh and autoLoot.enabled) then
+			return
+		end
+		autoLoot.fresh = false
+		for _, item in lootItems(source) do
+			-- closed, or another inventory opened
+			if autoLoot.source ~= source or not autoLoot.enabled then
+				return
+			end
+			if allowed(item.Name) then
+				-- what the game sends for a quick move: the item, the inventory it goes to, the one it is in
+				transferItem:FireServer(
+					item:GetAttribute("ID"),
+					"Main",
+					item:GetAttribute("Container"),
+					{ SourceObject = source }
+				)
+				task.wait(TAKE_DELAY)
+			end
+		end
+	end))
+end
 
 hub.require("universal.lua")(window)
 
@@ -133,7 +209,9 @@ markerSection("Floor Loot ESP", floorLoot, false)
 markerSection("Container ESP", containers, true)
 markerSection("Corpse ESP", corpses, true)
 
-loot:CreateSection("Auto Loot", "RightSide"):CreateToggle("Enabled", false, placeholder("Auto Loot"))
+loot:CreateSection("Auto Loot", "RightSide"):CreateToggle("Enabled", autoLoot.enabled, function(value)
+	autoLoot.enabled = value
+end)
 
 local filterTab = window:CreateTab("Loot Filter", "layers")
 local filterSection = filterTab:CreateSection("Loot Filter", "LeftSide")
@@ -183,7 +261,8 @@ local function availableLoot()
 		for _, holder in children(folder) do
 			for _, child in holder:GetChildren() do
 				if child.Name:match("^Loot_") then
-					add(child:GetChildren())
+					-- corpse items haven't been seen, so they aren't asked for an ID yet
+					add(folder == "Lootables" and lootItems(child) or child:GetChildren())
 				end
 			end
 		end

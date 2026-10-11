@@ -13,9 +13,15 @@
   item carries an amount.
 - Floor loot is the children of `workspace.PhysicalLoot` (path from the user, no child example given, so
   the marker assumes each child is one item named by its `Name`).
-- Containers are the children of `workspace.Lootables` (1360+). Each keeps its items in a child named
-  `Loot_<kind>` (e.g. `Loot_CarWreck`, containing `Black Ski Mask`); the marker heading is `<kind>` and
-  emptied containers are skipped.
+- Containers are the children of `workspace.Lootables` (1360+), named `Loot_<kind>` (e.g. `Loot_AmmoBox`).
+  Each keeps its items in a child of the same name, the loot part (a MeshPart in the ones seen); the marker
+  heading is `<kind>` and emptied containers are skipped. From the remote log of 2026-10-11:
+  - An item is a `Folder` named by the item (`.22LR`, `7.92x57mm`) with the attributes `ID` (a GUID), `Amt`,
+    `Type` (`Ammo`), `Container` (`Storage` in a container), `GridX`, `GridY`, `Rotated`, `HotbarSlot` and
+    `ServerSpawned`. The loot part also holds a `SurfaceAppearance`, a `Sound` and, while the cursor is on it,
+    a `Highlight` and an `InteractBillboard`, so an item is a child with an `ID` (`lootItems`).
+  - The loot part's own attributes: `GridRows`, `GridColumns`, `GridSlots`, `LootContext` / `ContextLootKey`
+    (`GunStore`), `KeycardLootLocked`, `LastLootGeneratedAt`, `CommunityContainerId`.
 - The user wants no constant scanning: containers and corpses rescan on a slider (5-60 s, default 10).
   Floor loot rescans every second.
 - Loot Filter tab: one global filter for everything loot-related. With it on, only items whose exact
@@ -24,18 +30,30 @@
   name in floor loot, containers and corpses, rebuilt on load and by the Refresh button, never on a
   timer) and removed by clicking them in the right-hand section. Saved to
   `hul1ans-hub/walking_dead_online_filter.json` in the executor workspace on every change.
-- Remote seen by the user while looting a fridge: `ReplicatedStorage.CLIENT_REMOTES.UpdateStorageUI`
-  with one argument shown as `Loot_Fridge`. It fired when the fridge was opened, so it is the open /
-  refresh call, not the take action. Not known yet: the remote for taking an item, the method
-  (FireServer / InvokeServer), and whether the argument is the folder instance or a string.
-- Auto Loot is a placeholder toggle only. Per the user it should only act on an inventory that is already
-  open (a container or corpse the player opened), so it has no range setting and never walks to loot. Needed from Dex: how the game picks an item up
-  (ProximityPrompt, ClickDetector, touch or a remote).
-- Temporary, written 2026-10-11 and not run: the Remote Logger button (Misc, Debug), to find the take call.
-  It hooks `__namecall` and records the game's `FireServer` / `InvokeServer` calls on any remote, plus what
-  the events under `CLIENT_REMOTES` fire at the client, the first 25 of each with a count of all, into
+- Looting, from the remote log (five takes from ammo boxes in a gun store). All are `FireServer` on events
+  under `ReplicatedStorage.CLIENT_REMOTES`:
+  - Open: `SetCursorHit(lootPart)` then `UpdateStorageUI(lootPart)`, the loot part instance. The server answers
+    with an `UpdateStorageUI` client event carrying nothing, about 0.1 s later, and again after every take.
+  - Take: `LootingSound(type)` then `TransferItem(id, "Main", "Storage", { SourceObject = lootPart })`: the
+    item's `ID`, the inventory it goes to, the one it is in. The third argument matched the item's `Container`
+    attribute every time, which is where auto loot reads it from. Three takes 0.22 s and 0.28 s apart all
+    went through.
+  - Close: `ToggleInventory(false)`.
+- `CLIENT_REMOTES.ClientIntegrity` is an anti-tamper heartbeat: `("Heartbeat", "Gun" | "Inventory", counter,
+  "", 16 hex digits)`, from the gun script every 2 s and the inventory script every 4 s. What the hex is a
+  hash of is not known. A `__namecall` hook ran for 30 s under it with no kick.
+- Other remotes seen: `NVGToggle("Destroy")` in bursts, `FootstepReplicate(material, "None")`.
+- Auto Loot (written 2026-10-11, not run): per the user it only acts on an inventory the player opened, so it
+  has no range setting and never walks to loot. A `__namecall` hook, on from load, notes the loot part the
+  game opens and forgets it on `ToggleInventory`; on the server's answer it fires `TransferItem` for each item
+  that passes `allowed`, 0.2 s apart, and stops if the inventory closes. It does not send `LootingSound`.
+  Not known: whether a corpse opens through the same call and its items carry an `ID`, what the server does
+  when `Main` is full, and whether a take with no `LootingSound` or a faster one is noticed.
+- Temporary: the Remote Logger button (Misc, Debug), which found the calls above. It hooks `__namecall` and
+  records the game's `FireServer` / `InvokeServer` calls on any remote, plus what the events under
+  `CLIENT_REMOTES` fire at the client, the first 25 of each with a count of all, into
   `hul1ans-hub/walking_dead_online_remotes.json`. An Instance argument is written with its attributes and
-  children. Calls made as `remote.FireServer(remote, ...)` are not seen. Remove it once the call is known.
+  children. Kept until auto loot has been seen working on a corpse, then remove it.
 - The Player and Misc tabs are still placeholders too.
 
 ## BloxStrike
