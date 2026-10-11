@@ -217,6 +217,7 @@ local filterTab = window:CreateTab("Loot Filter", "layers")
 local filterSection = filterTab:CreateSection("Loot Filter", "LeftSide")
 local filterItems = filterTab:CreateSection("Filter (click to remove)", "RightSide")
 local filterButtons = {}
+local showAvailable
 
 local function filterChanged()
 	config.save(FILTER_FILE, filter)
@@ -228,6 +229,7 @@ local function addFilterButton(name)
 		table.remove(filter.names, table.find(filter.names, name))
 		filterButtons[name]:Remove()
 		filterButtons[name] = nil
+		showAvailable()
 		filterChanged()
 	end)
 end
@@ -244,7 +246,7 @@ filterSection:CreateToggle("Enabled", filter.enabled, function(value)
 end)
 
 -- every item name in floor loot, containers and corpses right now
-local function availableLoot()
+local function scanLoot()
 	local names = {}
 	local found = {}
 	local function add(items)
@@ -272,18 +274,30 @@ local function availableLoot()
 	return names
 end
 
-local available = filterSection:CreateDropdown("Available Loot", availableLoot(), function(name)
+local scanned = scanLoot()
+local available = filterSection:CreateDropdown("Available Loot", {}, function(name)
 	if not table.find(filter.names, name) then
 		table.insert(filter.names, name)
 		addFilterButton(name)
+		showAvailable()
 		filterChanged()
 	end
 end)
-filterSection:CreateButton("Refresh Available Loot", function()
+
+-- the last scan's names without those already in the filter
+function showAvailable()
 	available:ClearOptions()
-	for _, name in availableLoot() do
-		available:AddOption(name)
+	for _, name in scanned do
+		if not table.find(filter.names, name) then
+			available:AddOption(name)
+		end
 	end
+end
+showAvailable()
+
+filterSection:CreateButton("Refresh Available Loot", function()
+	scanned = scanLoot()
+	showAvailable()
 end)
 filterSection:CreateButton("Clear Filter", function()
 	for _, button in filterButtons do
@@ -291,6 +305,7 @@ filterSection:CreateButton("Clear Filter", function()
 	end
 	table.clear(filterButtons)
 	table.clear(filter.names)
+	showAvailable()
 	filterChanged()
 end)
 

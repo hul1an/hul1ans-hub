@@ -27,8 +27,9 @@
 - Loot Filter tab: one global filter for everything loot-related. With it on, only items whose exact
   name is in `filter.names` pass `allowed(name)`; containers and corpses with no passing item are hidden.
   Auto loot must go through `allowed` too. Names are added from the Available Loot dropdown (every item
-  name in floor loot, containers and corpses, rebuilt on load and by the Refresh button, never on a
-  timer) and removed by clicking them in the right-hand section. Saved to
+  name in floor loot, containers and corpses, scanned on load and by the Refresh button, never on a
+  timer) and removed by clicking them in the right-hand section. A name in the filter is left out of the
+  dropdown, at the user's request, and comes back when it is removed. Saved to
   `hul1ans-hub/walking_dead_online_filter.json` in the executor workspace on every change.
 - Looting, from the remote log (five takes from ammo boxes in a gun store). All are `FireServer` on events
   under `ReplicatedStorage.CLIENT_REMOTES`:
