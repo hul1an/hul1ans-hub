@@ -1,5 +1,7 @@
 local hub = ...
 
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+
 local window = hub.ui.createWindow("The Walking Dead Online")
 
 -- Bracket fires every callback once while the controls are built
@@ -218,9 +220,138 @@ local movement = player:CreateSection("Movement")
 movement:CreateSlider("Speed", 16, 100, 16, true, placeholder("Speed"))
 movement:CreateToggle("Infinite Stamina", false, placeholder("Infinite Stamina"))
 
+-- temporary: the remote logger, to learn what the game sends when an item is taken from a container.
+-- Its button records every remote call the game makes and what CLIENT_REMOTES fires back, and writes
+-- hul1ans-hub/walking_dead_online_remotes.json every 2 seconds until Eject
+local LOG_FILE = "walking_dead_online_remotes"
+-- a remote that fires constantly would bury the rest
+local LOG_PER_REMOTE = 25
+local log = { counts = {}, events = {} }
+
+-- a value as something JSONEncode takes; binary is written as hex, 2048 bytes of it at most
+local function plain(value)
+	local kind = typeof(value)
+	if kind == "boolean" then
+		return value
+	elseif kind == "number" then
+		return (value ~= value or math.abs(value) == math.huge) and tostring(value) or value
+	elseif kind == "string" and not value:find("[^ -~]") then
+		return value:sub(1, 200)
+	elseif kind == "string" or kind == "buffer" then
+		local bytes = kind == "buffer" and buffer.tostring(value) or value
+		local hex = bytes:sub(1, 2048):gsub(".", function(byte)
+			return ("%02x"):format(byte:byte())
+		end)
+		return ("%s[%d] %s"):format(kind, #bytes, hex)
+	end
+	return kind .. " " .. tostring(value)
+end
+
+local describe
+
+-- a table as nested plain values, cut off at a depth and at 40 keys
+local function shape(value, depth)
+	if typeof(value) == "Instance" then
+		return describe(value, 1)
+	elseif type(value) ~= "table" then
+		return plain(value)
+	elseif depth == 0 then
+		return "table"
+	end
+	local out, count = {}, 0
+	for key, item in next, value do
+		count += 1
+		if count > 40 then
+			out["..."] = "more"
+			break
+		end
+		out[tostring(plain(key))] = shape(item, depth - 1)
+	end
+	return out
+end
+
+-- an instance with its attributes and, to a depth, its first 40 children: an item's id or amount may be on either
+function describe(instance, depth)
+	local out = {
+		class = instance.ClassName,
+		path = instance:GetFullName(),
+		attributes = shape(instance:GetAttributes(), 1),
+	}
+	if instance:IsA("ValueBase") then
+		out.value = shape(instance.Value, 0)
+	end
+	if depth > 0 then
+		out.children = {}
+		for index, child in instance:GetChildren() do
+			if index > 40 then
+				break
+			end
+			table.insert(out.children, describe(child, depth - 1))
+		end
+	end
+	return out
+end
+
+local function record(method, remote, ...)
+	local key = method .. " " .. remote:GetFullName()
+	local count = (log.counts[key] or 0) + 1
+	log.counts[key] = count
+	if count <= LOG_PER_REMOTE then
+		table.insert(log.events, {
+			at = os.clock() - log.started,
+			remote = key,
+			arguments = shape(table.pack(...), 4),
+		})
+	end
+end
+
+local function logRemotes()
+	if log.started then
+		return
+	end
+	log.started = os.clock()
+
+	local remotes = ReplicatedStorage:FindFirstChild("CLIENT_REMOTES")
+	if remotes then
+		for _, remote in remotes:GetDescendants() do
+			if remote:IsA("BaseRemoteEvent") then
+				hub.cleanup.add(remote.OnClientEvent:Connect(function(...)
+					record("OnClientEvent", remote, ...)
+				end))
+			end
+		end
+	else
+		warn("[hub] ReplicatedStorage.CLIENT_REMOTES not found: only the game's own calls are logged")
+		hub.ui.notify("ReplicatedStorage.CLIENT_REMOTES not found: only the game's own calls are logged", "error")
+	end
+
+	local original
+	original = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if method == "FireServer" or method == "InvokeServer" then
+			-- in its own thread: a method call made here would replace the name the game's call is about to
+			-- use, and an error in it stays out of the game's call
+			task.spawn(record, method, self, ...)
+		end
+		return original(self, ...)
+	end))
+	hub.cleanup.add(function()
+		hookmetamethod(game, "__namecall", original)
+	end)
+
+	hub.cleanup.add(task.spawn(function()
+		while true do
+			config.save(LOG_FILE, log)
+			task.wait(2)
+		end
+	end))
+	hub.ui.notify("remote logger on: writing hul1ans-hub/" .. LOG_FILE .. ".json", "success")
+end
+
 local misc = window:CreateTab("Misc", "settings")
 local utility = misc:CreateSection("Utility")
 utility:CreateButton("Teleport", placeholder("Teleport"))
+misc:CreateSection("Debug"):CreateButton("Remote Logger", logRemotes)
 misc:CreateSection("Hub"):CreateButton("Eject", hub.unload)
 
 ready = true

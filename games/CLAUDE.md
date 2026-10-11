@@ -31,6 +31,11 @@
 - Auto Loot is a placeholder toggle only. Per the user it should only act on an inventory that is already
   open (a container or corpse the player opened), so it has no range setting and never walks to loot. Needed from Dex: how the game picks an item up
   (ProximityPrompt, ClickDetector, touch or a remote).
+- Temporary, written 2026-10-11 and not run: the Remote Logger button (Misc, Debug), to find the take call.
+  It hooks `__namecall` and records the game's `FireServer` / `InvokeServer` calls on any remote, plus what
+  the events under `CLIENT_REMOTES` fire at the client, the first 25 of each with a count of all, into
+  `hul1ans-hub/walking_dead_online_remotes.json`. An Instance argument is written with its attributes and
+  children. Calls made as `remote.FireServer(remote, ...)` are not seen. Remove it once the call is known.
 - The Player and Misc tabs are still placeholders too.
 
 ## BloxStrike
