@@ -677,14 +677,15 @@ end))
 
 -- temporary: the backtrack test. A shot tells the server which moment of the enemy movement stream the client was
 -- looking at (ViewTick), taken to be for rewinding enemies to where the shooter saw them. While the test is on every
--- shot is sent along the line to where the enemy nearest the crosshair stood some ticks ago, with the tick moved back
+-- shot is sent along the line to where the head of the enemy nearest the crosshair was some ticks ago, with the tick moved back
 -- as far or left as it was, and the damage that follows says whether the server rewound
 local backtrack = { enabled = false, ticks = 6, oldTick = true }
 -- the server's ticks a second
 local TICK_RATE = 60
--- an enemy must be this many studs off the old line of fire for a shot along it to say anything
-local MOVED = 3
--- by character: where its upper torso was on each frame of the last second, oldest first
+-- a head must be this many studs off the old line of fire for a shot along it to say anything: a head is about 1.2
+-- across and nothing else of the body is at its height
+local MOVED = 1.2
+-- by character: where its head was on each frame of the last second, oldest first
 local trail = {}
 -- test shots waiting for the server's damage: at, victim, health, and text, the line so far
 local tested = {}
@@ -694,12 +695,12 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 	local shown = {}
 	if backtrack.enabled then
 		for _, character in players.models(true) do
-			local torso = character:FindFirstChild("UpperTorso")
-			if torso then
+			local head = character:FindFirstChild("Head")
+			if head then
 				local points = trail[character] or {}
 				trail[character] = points
 				shown[character] = true
-				table.insert(points, { at = now, position = torso.Position })
+				table.insert(points, { at = now, position = head.Position })
 				while now - points[1].at > 1 do
 					table.remove(points, 1)
 				end
@@ -733,12 +734,12 @@ local function backtrackShot(payload)
 		return
 	end
 	local forward = workspace.CurrentCamera.CFrame.LookVector
-	local victim, torso, best
+	local victim, head, best
 	for character in trail do
-		local part = character:FindFirstChild("UpperTorso")
+		local part = character:FindFirstChild("Head")
 		local angle = part and forward:Angle(part.Position - first.Origin)
 		if angle and (not best or angle < best) then
-			victim, torso, best = character, part, angle
+			victim, head, best = character, part, angle
 		end
 	end
 	if not victim then
@@ -756,7 +757,7 @@ local function backtrackShot(payload)
 	end
 	local back = (now - old.at) * TICK_RATE
 	local toward = (old.position - first.Origin).Unit
-	local off = (torso.Position - first.Origin):Cross(toward).Magnitude
+	local off = (head.Position - first.Origin):Cross(toward).Magnitude
 	local name = players.label(victim)
 	if off < MOVED then
 		table.insert(written, string.format("backtrack test: %s is %.1f studs off the old line, shot left alone", name, off))

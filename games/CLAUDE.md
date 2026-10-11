@@ -290,10 +290,11 @@
   second: the moment of the enemy stream the client was shown. The client keeps 0.25 s of remote history.
 - Temporary: the backtrack test (misc › general, written 2026-10-11 at the user's request, not run), to learn whether
   the server rewinds enemies by `ViewTick` and how far back it takes one. The `ShootWeapon` packet table is found
-  through `getgc(true)` and its `Send` swapped. While on, a shot's bullets are turned to where the upper torso of the
+  through `getgc(true)` and its `Send` swapped. While on, a shot's bullets are turned to where the head of the
   enemy nearest the crosshair was `ticks back` ago (from a one second trail the hub records) and, with `send old
-  tick`, `ViewTick` is lowered by as much. A shot is left alone when the enemy is under 3 studs off that old line,
-  since it would hit either way. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
+  tick`, `ViewTick` is lowered by as much. A shot is left alone when the head is under 1.2 studs off that old line,
+  since it would hit either way. The first version used the upper torso and 3 studs, which a runner doesn't cover in
+  the default 6 ticks: in the user's first run every shot was left alone (0.0 to 0.9 studs off). Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
   <n> ticks back, old tick | real tick, <n> studs off: <n> damage | no damage`. Damage with the old tick and none
   with the real one means the server rewinds. Remove it once that is answered, and make starline's backtrack real
   from it if it is a yes.
