@@ -71,7 +71,7 @@ in an executor in the target game and reported what they saw. Say "written, not 
 | `core/markers.lua` | Text-only world markers on the Drawing API, for things that aren't characters (corpses, loot). `markers.add(color, instances, label)` returns a group with `enabled`, `color`, `maxDistance` and `interval` (seconds between scans, default 1). `instances()` and `label(instance)` only run on a scan; `label` returns a heading and the text under it, or nil to skip. Between scans it re-checks distance 4 times a second from cached positions and only moves the labels per frame. `markers.start()` begins the loop. Game files start it and build the controls themselves |
 | `universal.lua` | Features that work in any game. Starts the ESP and aim assist and returns `function(window)` that adds the Combat tab (starline's aimbot cards General, Targeting, Behavior, Accuracy, Triggerbot and RCS, plus the hub's own Options card) and the ESP tab (master toggle, one section per source, shared options) to a window, and returns `{ combat, esp }` so a game file can add sections to those tabs |
 | `assets/` | Files `core/ui.lua` fetches once and then reads from `hul1ans-hub/assets` in the executor workspace through `getcustomasset`, so a changed asset needs a new file name. `GeistMono-Medium.ttf` is the menu font (SIL OFL 1.1, licence in `OFL.txt`). `icons.png` is a sheet of the dump's 21 `sl-*` SVG icons drawn at twice their shown size, made with a throwaway script because Roblox can't render SVG |
-| `tools/bridge.lua` | Dev tool, not part of the hub and Potassium only: lets Claude Code read the running game. The user runs `dofile("claude-bridge/bridge.lua")`; it polls `claude-bridge/request.json` in the executor workspace, writes the answer to `response.txt` as plain text, then deletes the request. Ops are read-only: `ping`, `children` (`depth`), `inspect` (properties, attributes, tags), `find` (`name`, `class`), `decompile`. A `path` is a JSON list from `game` down, a child's name or its `GetChildren` index where the name isn't unique. Running it again, or deleting `claude-bridge/session`, stops the older loop. The workspace copy is made by hand, so copy it again after an edit |
+| `tools/bridge.lua` | Dev tool, not part of the hub and Potassium only: lets Claude Code read the running game. It is started with `dofile("claude-bridge/bridge.lua")`, by the user or through Potassium's MCP server; it polls `claude-bridge/request.json` in the executor workspace, writes the answer to `response.txt` as plain text, then deletes the request. Ops are read-only: `ping`, `children` (`depth`), `inspect` (properties, attributes, tags), `find` (`name`, `class`), `decompile`. A `path` is a JSON list from `game` down, a child's name or its `GetChildren` index where the name isn't unique. Running it again, or deleting `claude-bridge/session`, stops the older loop. The workspace copy is made by hand, so copy it again after an edit |
 | `tools/bridge.sh` | The sender, run from Git Bash: `sh tools/bridge.sh '{"op":"children","path":["Workspace"]}' [timeout]`. Prints the response, or fails after the timeout (30 s) when the bridge isn't running |
 | `games/registry.lua` | Maps `game.GameId` (the universe, covers every place) to a game file |
 | `games/<name>.lua` | One file per supported game, run with `hub` as `...`. Never requires another game file |
@@ -168,6 +168,11 @@ humanization / sticky in a game with its own camera script, switch delay, mouse 
 disabler, the triggerbot, and that silent aim still gets its target from `aim.target`. Mouse buttons as
 keybinds in `core/ui.lua` are written and not run as well.
 
-`tools/bridge.lua` was written on 2026-10-11 and has not been run. Potassium's workspace is
-`%LOCALAPPDATA%\Potassium\workspace`. Open until the user reports back: that `getproperties` returns a
-name to value table, and what `decompile` gives for a script it can't handle.
+`tools/bridge.lua` was run in BloxStrike on 2026-10-11 and all five ops answered. Potassium's workspace is
+`%LOCALAPPDATA%\Potassium\workspace`.
+
+Potassium's own MCP server (Settings, Agent Access, `http://127.0.0.1:8225/mcp`) was connected the same
+day through a project `.mcp.json`. That file holds the bearer token, so it is in `.gitignore` and must
+stay out of the repo. Its tools are `list_clients`, `execute_script` and `read_console`. Claude Code has
+used `execute_script` only to start the bridge; running the hub through it hasn't been agreed with the
+user. `read_console` came back empty after the bridge's `print`, so what it captures is still unknown.
