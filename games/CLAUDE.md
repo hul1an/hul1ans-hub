@@ -226,6 +226,26 @@
     head as torso. Behind the 37.5: the Zeus (500 a part, modifier 0.011416) comes to 99 at its 13.584 stud
     range. Not known: whether the server uses that rule, its part to group map, and what a wall takes off
     (`WallbangMultiplier` is not applied). A shotgun's figure is one pellet's.
+- Wall penetration, from `Shared.Raycast`, `Bullet._performRaycast` and `Components.Common.GetRayIgnore` decompiled
+  through the bridge on 2026-10-11 for Auto Wall:
+  - `_performRaycast` calls `Raycast.castThroughDistance(origin, direction * Range, Properties.Penetration, ignore)`.
+    The ray is in the `Bullet` collision group and leaves out `workspace.Debris`, the camera, `Map.Cameras`,
+    `Map.Barriers`, `Map.Ambience`, `Map.Zones.Spawns`, `Map.Zones.Sites` and the local character.
+  - It passes straight through accessories, parts tagged `CharacterAccessory`, `CollisionCapsule` and
+    `HumanoidRootPart`, so a shot of the game's own never hits a root part.
+  - Any other part is an entry hit. Its thickness is measured by a ray back from 1000 studs beyond, and added to a
+    running total for its material. The bullet goes on (an exit hit, `Exit = true`, every second entry of `Hits`)
+    while that total is within what the material gives plus the gun's `Penetration`, and stops in the part otherwise.
+  - A material gives 10 studs for Plastic, SmoothPlastic, Wood, WoodPlanks and Cardboard, 25 for Glass and Fabric and
+    0 for the rest. The material variants `Sandy Brick` and `IndoorWall` give 0 and are totalled on their own. A part
+    whose parent is tagged `BreakableDoor` counts as Metal. On the map `Reactor` (the workspace's `Map` attribute,
+    `Oasis` when read) a 0 becomes -1.
+  - `Penetration` is 0.65 for the AK-47, 0.9 for the AWP, 0.14 for the Glock-18; `WallbangMultiplier` 0.75, 0.98, 0.35.
+  - `Raycast.cast` and `Raycast.castThrough` walk ten stack levels and empty the module's table if a caller's
+    environment has `getgenv` or `hookfunction`. `castThroughDistance`, the one bullets use, has no such check. The
+    hub calls none of them: `aim.pierces` in `main.lua` (written, not run) repeats the rule with its own raycasts.
+  - Not known: how the server applies `WallbangMultiplier` (the hub applies it once per shot), and whether it
+    repeats the penetration check.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
@@ -334,5 +354,6 @@
   toggle is under the aim's Enabled; the shot hook reads it and
   still redirects to `aim.target`. The aim core under it is new and Auto Fire is gone, so Team Check and the
   silent aim target need seeing again.
-  Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage, and whether
+  Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage (the game's own ray
+  passes through root parts), and whether
   the triggerbot's `VirtualInputManager` click shows as that button being held.

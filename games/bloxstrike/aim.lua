@@ -48,8 +48,9 @@ local BODY = { "chest", "stomach", "pelvis" }
 
 -- aim.target is the part currently aimed at, or nil; main.lua's shot hook reads it.
 -- main.lua sets aim.blocked, a function that returns true while the aim and the trigger must stay off;
--- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out,
--- and aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise
+-- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out;
+-- aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise;
+-- and aim.pierces, a function that returns whether a bullet would get from a position to a point on a model
 local aim = {
 	settings = {
 		Enabled = false,
@@ -69,8 +70,10 @@ local aim = {
 		Sticky = 0,
 		SwitchDelay = 0,
 		MouseOverride = 100,
+		AutoWall = false,
 		ForceBaim = false,
 		Trigger = false,
+		TriggerAutoWall = false,
 		TriggerHitgroups = { "head", "chest", "stomach", "pelvis", "arms", "legs", "feet" },
 		TriggerDelay = 0,
 		TriggerVisibleDelay = 0,
@@ -121,6 +124,15 @@ local function isVisible(camera, point, model)
 		table.insert(ignore, hit.Instance)
 	end
 	return false
+end
+
+-- whether a shot can get to a point on a model, and whether it must go through something to: in plain sight, or with
+-- auto wall through what the gun out pierces
+local function reaches(camera, point, model, autoWall)
+	if isVisible(camera, point, model) then
+		return true, false
+	end
+	return autoWall and aim.pierces(camera.CFrame.Position, point, model), true
 end
 
 -- nothing under the local character's root within reach of its feet, which the esp puts 1.5 root heights down
@@ -198,7 +210,7 @@ local function scaleFov(fov, distance)
 	return fov * (1 - 0.7 * math.clamp((distance - near) / (FOV_RANGE - near), 0, 1))
 end
 
--- starline's "closest" hitbox selection: of a model's chosen parts, the visible point nearest the crosshair
+-- starline's "closest" hitbox selection: of a model's chosen parts, the point a shot can get to nearest the crosshair
 local function evaluate(camera, model, forward, fov)
 	local eye = camera.CFrame.Position
 	local bestPart, bestPoint, bestAngle
@@ -207,7 +219,7 @@ local function evaluate(camera, model, forward, fov)
 		local angle = math.deg(forward:Angle(point - eye))
 		if angle <= fov
 			and (not bestAngle or angle < bestAngle)
-			and isVisible(camera, point, model) then
+			and reaches(camera, point, model, settings.AutoWall) then
 			bestPart, bestPoint, bestAngle = part, point, angle
 		end
 	end
@@ -405,11 +417,12 @@ local function fire(camera)
 	return true
 end
 
--- the target whose trigger hitgroups the view ray enters first with nothing in the way, the part it enters and how far off
+-- the target whose trigger hitgroups the view ray enters first with nothing in the way that a shot can't go through,
+-- the part it enters, how far off, and whether the shot goes through something
 local function underCrosshair(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
-	local nearest, struck, best
+	local nearest, struck, best, walled
 
 	eachTarget(function(model, root)
 		local offset = root.Position - eye
@@ -419,16 +432,16 @@ local function underCrosshair(camera)
 		end
 		for _, part in hitParts(model, settings.TriggerHitgroups) do
 			local distance = crosses(part, eye, forward)
-			if distance
-				and distance <= settings.MaxDistance
-				and (not best or distance < best)
-				and isVisible(camera, eye + forward * distance, model) then
-				nearest, struck, best = model, part, distance
+			if distance and distance <= settings.MaxDistance and (not best or distance < best) then
+				local reached, through = reaches(camera, eye + forward * distance, model, settings.TriggerAutoWall)
+				if reached then
+					nearest, struck, best, walled = model, part, distance, through
+				end
 			end
 		end
 	end)
 
-	return nearest, struck, best
+	return nearest, struck, best, walled
 end
 
 -- the share of its spread a shot of the trigger's keeps
@@ -481,8 +494,8 @@ local function roll(milliseconds)
 end
 
 -- starline's triggerbot: clicks while a target is under the crosshair, once its delays have run.
--- aimed is the model the aim has and aimedPart its part, or nil
-local function trigger(camera, now, aimed, aimedPart)
+-- aimed is the model the aim has, aimedPart its part and aimedPoint the point on it, or nil
+local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	-- the user is firing themselves
 	if UserInputService:IsMouseButtonPressed(FIRE_BUTTON) and not clicking then
 		return
@@ -503,11 +516,13 @@ local function trigger(camera, now, aimed, aimedPart)
 	end
 
 	-- a silent shot goes to the aim's target wherever the crosshair is, so that target counts as under it
-	local model, part, distance = aimed, aimedPart, nil
-	if settings.SilentAim then
-		distance = part and (part.Position - camera.CFrame.Position).Magnitude
-	else
-		model, part, distance = underCrosshair(camera)
+	local model, part, distance, walled = aimed, aimedPart, nil, false
+	if not settings.SilentAim then
+		model, part, distance, walled = underCrosshair(camera)
+	elseif model then
+		distance = (part.Position - camera.CFrame.Position).Magnitude
+		-- the aim only takes a point out of sight with its own auto wall
+		walled = not isVisible(camera, aimedPoint, model)
 	end
 	if not model then
 		acquired, served, reaction = nil, false, nil
@@ -535,7 +550,7 @@ local function trigger(camera, now, aimed, aimedPart)
 	end
 
 	-- a shot that would kill passes whatever the setting
-	local damage = settings.TriggerMinDamage > 0 and aim.damage and aim.damage(part, distance)
+	local damage = settings.TriggerMinDamage > 0 and aim.damage and aim.damage(part, distance, walled)
 	if damage and damage < math.min(settings.TriggerMinDamage, healthOf[model] or math.huge) then
 		return
 	end
@@ -586,7 +601,7 @@ function aim.start()
 		end
 
 		if settings.Trigger and not blocked then
-			trigger(camera, now, model, part)
+			trigger(camera, now, model, part, point)
 		end
 	end)
 

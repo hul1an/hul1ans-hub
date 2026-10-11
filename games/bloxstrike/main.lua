@@ -82,8 +82,9 @@ end
 local FALLOFF = 37.5
 
 -- the damage behind the trigger's Min Damage. The server works damage out, so this is CS2's rule on the gun's own
--- figures: the part's damage, less for range, and less again where armour covers the part
-aim.damage = function(part, distance)
+-- figures: the part's damage, less for range, less again where armour covers the part, and by the gun's
+-- WallbangMultiplier once for a shot that goes through something
+aim.damage = function(part, distance, walled)
 	if not (equipped and equipped.IsActive) then
 		return nil
 	end
@@ -107,7 +108,102 @@ aim.damage = function(part, distance)
 			damage *= properties.ArmorPenetration
 		end
 	end
+	if walled then
+		damage *= properties.WallbangMultiplier
+	end
 	return damage
+end
+
+-- the game's bullet ray (Shared.Raycast): the studs of a material a bullet crosses before the gun's Penetration
+-- starts to count, none for a material not listed; these two material variants give none whatever they are made of
+local SOFT = {
+	[Enum.Material.Plastic] = 10,
+	[Enum.Material.SmoothPlastic] = 10,
+	[Enum.Material.Wood] = 10,
+	[Enum.Material.WoodPlanks] = 10,
+	[Enum.Material.Cardboard] = 10,
+	[Enum.Material.Glass] = 25,
+	[Enum.Material.Fabric] = 25,
+}
+local HARD = { ["Sandy Brick"] = true, IndoorWall = true }
+-- by the workspace's Map attribute: what a material that gives none gives there instead
+local MAP_FLOOR = { Reactor = -1 }
+local bulletRay = RaycastParams.new()
+bulletRay.FilterType = Enum.RaycastFilterType.Exclude
+bulletRay.CollisionGroup = "Bullet"
+local exitRay = RaycastParams.new()
+exitRay.FilterType = Enum.RaycastFilterType.Include
+exitRay.CollisionGroup = "Bullet"
+
+-- what the game's bullet ray leaves out (Components.Common.GetRayIgnore)
+local function bulletIgnore()
+	local ignore = { workspace.CurrentCamera, Players.LocalPlayer.Character }
+	local function add(parent, name)
+		local child = parent and parent:FindFirstChild(name)
+		if child then
+			table.insert(ignore, child)
+		end
+	end
+	local map = workspace:FindFirstChild("Map")
+	local zones = map and map:FindFirstChild("Zones")
+	add(workspace, "Debris")
+	add(map, "Cameras")
+	add(map, "Barriers")
+	add(map, "Ambience")
+	add(zones, "Spawns")
+	add(zones, "Sites")
+	return ignore
+end
+
+-- auto wall: whether a bullet of the gun that is out would get from origin to a point on a model. It follows the
+-- game's ray: a part is gone through while the studs crossed of its material so far are within what the material
+-- gives plus the gun's Penetration, its thickness being measured by a ray back from the far side
+aim.pierces = function(origin, point, model)
+	if not (equipped and equipped.IsActive) then
+		return false
+	end
+	local offset = point - origin
+	local unit, length = offset.Unit, offset.Magnitude
+	local crossed = {}
+	local from = origin
+	bulletRay.FilterDescendantsInstances = bulletIgnore()
+	for _ = 1, 100 do
+		local left = length - (from - origin):Dot(unit)
+		local hit = left > 0 and workspace:Raycast(from, unit * left, bulletRay)
+		if not hit or hit.Instance:IsDescendantOf(model) then
+			return true
+		end
+		local part = hit.Instance
+		bulletRay:AddToFilter(part)
+		-- the ray passes these as if they weren't there
+		if not (part:FindFirstAncestorWhichIsA("Accessory")
+			or part:HasTag("CharacterAccessory")
+			or part.Name == "CollisionCapsule"
+			or part.Name == "HumanoidRootPart") then
+			local far = hit.Position + unit * 1000
+			exitRay.FilterDescendantsInstances = { part }
+			local exit = workspace:Raycast(far, hit.Position - far, exitRay)
+			if not exit then
+				return false
+			end
+
+			local key, gives = part.MaterialVariant, 0
+			if not HARD[key] then
+				-- a breakable door counts as metal
+				key = part.Parent:HasTag("BreakableDoor") and Enum.Material.Metal or part.Material
+				gives = SOFT[key] or 0
+			end
+			if gives == 0 then
+				gives = MAP_FLOOR[workspace:GetAttribute("Map")] or 0
+			end
+			crossed[key] = (crossed[key] or 0) + (hit.Position - exit.Position).Magnitude
+			if crossed[key] > gives + (equipped.Properties.Penetration or 0) then
+				return false
+			end
+			from = exit.Position
+		end
+	end
+	return false
 end
 
 -- the game moves characters it has culled out of workspace.Characters and leaves their last position on them,
