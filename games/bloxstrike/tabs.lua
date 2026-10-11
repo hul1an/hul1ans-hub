@@ -138,7 +138,7 @@ local function addAimbot(window)
 
 	local accuracy = page:CreateSection("accuracy", "RightSide")
 	toggle(accuracy, "auto wall", settings, "AutoWall")
-	off.slider(accuracy, "min damage", 0, 100)
+	slider(accuracy, "min damage", settings, "MinDamage", 0, 100, true)
 	toggle(accuracy, "force baim", settings, "ForceBaim")
 	off.toggle(accuracy, "baim if lethal")
 	off.toggle(accuracy, "auto scope")

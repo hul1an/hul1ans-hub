@@ -71,6 +71,7 @@ local aim = {
 		SwitchDelay = 0,
 		MouseOverride = 100,
 		AutoWall = false,
+		MinDamage = 0,
 		ForceBaim = false,
 		Trigger = false,
 		TriggerAutoWall = false,
@@ -217,9 +218,16 @@ local function evaluate(camera, model, forward, fov)
 
 	local function consider(part, point)
 		local angle = math.deg(forward:Angle(point - eye))
-		if angle <= fov
-			and (not bestAngle or angle < bestAngle)
-			and reaches(camera, point, model, settings.AutoWall) then
+		if angle > fov or bestAngle and angle >= bestAngle then
+			return
+		end
+		local reached, through = reaches(camera, point, model, settings.AutoWall)
+		-- a shot through something has to do the minimum damage, unless it would kill
+		if reached and through and settings.MinDamage > 0 then
+			local damage = aim.damage(part, (point - eye).Magnitude, true)
+			reached = not damage or damage >= math.min(settings.MinDamage, healthOf[model] or math.huge)
+		end
+		if reached then
 			bestPart, bestPoint, bestAngle = part, point, angle
 		end
 	end

@@ -117,7 +117,7 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   starline's: the user asked for the trigger to fire when the spread seed lands on a hitbox, and where the seed
   can't be read (BloxStrike) for a Legitimacy slider instead, 0% removing the spread, 100% leaving it alone so
   that only Hitchance decides. Restricted and Strength are not drawn beside it. The trigger's Min Damage
-  (asked for the same day) is real in BloxStrike; the Accuracy card's Min Damage is still a placeholder. A shot that would kill passes whatever the setting (asked for by the user). Hitchance is measured on the
+  (asked for the same day) is real in BloxStrike; the Accuracy card's Min Damage is auto wall's, below. A shot that would kill passes whatever the setting (asked for by the user). Hitchance is measured on the
   gun's real spread, not on what Legitimacy leaves (asked for by the user the same day: Seeded must not fire
   where a regular shot wouldn't pass), and is skipped with Silent Aim on.
 - BloxStrike's window is starline's whole menu (asked for by the user on 2026-10-11: recreate it as closely as possible,
@@ -143,7 +143,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
-  through something has its Min Damage figure multiplied by the gun's `WallbangMultiplier` once. With Silent Aim on
+  through something has its Min Damage figure multiplied by the gun's `WallbangMultiplier` once. The accuracy card's
+  `min damage` (`MinDamage`, asked for as "autowall min damage" the same day) is the aim's: a point it could only
+  reach through something is left alone when the shot would do less than the setting and less than the target's
+  health. It does not hold the aim off a target in plain sight; that reading of the request is Claude's. With Silent Aim on
   the trigger follows the aim's target, so the aim's Auto Wall is the one that counts. A trigger Visible Delay above
   0 still needs the target to have been in sight, so it holds fire on a target only reachable through a wall.
 - Kept in the Combat tab though starline has no such thing: the Enabled keybind, BloxStrike's Silent Aim
@@ -219,7 +222,7 @@ humanization / sticky in a game with its own camera script, switch delay, mouse 
 disabler, the triggerbot, and that silent aim still gets its target from `aim.target`. Mouse buttons as
 keybinds in `core/ui.lua` are written and not run as well.
 
-Auto Wall was written on 2026-10-11 from the game's decompiled bullet ray and has not been run.
+Auto Wall and its min damage were written on 2026-10-11 from the game's decompiled bullet ray and has not been run.
 
 The trigger's Seeded (Legitimacy), Hitchance and Min Damage were written on 2026-10-11 with BloxStrike's
 spread and damage figures behind them and have not been run.
