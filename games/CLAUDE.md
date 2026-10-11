@@ -160,6 +160,21 @@
   `VelocityModifier`, `MovementTick`. Beside it are `Simulation.Config` (`Default.DefaultBaseMoveSpeed`) and
   `MovementV2.Types`. Not known: which bit is jump, where the commands are built and sent, whether a jump
   needs a fresh press, and what stamina costs on landing.
+- `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
+  - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
+    `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
+    `MoverDescriptorCodec`, `MoverProgressCodec`, `MoverTrajectory`, `OwnerSnapshotCodec`, `Quantization`,
+    `RemoteActorIdentity`, `RemoteSnapshotCodec`, `RootFrame`, `RuntimeKinematics`, `Serial`, `SpeedProfile`,
+    `StateCodec`, `Transport`, `Types`, and the folders `Collision` and `Simulation` (children not seen).
+  - `Client`: `ActionLockReplay`, `CommandClock`, `CommandState`, `CommandStream`, `CommandUplink`,
+    `CorrectionDiagnostics`, `DamageTagReplay`, `DestructibleTimeline`, `DeterminismTraceCapture`,
+    `DiagnosticOutput`, `MoverComposer`, `OwnerCommandFeedback`, `OwnerRecovery`, `OwnerReplay`,
+    `PlayerContactAdapter`, `PredictionErrorSmoother`, `PredictionPacing`, `PredictionRing`, `Reconciler`,
+    `RemoteBuffer`, `RemoteClock`, `Runtime`, `RuntimeDiagnostics`, `RuntimeTypes`, `WorldComposer`,
+    `WorldReplay`. `Reconciler` and `PredictionRing` back the reading that the client predicts and the server
+    corrects.
+  - Beside it: `ReplicatedStorage.MovementV2CollisionCatalogs.Epoch_00026_d4e4c53d` and a `Control` remote
+    under `MovementV2Remotes`.
 - Removed at the user's request on 2026-10-10, so the hub has nothing for hidden enemies now:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.
