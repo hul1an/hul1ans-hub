@@ -117,7 +117,8 @@ function ops.inspect(request)
 	return table.concat(lines, "\n")
 end
 
--- descendants whose name contains request.name and that are a request.class, either may be left out
+-- descendants whose name contains request.name and that are a request.class, either may be left out;
+-- request.show names a property to print beside each
 function ops.find(request)
 	local lines = {}
 	local name = request.name and request.name:lower()
@@ -129,9 +130,53 @@ function ops.find(request)
 			(not name or instance.Name:lower():find(name, 1, true))
 			and (not request.class or instance:IsA(request.class))
 		then
-			table.insert(lines, pathOf(instance) .. "  " .. instance.ClassName)
+			local line = pathOf(instance) .. "  " .. instance.ClassName
+			if request.show then
+				line ..= "  " .. show(instance[request.show])
+			end
+			table.insert(lines, line)
 		end
 	end
+	return join(lines)
+end
+
+-- what is added under a path over request.seconds (only a request.class, if given): when, class, name, a Sound's
+-- id, and where it or its parent is.
+-- with request.near (a path) and request.nearName, also the nearest part of that name under it and how far
+function ops.watch(request)
+	local lines = {}
+	local started = os.clock()
+	local near = request.near and resolve(request.near)
+	local connection = resolve(request.path).DescendantAdded:Connect(function(instance)
+		if #lines >= MAX_LINES or request.class and not instance:IsA(request.class) then
+			return
+		end
+		local line = string.format("%.2f  %s  %s", os.clock() - started, instance.ClassName, instance.Name)
+		if instance:IsA("Sound") then
+			line ..= "  " .. instance.SoundId
+		end
+		local part = instance:IsA("BasePart") and instance or instance.Parent
+		if part and part:IsA("BasePart") then
+			line ..= "  at " .. tostring(part.Position)
+			if near then
+				local nearest, best
+				for _, other in near:GetDescendants() do
+					if other.Name == request.nearName and other:IsA("BasePart") then
+						local distance = (other.Position - part.Position).Magnitude
+						if not best or distance < best then
+							nearest, best = other, distance
+						end
+					end
+				end
+				if nearest then
+					line ..= string.format("  nearest %s %.1f", nearest.Parent.Name, best)
+				end
+			end
+		end
+		table.insert(lines, line)
+	end)
+	task.wait(request.seconds or 5)
+	connection:Disconnect()
 	return join(lines)
 end
 

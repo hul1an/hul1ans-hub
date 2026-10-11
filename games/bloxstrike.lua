@@ -3,6 +3,7 @@ local hub = ...
 local Players = cloneref(game:GetService("Players"))
 local RunService = cloneref(game:GetService("RunService"))
 local UserInputService = cloneref(game:GetService("UserInputService"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local Debris = cloneref(game:GetService("Debris"))
@@ -99,6 +100,96 @@ end
 players.colorOf = function(character)
 	return visuals.teamColors and TEAM_COLORS[teamOf(character)] or nil
 end
+
+-- the server leaves an enemy it has hidden out of the movement stream but still sends the sounds they make, and
+-- the game plays each from a part at the spot. A footstep or shot that no shown character made is a hidden enemy,
+-- kept as a bare root part for the ESP to draw until it goes quiet
+local HEARD_OWNER_RANGE = 10
+-- a runner's footsteps are about 5 studs apart
+local HEARD_TRACK_RANGE = 15
+local heard = { memory = 3 }
+local ghosts = {}
+
+local function shownNear(position, range, skipTeammates)
+	for _, character in players.models(skipTeammates) do
+		if (character.HumanoidRootPart.Position - position).Magnitude <= range then
+			return true
+		end
+	end
+	return false
+end
+
+local heardSource = esp.addSource("Heard", Color3.fromRGB(255, 170, 60), function()
+	local now = os.clock()
+	local models = {}
+	for index = #ghosts, 1, -1 do
+		local ghost = ghosts[index]
+		-- gone quiet, or shown again and drawn as itself
+		if now - ghost.at > heard.memory or shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
+			ghost.model:Destroy()
+			table.remove(ghosts, index)
+		else
+			table.insert(models, ghost.model)
+		end
+	end
+	return models
+end, function()
+	return "Heard"
+end)
+
+local function hear(position)
+	local nearest, best
+	for _, ghost in ghosts do
+		local distance = (ghost.root.Position - position).Magnitude
+		if distance <= HEARD_TRACK_RANGE and (not best or distance < best) then
+			nearest, best = ghost, distance
+		end
+	end
+	if not nearest then
+		local model = Instance.new("Model")
+		local root = Instance.new("Part")
+		root.Name = "HumanoidRootPart"
+		root.Size = Vector3.new(2, 2, 1)
+		root.Parent = model
+		nearest = { model = model, root = root }
+		table.insert(ghosts, nearest)
+	end
+	nearest.root.Position = position
+	nearest.at = os.clock()
+end
+
+local soundBank = ReplicatedStorage:FindFirstChild("Sounds")
+local debris = workspace:FindFirstChild("Debris")
+if soundBank and debris then
+	-- Sounds.<class>.<name>.<variant>; what plays is a clone under another name, which keeps the id
+	local noisy = {}
+	for _, sound in soundBank:GetDescendants() do
+		if sound:IsA("Sound") and (sound.Parent.Parent.Name == "FloorSounds" or sound.Parent.Name == "Shoot") then
+			noisy[sound.SoundId] = true
+		end
+	end
+
+	hub.cleanup.add(debris.DescendantAdded:Connect(function(sound)
+		if not (esp.settings.Enabled and heardSource.enabled and sound:IsA("Sound") and noisy[sound.SoundId]) then
+			return
+		end
+		local part = sound.Parent
+		if part:IsA("BasePart") and not shownNear(part.Position, HEARD_OWNER_RANGE, false) then
+			hear(part.Position)
+		end
+	end))
+else
+	local missing = soundBank and "workspace.Debris" or "ReplicatedStorage.Sounds"
+	warn("[hub] " .. missing .. " not found: heard enemies unavailable")
+	hub.ui.notify(missing .. " not found, no heard enemies", "error")
+end
+
+hub.cleanup.add(function()
+	for _, ghost in ghosts do
+		ghost.model:Destroy()
+	end
+	table.clear(ghosts)
+end)
 
 local window = hub.ui.createWindow("BloxStrike")
 local tabs = hub.require("universal.lua")(window)
@@ -564,6 +655,9 @@ local espSection = tabs.esp:CreateSection("BloxStrike", "LeftSide")
 espSection:CreateToggle("Team Colors", visuals.teamColors, function(value)
 	visuals.teamColors = value
 end)
+espSection:CreateSlider("Heard Memory", 1, 10, heard.memory, true, function(value)
+	heard.memory = value
+end, "%.0f s")
 
 local visualsTab = window:CreateTab("Visuals", "eye")
 

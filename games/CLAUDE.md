@@ -61,7 +61,7 @@
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
-  Team Colors (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
+  Team Colors and the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
   (Bhop) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
@@ -209,7 +209,37 @@
     corrects.
   - Beside it: `ReplicatedStorage.MovementV2CollisionCatalogs.Epoch_00026_d4e4c53d` and a `Control` remote
     under `MovementV2Remotes`.
-- Removed at the user's request on 2026-10-10, so the hub has nothing for hidden enemies now:
+- Fog of war, read again through the bridge on 2026-10-11 when the user asked for ESP despite it:
+  - The game calls it `CS2FOW` (workspace attributes `CS2FOWReady`, `CS2FOWClusterCount` 2048,
+    `CS2FOWRegionCount` 11149); `ReplicatedStorage.Visibility` holds its shared code (`PVSRuntime`, `PortalVis`,
+    `StaticOcclusionRuntime`, ...), not read.
+  - It only applies to a player in the round. With the user on no team (no `Team` attribute, in the menu) all
+    12 characters of both sides were in `workspace.Characters` and none culled. Alive on Terrorists, every enemy
+    was culled and every teammate shown, one of them 228 studs away. So a sound no shown character made is an
+    enemy's.
+  - `RemoteCharacters.Present` shows a character exactly while the movement runtime hands it a pose, and
+    `RemoteSnapshotCodec` has `RemovedActorIds`: the server takes hidden actors out of the stream, as the probe found.
+  - The game's own `Controllers.ESPController` (the `VIPESP` Player attribute) only highlights characters that
+    are in `workspace`, and `Interface.Screens.Gameplay.Middle.Radar` works from the same characters, so neither
+    knows more than the hub.
+  - `MovementV2Remotes.BotCombat` carries bot events (`Shoot`, `Reload`, the throws) with `ActorId`,
+    `WeaponName` and, for a shot, the `Target` point, no origin.
+  - Sounds: `Controllers.SoundController` listens to `ReplicateSound` (`Class`, `Name`, `Position`, `Duration`,
+    or `Parent` / `Path`, no word on who made it) and `Classes.Sound:PlaySoundAtPosition` plays a clone of
+    `ReplicatedStorage.Sounds.<Class>.<Name>.<variant>` from a pooled part named `Sound` under `workspace.Debris`.
+    The clone is renamed to a GUID and keeps its `SoundId`.
+  - A 30 s sample while alive: 244 sounds. Footsteps (`FloorSounds`, named by floor, with `Jump` and
+    `Landing<floor>`) were within 1 stud of the maker's root, gun `Shoot` sounds within 8. 14 footsteps and 2
+    shots had no shown character near: hidden enemies 50 to 82 studs off, in runs 0.3 s and about 5 studs
+    apart. `Bullet` sounds are at the impact, grenade and `C4` sounds at the object.
+- Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
+  own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
+  within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
+  a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Heard Memory seconds (1-10,
+  default 3) without a sound or once a shown enemy is within 15 studs. Only heard while ESP and the source
+  are on. Not known: why the Sound ESP of 2026-10-10 "didn't work" (it listened the same way and drew a 6 pixel
+  ring), and how far footsteps carry (the probe's one case suggested about 107 studs).
+- Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.
   - The spectate probe, which hooked `__namecall` to record the game's `NetworkRemotes.Spectate.*` requests
