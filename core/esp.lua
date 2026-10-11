@@ -35,13 +35,17 @@ local BONES_R6 = {
 local esp = {
 	settings = {
 		Enabled = false,
-		TeamCheck = false,
 		Box = true,
+		BoxColor = WHITE,
 		Skeleton = false,
+		SkeletonColor = WHITE,
 		Chams = false,
+		ChamsColor = WHITE,
 		HealthBar = true,
+		-- the bar's colour at full health; it runs to red as health drops
+		HealthBarColor = GREEN,
 		Name = true,
-		Distance = true,
+		NameColor = WHITE,
 	},
 	sources = {},
 }
@@ -64,7 +68,8 @@ function esp.health(model, source)
 	return nil
 end
 
--- models(skipTeammates) returns the models to draw, label(model) their name text
+-- models(skipTeammates) returns the models to draw, label(model) their name text.
+-- a source given a colour is drawn in it throughout; one without, the players, in each element's colour from the settings
 function esp.addSource(name, color, models, label)
 	local source = {
 		name = name,
@@ -72,6 +77,7 @@ function esp.addSource(name, color, models, label)
 		color = color,
 		maxDistance = 10000,
 		tracers = false,
+		tracerColor = color or WHITE,
 		aim = false,
 		models = models,
 		label = label,
@@ -80,7 +86,7 @@ function esp.addSource(name, color, models, label)
 	return source
 end
 
-local players = esp.addSource("Players", WHITE, function(skipTeammates)
+local players = esp.addSource("Players", nil, function(skipTeammates)
 	local characters = {}
 	local team = skipTeammates and Players.LocalPlayer.Team
 	for _, player in Players:GetPlayers() do
@@ -246,7 +252,7 @@ local function update(model, source, camera, viewport)
 		object.Transparency = opacity
 	end
 
-	local color = source.colorOf and source.colorOf(model) or source.color
+	local own = source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall
 	local width = height / 2
@@ -257,12 +263,12 @@ local function update(model, source, camera, viewport)
 	set.boxOutline.Position = Vector2.new(x, y)
 	set.boxOutline.Size = Vector2.new(width, height)
 	set.box.Visible = settings.Box
-	set.box.Color = color
+	set.box.Color = own or settings.BoxColor
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)
 
 	set.tracer.Visible = source.tracers
-	set.tracer.Color = color
+	set.tracer.Color = source.tracerColor
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
@@ -273,25 +279,25 @@ local function update(model, source, camera, viewport)
 		local fraction = math.clamp(health / maxHealth, 0, 1)
 		set.healthBack.Position = Vector2.new(x - 7, y - 1)
 		set.healthBack.Size = Vector2.new(4, height + 2)
-		set.health.Color = RED:Lerp(GREEN, fraction)
+		set.health.Color = RED:Lerp(settings.HealthBarColor, fraction)
 		set.health.Position = Vector2.new(x - 6, y + height * (1 - fraction))
 		set.health.Size = Vector2.new(2, height * fraction)
 	end
 
 	set.name.Visible = settings.Name
-	set.name.Color = color
+	set.name.Color = own or settings.NameColor
 	if settings.Name then
 		set.name.Text = source.label(model)
 		set.name.Position = Vector2.new(x + width / 2, y - 16)
 	end
 
-	set.distance.Visible = settings.Distance
-	set.distance.Color = color
+	set.distance.Visible = true
+	set.distance.Color = own or settings.NameColor
 	set.distance.Text = math.floor(distance) .. " studs"
 	set.distance.Position = Vector2.new(x + width / 2, y + height + 2)
 
-	updateSkeleton(model, camera, color)
-	updateChams(model, color)
+	updateSkeleton(model, camera, own or settings.SkeletonColor)
+	updateChams(model, own or settings.ChamsColor)
 
 	return true
 end
@@ -309,7 +315,7 @@ local function render()
 	local seen = {}
 	for _, source in esp.sources do
 		if source.enabled then
-			for _, model in source.models(settings.TeamCheck) do
+			for _, model in source.models(true) do
 				seen[model] = true
 				if not update(model, source, camera, viewport) and sets[model] then
 					hide(model)

@@ -37,8 +37,7 @@ local function addCombat(window)
 	if settings.SilentAim ~= nil then
 		toggle(general, "Silent Aim", "SilentAim")
 	end
-	toggle(general, "Draw FOV", "DrawFov")
-	general:CreateColorpicker("FOV Color", function(color)
+	toggle(general, "Draw FOV", "DrawFov"):CreateColorpicker(function(color)
 		settings.FovColor = color
 	end):UpdateColor(settings.FovColor)
 	general:CreateMultiDropdown("Disablers", { "Flash (placeholder)", "Smoke (placeholder)", "Jump" }, function(value)
@@ -149,31 +148,45 @@ local function addEsp(window)
 
 	for _, source in esp.sources do
 		local section = tab:CreateSection(source.name, "RightSide")
-		section:CreateToggle(source.toggle or "Show " .. source.name, source.enabled, function(value)
+		local show = section:CreateToggle(source.toggle or "Show " .. source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
-		-- a new picker shows black until it is given a colour
-		section:CreateColorpicker("Color", function(color)
-			source.color = color
-		end):UpdateColor(source.color)
-		section:CreateToggle("Tracers", source.tracers, function(value)
-			source.tracers = value
-		end)
+		-- the players have no colour of their own: theirs are the element colours under Options
+		if source.color then
+			show:CreateColorpicker(function(color)
+				source.color = color
+			end):UpdateColor(source.color)
+		end
+		if source.options then
+			source.options(section)
+		end
+		section
+			:CreateToggle("Tracers", source.tracers, function(value)
+				source.tracers = value
+			end)
+			:CreateColorpicker(function(color)
+				source.tracerColor = color
+			end)
+			:UpdateColor(source.tracerColor)
 	end
 
+	-- each element's toggle with its colour beside it, the setting named after the toggle's with Color on the end
 	local options = tab:CreateSection("Options", "LeftSide")
-	local function toggle(name, key)
-		options:CreateToggle(name, settings[key], function(value)
-			settings[key] = value
-		end)
+	local function element(name, key)
+		options
+			:CreateToggle(name, settings[key], function(value)
+				settings[key] = value
+			end)
+			:CreateColorpicker(function(color)
+				settings[key .. "Color"] = color
+			end)
+			:UpdateColor(settings[key .. "Color"])
 	end
-	toggle("Team Check", "TeamCheck")
-	toggle("Box", "Box")
-	toggle("Skeleton", "Skeleton")
-	toggle("Chams", "Chams")
-	toggle("Health Bar", "HealthBar")
-	toggle("Name", "Name")
-	toggle("Distance", "Distance")
+	element("Box", "Box")
+	element("Skeleton", "Skeleton")
+	element("Chams", "Chams")
+	element("Health Bar", "HealthBar")
+	element("Name", "Name")
 
 	return tab
 end

@@ -631,7 +631,9 @@ end
 function Container:CreateToggle(name, default, callback)
 	local row = self:row(22)
 	wash(row, 6.375)
-	label(LABEL, { Text = name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -17, 1, 0), Parent = row })
+	-- how far in from the row's right edge the next thing beside the box goes
+	local inset = 17
+	local text = label(LABEL, { Text = name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -inset, 1, 0), Parent = row })
 	local box = frame({
 		BackgroundColor3 = WHITE,
 		AnchorPoint = Vector2.new(1, 0),
@@ -677,6 +679,48 @@ function Container:CreateToggle(name, default, callback)
 	local container = self
 	local toggle = setmetatable({ row = row }, Control)
 
+	-- a colour swatch beside the box that opens the picker, white until UpdateColor like a picker of its own.
+	-- it is made before a keybind, whose chip goes to the left of it
+	function toggle:CreateColorpicker(picked)
+		local swatch = button({
+			BackgroundColor3 = WHITE,
+			BackgroundTransparency = 0,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -inset, 0, 4),
+			Size = UDim2.fromOffset(13, 13),
+			Parent = row,
+		})
+		corner(swatch, 2)
+		outline(swatch, BORDER, 2)
+		inset += 17
+		text.Size = UDim2.new(1, -inset, 1, 0)
+
+		local color = WHITE
+		local function apply(value)
+			color = value
+			swatch.BackgroundColor3 = value
+			picked(value)
+		end
+		swatch.MouseButton1Click:Connect(function()
+			pickColor(swatch, color, apply)
+		end)
+
+		table.insert(container.window.controls, {
+			key = container.path .. "/" .. name .. " color",
+			get = function()
+				return color:ToHex()
+			end,
+			set = function(value)
+				apply(Color3.fromHex(value))
+			end,
+		})
+		local picker = {}
+		function picker:UpdateColor(value)
+			apply(value)
+		end
+		return picker
+	end
+
 	-- bind is a KeyCode name, a mouse button's UserInputType name or "NONE"; pressed, if given, is called with it
 	-- after the toggle flips
 	function toggle:CreateKeybind(bind, pressed)
@@ -686,7 +730,7 @@ function Container:CreateToggle(name, default, callback)
 			BackgroundColor3 = CHIP,
 			BackgroundTransparency = 0,
 			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -17, 0, 4),
+			Position = UDim2.new(1, -inset, 0, 4),
 			Size = UDim2.fromOffset(0, 13),
 			AutomaticSize = Enum.AutomaticSize.X,
 			FontFace = FONT,

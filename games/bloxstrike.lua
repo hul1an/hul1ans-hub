@@ -47,10 +47,6 @@ aim.spread = function()
 end
 
 local THIRD_PERSON_STEP = "HubThirdPerson"
-local TEAM_COLORS = {
-	Terrorists = Color3.fromRGB(204, 170, 80),
-	["Counter-Terrorists"] = Color3.fromRGB(100, 149, 200),
-}
 local NIGHT = {
 	ClockTime = 0,
 	Brightness = 2,
@@ -61,7 +57,6 @@ local NIGHT = {
 }
 
 local visuals = {
-	teamColors = false,
 	thirdPersonDistance = 12,
 	tracers = false,
 	tracerColor = Color3.fromRGB(255, 41, 116),
@@ -154,10 +149,6 @@ end
 
 players.health = function(character)
 	return character:GetAttribute("Health"), character:GetAttribute("MaxHealth")
-end
-
-players.colorOf = function(character)
-	return visuals.teamColors and TEAM_COLORS[teamOf(character)] or nil
 end
 
 -- the server leaves an enemy it has hidden out of the movement stream but still sends the sounds they make, and
@@ -273,6 +264,11 @@ end)
 
 heardSource.toggle = "Dormant ESP"
 heardSource.aimToggle = "Dormant Aimbot"
+heardSource.options = function(section)
+	section:CreateSlider("Fade Out", 1, 10, heard.memory, true, function(value)
+		heard.memory = value
+	end, "%.0f s")
+end
 heardSource.opacityOf = function(model)
 	return 1 - (os.clock() - ghosts[model].at) / heard.memory
 end
@@ -819,14 +815,6 @@ antiAimSection:CreateToggle("Disable On Fire", antiAim.disableOnFire, function(v
 	antiAim.disableOnFire = value
 end)
 
-local espSection = tabs.esp:CreateSection("BloxStrike", "LeftSide")
-espSection:CreateToggle("Team Colors", visuals.teamColors, function(value)
-	visuals.teamColors = value
-end)
-espSection:CreateSlider("Fade Out", 1, 10, heard.memory, true, function(value)
-	heard.memory = value
-end, "%.0f s")
-
 local visualsTab = window:CreateTab("Visuals", "eye")
 
 local cameraSection = visualsTab:CreateSection("Camera", "LeftSide")
@@ -838,13 +826,14 @@ end)
 visualsTab:CreateSection("World", "LeftSide"):CreateToggle("Night Mode", false, setNight)
 
 local shots = visualsTab:CreateSection("Shots", "RightSide")
-shots:CreateToggle("Bullet Tracers", visuals.tracers, function(value)
-	visuals.tracers = value
-end)
--- a new picker shows black until it is given a colour
-shots:CreateColorpicker("Tracer Color", function(color)
-	visuals.tracerColor = color
-end):UpdateColor(visuals.tracerColor)
+shots
+	:CreateToggle("Bullet Tracers", visuals.tracers, function(value)
+		visuals.tracers = value
+	end)
+	:CreateColorpicker(function(color)
+		visuals.tracerColor = color
+	end)
+	:UpdateColor(visuals.tracerColor)
 shots:CreateSlider("Tracer Duration", 0.5, 4, visuals.tracerDuration, false, function(value)
 	visuals.tracerDuration = value
 end)

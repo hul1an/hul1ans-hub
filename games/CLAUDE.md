@@ -62,10 +62,10 @@
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim, the trigger's Seeded,
   Hitchance and Min Damage, and Anti-Aim (Combat),
-  Team Colors and the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
+  the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
   (Bhop) and Eject.
   It replaces the built-in players source's
-  `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
+  `models`, `label` and `health` with the game's own rules below. Team Colors was removed by the user on 2026-10-11. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
   Auto Fire all work.
 - One `_performRaycast` hook does silent aim, tracers and the hit effect, under a single pcall.
@@ -306,7 +306,8 @@
   between changed nothing either. Not tried: a bot's key, and the other two packets.
 - Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. Its toggles read "Dormant ESP" and "Dormant Aimbot" (`toggle` and `aimToggle` on the source) and
-  its memory slider "Fade Out", renamed at the user's request the same day; the section still says Heard. A footstep or shot under `workspace.Debris` with no living shown character
+  its memory slider "Fade Out", renamed at the user's request the same day; the section still says Heard. Fade Out
+  sits under the Dormant ESP toggle (`options` on the source). A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
   a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Fade Out seconds (1-10,
   default 3) without a sound or once a shown enemy is within 15 studs. Only heard while ESP and the source
