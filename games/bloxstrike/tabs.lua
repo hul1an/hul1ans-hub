@@ -7,6 +7,8 @@ aim.start()
 
 -- the hub's own, the R15 body; starline's are head, chest, stomach, pelvis, arms, legs and feet
 local HITGROUPS = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" }
+-- the dump has no options for the esp's flags; these are what the game tells the client about an enemy
+local FLAGS = { "money", "armor", "kit", "scoped", "bot" }
 -- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
 -- has been seen, so teammates get the same rows and local gets every one
 local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
@@ -175,40 +177,53 @@ local function addPlayerPage(tab, name, live)
 	local settings = esp.settings
 	local page = tab:CreateSubTab(name)
 
-	-- key is the esp setting behind a row the hub draws, whose colour is the same key with Color on the end
-	local function row(card, label, key)
-		if live and key then
-			color(toggle(card, label, settings, key), settings, key .. "Color")
+	-- key is the esp setting behind a row the hub draws, whose colour is the same key with Color on the end; plain is a
+	-- row starline has no colour on
+	local function row(card, label, key, plain)
+		if not (live and key) then
+			off.toggle(card, label, not plain)
+		elseif plain then
+			toggle(card, label, settings, key)
 		else
-			off.toggle(card, label, true)
+			color(toggle(card, label, settings, key), settings, key .. "Color")
 		end
 	end
 
 	local card = page:CreateSection("esp", "LeftSide")
-	if live then
-		toggle(card, "enabled", settings, "Enabled")
-	else
-		off.toggle(card, "enabled")
-	end
-	off.toggle(card, "only visible")
-	off.toggle(card, "only audible")
+	row(card, "enabled", "Enabled", true)
+	row(card, "only visible", "OnlyVisible", true)
+	row(card, "only audible", "OnlyAudible", true)
 	row(card, "bounding box", "Box")
 	row(card, "name", "Name")
-	off.toggle(card, "avatar")
-	row(card, "weapon name")
-	row(card, "weapon icon")
+	row(card, "avatar", "Avatar", true)
+	row(card, "weapon name", "WeaponName")
+	row(card, "weapon icon", "WeaponIcon")
 	row(card, "skeleton", "Skeleton")
 	row(card, "health bar", "HealthBar")
-	row(card, "ammo bar")
-	off.multi(card, "flags")
-	local sounds = off.group(card, "sounds", true)
-	off.dropdown(sounds, "draw type")
-	off.slider(sounds, "radius", 5, 40)
-	local arrows = off.group(card, "offscreen arrows", true)
-	off.toggle(arrows, "shadow", true)
-	off.toggle(arrows, "outline", true)
-	off.slider(arrows, "size", 4, 24)
-	off.slider(arrows, "offset", 0, 48)
+	row(card, "ammo bar", "AmmoBar")
+	if live then
+		multi(card, "flags", settings, "Flags", FLAGS)
+		local sounds = group(card, "sounds", settings, "Sounds")
+		color(sounds.header, settings, "SoundsColor")
+		dropdown(sounds, "draw type", settings, "SoundsType", { "circle", "ring" })
+		slider(sounds, "radius", settings, "SoundsRadius", 5, 40, true)
+		local arrows = group(card, "offscreen arrows", settings, "Arrows")
+		color(arrows.header, settings, "ArrowsColor")
+		color(toggle(arrows, "shadow", settings, "ArrowsShadow"), settings, "ArrowsShadowColor")
+		color(toggle(arrows, "outline", settings, "ArrowsOutline"), settings, "ArrowsOutlineColor")
+		slider(arrows, "size", settings, "ArrowsSize", 4, 24, true)
+		slider(arrows, "offset", settings, "ArrowsOffset", 0, 48, true)
+	else
+		off.multi(card, "flags")
+		local sounds = off.group(card, "sounds", true)
+		off.dropdown(sounds, "draw type")
+		off.slider(sounds, "radius", 5, 40)
+		local arrows = off.group(card, "offscreen arrows", true)
+		off.toggle(arrows, "shadow", true)
+		off.toggle(arrows, "outline", true)
+		off.slider(arrows, "size", 4, 24)
+		off.slider(arrows, "offset", 0, 48)
+	end
 
 	local chams = page:CreateSection("chams", "RightSide")
 	for _, label in name == "local" and CHAMS_LOCAL or CHAMS do

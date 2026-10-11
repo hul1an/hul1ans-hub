@@ -396,6 +396,20 @@
   shown elsewhere or dead. The gun comes from the sound's class, a player's from the `Name` in the Player's
   `CurrentEquipped` JSON, a bot's from its character's `BotLoadout` JSON, which lists every gun it has. Not known: why the Sound ESP of 2026-10-10 "didn't work" (it listened the same way and drew a 6 pixel
   ring), and how far footsteps carry (the probe's one case suggested about 107 studs).
+- What an enemy holds, read through the bridge on 2026-10-11 for the esp card's weapon rows:
+  - A Player's `CurrentEquipped` attribute is JSON with `Name` (`Desert Eagle`), `Rounds` (left in the magazine),
+    `Capacity` (the reserve), `Identifier`, `_id`, `Skin`, `IsSuppressed` and more. Seen on teammates and enemies
+    alike; not known whether an enemy's `Rounds` changes as they fire. `Slot1` to `Slot4` are JSON too, one per
+    carried item with its name under `Weapon`.
+  - A weapon's file, `ReplicatedStorage.Database.Custom.Weapons.<name>`, has `Icon` and `ReverseIcon` (asset ids),
+    `Rounds` (a magazine) and `Capacity` for a gun, and `Slot`, `Class` and `Type`. Knives and grenades have no
+    `Rounds`. `Database.Audio.Weapons` is another folder of the same name.
+  - `require` on those files works from Potassium (the bridge's `module` op), so the hub reads them that way.
+  - A character has a `WeaponModel` folder holding a model named `Equipped` and a `WeaponAttachments` folder with a
+    model per carried weapon, named by it. `Equipped` carries no name or attribute saying which it is.
+  - A Player also has `Money`, `HasDefuseKit`, `HasRescueKit`, `IsSniperScoped`, `ScopeIncrement` and `Ping`.
+    `Armor`'s `Health` can be a fraction (`86.63`).
+  - No bot was in that match, so what a bot holds is still only its `BotLoadout`, every gun it has.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.

@@ -184,6 +184,21 @@ function ops.decompile(request)
 	return decompile(resolve(request.path))
 end
 
+-- what a ModuleScript returns, a table's fields one level down
+function ops.module(request)
+	local value = require(resolve(request.path))
+	if type(value) ~= "table" then
+		return show(value)
+	end
+	local fields = {}
+	for key, field in value do
+		fields[tostring(key)] = field
+	end
+	local lines = {}
+	section(lines, "Fields", fields)
+	return table.concat(lines, "\n")
+end
+
 if not isfolder(FOLDER) then
 	makefolder(FOLDER)
 end

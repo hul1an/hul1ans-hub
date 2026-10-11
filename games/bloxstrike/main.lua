@@ -263,6 +263,59 @@ players.health = function(character)
 	return character:GetAttribute("Health"), character:GetAttribute("MaxHealth")
 end
 
+-- the game's file on each weapon, a module by the weapon's name: its Icon, and for a gun the Rounds a magazine takes
+local database = ReplicatedStorage:FindFirstChild("Database")
+local custom = database and database:FindFirstChild("Custom")
+local weaponFiles = custom and custom:FindFirstChild("Weapons")
+if not weaponFiles then
+	warn("[hub] ReplicatedStorage.Database.Custom.Weapons not found: weapon icon and ammo bar unavailable")
+	hub.ui.notify("ReplicatedStorage.Database.Custom.Weapons not found, no weapon icon or ammo bar", "error")
+end
+
+-- what a player holds is JSON on the Player, with the weapon's Name and the Rounds left in it. A bot's loadout doesn't
+-- say which of its guns is out
+players.weapon = function(character)
+	local owner = ownerOf(character)
+	local held = owner and owner:GetAttribute("CurrentEquipped")
+	local name = held and held:match('"Name":"([^"]*)"')
+	if not name then
+		return nil
+	end
+	local file = weaponFiles and weaponFiles:FindFirstChild(name)
+	local properties = file and require(file)
+	return name, properties and properties.Icon, tonumber(held:match('"Rounds":(%d+)')), properties and properties.Rounds
+end
+
+players.avatar = function(character)
+	local userId = tonumber(character:GetAttribute("PresentationOwnerUserId"))
+	return userId and "rbxthumb://type=AvatarHeadShot&id=" .. userId .. "&w=48&h=48"
+end
+
+-- all but the last are read off the Player, which a bot doesn't have
+players.flags = function(character, kinds)
+	local flags = {}
+	local owner = ownerOf(character)
+	if owner then
+		if table.find(kinds, "money") then
+			table.insert(flags, "$" .. owner:GetAttribute("Money"))
+		end
+		local armor = owner:GetAttribute("Armor")
+		if table.find(kinds, "armor") and type(armor) == "string" and (tonumber(armor:match('"Health":(%d+)')) or 0) > 0 then
+			table.insert(flags, armor:find("Helmet", 1, true) and "HK" or "K")
+		end
+		if table.find(kinds, "kit") and (owner:GetAttribute("HasDefuseKit") or owner:GetAttribute("HasRescueKit")) then
+			table.insert(flags, "kit")
+		end
+		if table.find(kinds, "scoped") and owner:GetAttribute("IsSniperScoped") then
+			table.insert(flags, "scoped")
+		end
+	end
+	if table.find(kinds, "bot") and character:GetAttribute("Bot") then
+		table.insert(flags, "bot")
+	end
+	return flags
+end
+
 -- the server leaves an enemy it has hidden out of the movement stream but still sends the sounds they make, and
 -- the game plays each from a part at the spot. A footstep or shot that no shown character made is a hidden enemy,
 -- kept as a bare root part for the ESP to draw until it goes quiet
@@ -275,13 +328,16 @@ local ghosts = {}
 -- by character: where it was last heard, and where its hidden model stood then
 local lastHeard = {}
 
+-- the shown character nearest a position, within a range of it
 local function shownNear(position, range, skipTeammates)
+	local nearest
 	for _, character in players.models(skipTeammates) do
-		if (character.HumanoidRootPart.Position - position).Magnitude <= range then
-			return true
+		local distance = (character.HumanoidRootPart.Position - position).Magnitude
+		if distance <= range then
+			nearest, range = character, distance
 		end
 	end
-	return false
+	return nearest
 end
 
 -- the living enemies the game has hidden, which it keeps in a folder of their own
@@ -431,19 +487,30 @@ if soundBank and debris then
 	end
 
 	hub.cleanup.add(debris.DescendantAdded:Connect(function(sound)
-		if not (esp.settings.Enabled and heardSource.enabled and sound:IsA("Sound") and noisy[sound.SoundId]) then
+		if not (esp.settings.Enabled and sound:IsA("Sound") and noisy[sound.SoundId]) then
 			return
 		end
 		local part = sound.Parent
-		if part:IsA("BasePart") and not shownNear(part.Position, HEARD_OWNER_RANGE, false) then
-			local class = noisy[sound.SoundId]
-			hear(part.Position, class ~= "FloorSounds" and class or nil)
+		if not part:IsA("BasePart") then
+			return
+		end
+		-- the shown character it is beside made it, and with no one there a hidden enemy did
+		local maker = shownNear(part.Position, HEARD_OWNER_RANGE, false)
+		if not maker then
+			esp.sound(part.Position)
+			if heardSource.enabled then
+				local class = noisy[sound.SoundId]
+				hear(part.Position, class ~= "FloorSounds" and class or nil)
+			end
+		elseif teamOf(maker) ~= Players.LocalPlayer:GetAttribute("Team") then
+			esp.audible[maker] = os.clock()
+			esp.sound(part.Position)
 		end
 	end))
 else
 	local missing = soundBank and "workspace.Debris" or "ReplicatedStorage.Sounds"
-	warn("[hub] " .. missing .. " not found: heard enemies unavailable")
-	hub.ui.notify(missing .. " not found, no heard enemies", "error")
+	warn("[hub] " .. missing .. " not found: heard enemies, only audible and sounds unavailable")
+	hub.ui.notify(missing .. " not found, no heard enemies, only audible or sounds", "error")
 end
 
 hub.cleanup.add(function()

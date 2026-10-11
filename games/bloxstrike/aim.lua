@@ -111,24 +111,8 @@ local healthOf = setmetatable({}, { __mode = "k" })
 -- and frames, the CFrame by part
 local past = {}
 
-local function isVisible(camera, point, model)
-	-- the camera is excluded because first person viewmodels are parented to it
-	local ignore = { model, camera, Players.LocalPlayer.Character }
-	local origin = camera.CFrame.Position
-	-- fully invisible parts (map barriers, clip walls) are looked through, up to a few in a row
-	for _ = 1, 8 do
-		rayParams.FilterDescendantsInstances = ignore
-		local hit = workspace:Raycast(origin, point - origin, rayParams)
-		if not hit then
-			return true
-		end
-		if hit.Instance.Transparency < 1 then
-			return false
-		end
-		table.insert(ignore, hit.Instance)
-	end
-	return false
-end
+-- the esp's line of sight check, which its only visible uses too
+local isVisible = esp.visible
 
 -- whether a shot can get to a point on a model, and whether it must go through something to: in plain sight, or with
 -- auto wall through what the gun out pierces
