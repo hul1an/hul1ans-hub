@@ -165,7 +165,12 @@
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
     `MoverDescriptorCodec`, `MoverProgressCodec`, `MoverTrajectory`, `OwnerSnapshotCodec`, `Quantization`,
     `RemoteActorIdentity`, `RemoteSnapshotCodec`, `RootFrame`, `RuntimeKinematics`, `Serial`, `SpeedProfile`,
-    `StateCodec`, `Transport`, `Types`, and the folders `Collision` and `Simulation` (children not seen).
+    `StateCodec`, `Transport`, `Types`, and the folders `Collision` (children not seen) and `Simulation`.
+  - `Simulation`: `Config`, `DeterminismTrace`, `PlayerBroadphase`, `PlayerContactStep`, `PlayerContacts`,
+    `PlayerHullClearance`, `PlayerLanding`, `PlayerSupportQuery`, `ProvenCollisionAdapter`, `ProvenMath`,
+    `ProvenSimulator` (a module with the children `AirMove`, `Duck`, `GroundMove`, `Ladder`, `SlideMove`,
+    `Trace`, `TraceRules`), `ProvenTypes`, `RuntimeSettings`, `Solver`, `State`, `Types`. Nothing is named
+    for jumping.
   - `Client`: `ActionLockReplay`, `CommandClock`, `CommandState`, `CommandStream`, `CommandUplink`,
     `CorrectionDiagnostics`, `DamageTagReplay`, `DestructibleTimeline`, `DeterminismTraceCapture`,
     `DiagnosticOutput`, `MoverComposer`, `OwnerCommandFeedback`, `OwnerRecovery`, `OwnerReplay`,
