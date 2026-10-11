@@ -152,6 +152,14 @@
     `.Character.Action` (`ActionId`, `UserId`, `Generation`), `.UI.UIPlayerKilled`. Present but silent in the
     run: `.VFX.CreateCharacterMuzzleFlash`, `.Character.CharacterDamaged`, `.Ping.CreatePlayerPositionPing`,
     `.Spectate.UpdateCameraCFrame`, `MovementV2Remotes.BotCombat`.
+- `ReplicatedStorage.MovementV2.Simulation.State` (decompiled by the user on 2026-10-11) is only the shape of
+  the movement state, no logic: `new`, `clone`, `cloneInto`, and `canonicalMismatch` / `mismatchLabel`, which
+  compare two states field by field (read as the client's prediction against the server's, not confirmed).
+  The fields that matter for a bunnyhop: `OnGround`, `PreviousButtons` (a button bitmask, 0 at start),
+  `LastJumpCommandNumber`, `JumpBufferTicksRemaining`, `JumpHullActive`, `Stamina` (100 at start), `Velocity`,
+  `VelocityModifier`, `MovementTick`. Beside it are `Simulation.Config` (`Default.DefaultBaseMoveSpeed`) and
+  `MovementV2.Types`. Not known: which bit is jump, where the commands are built and sent, whether a jump
+  needs a fresh press, and what stamina costs on landing.
 - Removed at the user's request on 2026-10-10, so the hub has nothing for hidden enemies now:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.
