@@ -18,8 +18,6 @@ local DEFAULT_FOV = 70
 local FOV_RANGE = 500
 -- the trigger only tests targets whose root is this near the view ray: starline's 64 units, about a character's height
 local TRIGGER_REACH = 6
--- a shot this soon after the trigger's click is taken to be the trigger's: the click reaches the game a frame or two on
-local TRIGGER_SHOT = 0.2
 -- the hit chance is counted over this many angles out from the view ray, at this many places round it
 local CHANCE_RINGS = 8
 local CHANCE_SPOKES = 12
@@ -489,14 +487,9 @@ local function nearCrosshair(camera)
 	return near
 end
 
--- the share of its spread a shot of the trigger's keeps
-local function kept()
-	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
-end
-
--- for main.lua's shot hook: what to multiply a shot's spread by. Only the trigger's own shots are narrowed
+-- for main.lua's shot hook: what to multiply a shot's spread by. Seeded leaves every shot its Legitimacy's share
 function aim.spreadScale()
-	return os.clock() - lastShot < TRIGGER_SHOT and kept() or 1
+	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
 end
 
 -- the percentage of shots spread up to an angle off the view ray that would enter one of some parts.

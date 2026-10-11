@@ -569,6 +569,9 @@ local logs = { kinds = {} }
 local awaited = {}
 -- how long a shot waits for that before it counts as missed
 local REGISTER_TIME = 1
+-- lines from the shot hook. It runs on the game's thread, which may not touch the hub's GUI, so they are written from
+-- the hub's own on the next Heartbeat
+local written = {}
 
 -- a line goes on screen and to the console, where Potassium's read_console gets at it
 local function log(text)
@@ -634,11 +637,16 @@ local function logShot(result, angle)
 	if model and table.find(logs.kinds, "misses") then
 		local reason = aim.missed(camera, model, part, rawget(result, "Origin"), rawget(result, "Direction"))
 		local name = ghosts[model] and "heard enemy" or players.label(model)
-		log("Missed " .. name .. " due to " .. reason .. expectation(shot))
+		table.insert(written, "Missed " .. name .. " due to " .. reason .. expectation(shot))
 	end
 end
 
 hub.cleanup.add(RunService.Heartbeat:Connect(function()
+	for _, line in written do
+		log(line)
+	end
+	table.clear(written)
+
 	local now = os.clock()
 	for victim, queue in awaited do
 		local shot = queue[1]
@@ -723,7 +731,7 @@ task.spawn(function()
 	local shotWarned = false
 	local original
 	original = hookfunction(bullets._performRaycast, function(self, spread, ...)
-		-- the trigger's Seeded narrows its own shots
+		-- Seeded narrows the shot
 		spread *= aim.spreadScale()
 		local returns = table.pack(original(self, spread, ...))
 		if type(returns[1]) == "table" then
