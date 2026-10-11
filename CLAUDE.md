@@ -175,4 +175,5 @@ Potassium's own MCP server (Settings, Agent Access, `http://127.0.0.1:8225/mcp`)
 day through a project `.mcp.json`. That file holds the bearer token, so it is in `.gitignore` and must
 stay out of the repo. Its tools are `list_clients`, `execute_script` and `read_console`. Claude Code has
 used `execute_script` only to start the bridge; running the hub through it hasn't been agreed with the
-user. `read_console` came back empty after the bridge's `print`, so what it captures is still unknown.
+user. With Potassium set to redirect output and errors to its console, `read_console` returned an `error()`
+with its stack but neither a `print` nor a `warn` from the same script.
