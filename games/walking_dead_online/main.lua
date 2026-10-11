@@ -15,7 +15,7 @@ local function placeholder(name)
 	end
 end
 
-local markers = hub.require("core/markers.lua")
+local markers = hub.require("games/walking_dead_online/markers.lua")
 markers.start()
 
 local warned = {}
@@ -37,7 +37,7 @@ local function children(...)
 	return instance:GetChildren()
 end
 
-hub.require("core/esp.lua").addSource("Zombies", Color3.fromRGB(110, 150, 90), function()
+hub.require("games/walking_dead_online/esp.lua").addSource("Zombies", Color3.fromRGB(110, 150, 90), function()
 	return children("AI", "Walkers")
 end, function(model)
 	return model.Name
@@ -182,7 +182,7 @@ if updateStorage and transferItem and toggleInventory then
 	end))
 end
 
-hub.require("universal.lua")(window)
+hub.require("games/walking_dead_online/tabs.lua")(window)
 
 local loot = window:CreateTab("Loot", "folder")
 

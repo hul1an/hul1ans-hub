@@ -8,10 +8,8 @@ local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local Debris = cloneref(game:GetService("Debris"))
 
-local esp = hub.require("core/esp.lua")
-local aim = hub.require("core/aim.lua")
--- adding this puts the Silent Aim toggle under the aim's Enabled; the shot hook reads it
-aim.settings.SilentAim = false
+local esp = hub.require("games/bloxstrike/esp.lua")
+local aim = hub.require("games/bloxstrike/aim.lua")
 -- dead or spectating, the camera is on someone else and there is nothing to shoot with
 aim.blocked = function()
 	local player = Players.LocalPlayer
@@ -23,7 +21,7 @@ local MAX_SPREAD = 69
 -- the bullet object of the gun that is out, kept by the hook on the game's spread update below
 local equipped
 
--- setting this puts Seeded and Hitchance on the trigger. It follows the game's Bullet.create: the spread is the gun's
+-- the spread behind the trigger's Seeded and Hitchance. It follows the game's Bullet.create: the spread is the gun's
 -- own plus what moving adds, an unscoped sniper's own spread is raised to a floor, and so is all of an AWP's in the
 -- first 0.2 s of its scope
 aim.spread = function()
@@ -83,7 +81,7 @@ end
 -- the game's numbers are CS2's, where damage falls by the gun's RangeModifier every 500 units; a unit is 0.075 studs here
 local FALLOFF = 37.5
 
--- setting this puts Min Damage on the trigger. The server works damage out, so this is CS2's rule on the gun's own
+-- the damage behind the trigger's Min Damage. The server works damage out, so this is CS2's rule on the gun's own
 -- figures: the part's damage, less for range, and less again where armour covers the part
 aim.damage = function(part, distance)
 	if not (equipped and equipped.IsActive) then
@@ -342,7 +340,7 @@ hub.cleanup.add(function()
 end)
 
 local window = hub.ui.createWindow("BloxStrike")
-local tabs = hub.require("universal.lua")(window)
+local tabs = hub.require("games/bloxstrike/tabs.lua")(window)
 
 -- tracers and hit effects live under the camera, where the aim assist's visibility ray ignores them
 local effects = hub.cleanup.add(Instance.new("Folder"))

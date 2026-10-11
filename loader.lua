@@ -40,6 +40,13 @@ function hub.require(path)
 	return modules[path]
 end
 
+-- a game with no file gets nothing: no window, no features
+local gamePath = hub.require("games/registry.lua")[game.GameId]
+if not gamePath then
+	warn("[hub] no script for this game (GameId " .. game.GameId .. ")")
+	return
+end
+
 hub.cleanup = hub.require("core/cleanup.lua")
 
 function hub.unload()
@@ -49,15 +56,6 @@ end
 
 hub.ui = hub.require("core/ui.lua")
 getgenv().Hub = hub
-
-local registry = hub.require("games/registry.lua")
-local gamePath = registry[game.GameId]
-if not gamePath then
-	local window = hub.ui.createWindow("Universal")
-	hub.require("universal.lua")(window)
-	window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
-	return
-end
 
 local ok, err = pcall(hub.load, gamePath)
 if not ok then

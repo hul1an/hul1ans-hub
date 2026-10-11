@@ -60,7 +60,8 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim, the trigger's Seeded,
+- `games/bloxstrike/` is its own Combat and ESP tabs (`tabs.lua` over `esp.lua` and `aim.lua`) plus what `main.lua`
+  adds: Silent Aim, the trigger's Seeded,
   Hitchance and Min Damage, and Anti-Aim (Combat),
   the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
   (Bhop) and Eject.
@@ -211,7 +212,7 @@
     known: whether it checks a direction against anything.
   - An equipped gun's bullet is `IsActive` and has `updateSpread(dt)` called on it every Stepped; `destroy` clears
     `Properties`, `Spread` and `Weapon`, after `setActive(false)`.
-- Seeded and Hitchance (written 2026-10-11, not run). `aim.spread` in the game file returns half of what `create`
+- Seeded and Hitchance (written 2026-10-11, not run). `aim.spread` in `main.lua` returns half of what `create`
   would pass for the next shot. The bullet object comes from a second hook, on `Bullet.updateSpread`, which keeps
   the last active one it is called for. The `_performRaycast` hook multiplies the spread it is given by
   `aim.spreadScale()`. Not known: whether a gun that is out when the hub loads is being stepped (if not,
@@ -304,7 +305,7 @@
   enemy player while the user was alive. Eleven seconds after the last one that enemy was still in
   `_PVS_CulledCharacters` where it had been, and the user's `IsSpectating` was still false. A stop sent in
   between changed nothing either. Not tried: a bot's key, and the other two packets.
-- Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `universal.lua` so it gets its
+- Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `tabs.lua` so it gets its
   own section and a Target toggle. Its toggles read "Dormant ESP" and "Dormant Aimbot" (`toggle` and `aimToggle` on the source) and
   its memory slider "Fade Out", renamed at the user's request the same day; the section still says Heard. Fade Out
   sits under the Dormant ESP toggle (`options` on the source). A footstep or shot under `workspace.Debris` with no living shown character
@@ -329,15 +330,15 @@
 - `workspace.Characters` also holds three childless-looking entries named `Terrorists`,
   `Counter-Terrorists` and `Hostages` with no root part; they are skipped by the root-part check.
 - `workspace.Map.Barriers` holds fully invisible, collidable parts that sat between the camera and every
-  enemy in that dump, so the aim assist's visibility ray reported everyone as hidden. `core/aim.lua` now
+  enemy in that dump, so the aim assist's visibility ray reported everyone as hidden. The aim now
   looks through parts with Transparency 1.
 - Both temporary dump buttons are removed. The dumps live on this machine in
   `AppData/Local/Potassium/workspace/hul1ans-hub/`. The probe's file is there too.
 - Not ported from that script: box-adornment chams (Highlight chams cover it), the Explosion instance in
   its hit effect (only the expanding ball is ported), `mouse1click` auto fire (the hub's triggerbot clicks
   through `VirtualInputManager`).
-- Since the starline combat port of 2026-10-10 silent aim is the setting `aim.settings.SilentAim`, which the
-  game file adds so that `universal.lua` draws its toggle under the aim's Enabled; the shot hook reads it and
+- Since the starline combat port of 2026-10-10 silent aim is the setting `aim.settings.SilentAim`, whose
+  toggle is under the aim's Enabled; the shot hook reads it and
   still redirects to `aim.target`. The aim core under it is new and Auto Fire is gone, so Team Check and the
   silent aim target need seeing again. Anti-aim's Disable On Fire now only looks at the left mouse button.
   Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage, and whether

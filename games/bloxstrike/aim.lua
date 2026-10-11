@@ -5,7 +5,7 @@ local RunService = cloneref(game:GetService("RunService"))
 local UserInputService = cloneref(game:GetService("UserInputService"))
 local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
 
-local esp = hub.require("core/esp.lua")
+local esp = hub.require("games/bloxstrike/esp.lua")
 
 local FIRE_BUTTON = Enum.UserInputType.MouseButton1
 local STEP_NAME = "HubAim"
@@ -46,13 +46,14 @@ local HITGROUPS = {
 -- what force baim aims at in place of the chosen hitgroups
 local BODY = { "Chest", "Stomach", "Pelvis" }
 
--- aim.target is the part currently aimed at, or nil; game files read it.
--- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off;
+-- aim.target is the part currently aimed at, or nil; main.lua's shot hook reads it.
+-- main.lua sets aim.blocked, a function that returns true while the aim and the trigger must stay off;
 -- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out,
 -- and aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise
 local aim = {
 	settings = {
 		Enabled = false,
+		SilentAim = false,
 		DrawFov = false,
 		FovColor = Color3.new(1, 1, 1),
 		Disablers = {},
@@ -435,7 +436,7 @@ local function kept()
 	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
 end
 
--- for a game file's shot hook: what to multiply a shot's spread by. Only the trigger's own shots are narrowed
+-- for main.lua's shot hook: what to multiply a shot's spread by. Only the trigger's own shots are narrowed
 function aim.spreadScale()
 	return os.clock() - lastShot < TRIGGER_SHOT and kept() or 1
 end
@@ -577,7 +578,7 @@ function aim.start()
 		if model and settings.SwitchDelay > 0 and model ~= switchTarget then
 			switchTarget, switchUntil = model, now + settings.SwitchDelay / 1000
 		end
-		-- SilentAim is a game file's setting: its shot hook redirects to aim.target, so the view is left alone
+		-- with Silent Aim on main.lua's shot hook redirects to aim.target, so the view is left alone
 		if point and now >= switchUntil and not settings.SilentAim then
 			pull(camera, part, point, dt)
 		else
