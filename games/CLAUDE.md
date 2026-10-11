@@ -238,6 +238,17 @@
     itself. The one place a camera position is sent is `SpectateController.Broadcast`:
     `Remotes.Spectate.UpdateCameraCFrame.Send({ CameraCFrame, UserId })` every 0.2 s while a weapon is equipped,
     every frame once the `Spectators` attribute is above 0. Not known: whether the fog reads that or `LookYaw`.
+  - `Database.Security.Remotes` is a frozen table of namespaces (`Remotes.Spectate`, ...), each a frozen table of
+    packets made by `Security.Network.CreatePacket`. A packet is a table of closures (`Send`, `Listen`, `Connect`,
+    `Wait`, the server-side `SendTo...`); `Send(payload)` checks the payload against the packet's schema, encodes
+    it with `Network.BufferCodec` and fires the remote. `UpdateCameraCFrame` is unreliable, a struct of
+    `CameraCFrame` (CFrame) and `UserId`, limited to 60 a second.
+- Temporary: Camera Spoof (test) in the ESP tab's BloxStrike section, asked for by the user on 2026-10-11 to learn
+  whether the fog reads the reported camera (written, not run). The `UpdateCameraCFrame` packet table is found
+  through `getgc(true)` and its `Send` field swapped (`setreadonly`) for a wrapper that, while the toggle is on,
+  moves the reported position to the last known spot of the nearest hidden enemy, 2 studs up, keeping the
+  rotation. It prints once to the console when a report is first moved. It works if enemies near that spot
+  leave `_PVS_CulledCharacters` for `workspace.Characters`. Remove it once that is answered either way.
 - Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding

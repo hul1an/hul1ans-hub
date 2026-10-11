@@ -122,6 +122,23 @@ local function shownNear(position, range, skipTeammates)
 	return false
 end
 
+-- the living enemies the game has hidden, which it keeps in a folder of their own
+local function hiddenEnemies()
+	local characters = {}
+	local folder = ReplicatedStorage:FindFirstChild("_PVS_CulledCharacters")
+	if folder then
+		local team = Players.LocalPlayer:GetAttribute("Team")
+		for _, character in folder:GetChildren() do
+			if character:FindFirstChild("HumanoidRootPart")
+				and not character:GetAttribute("Dead")
+				and not (team and teamOf(character) == team) then
+				table.insert(characters, character)
+			end
+		end
+	end
+	return characters
+end
+
 -- a hidden model stays where it was last shown, so a sound heard since then is the later word
 local function lastKnown(character)
 	local frozen = character.HumanoidRootPart.Position
@@ -139,11 +156,6 @@ end
 -- a sound doesn't say who made it: of the hidden enemies no other ghost has, and for a shot those with that
 -- weapon, it is taken to be the one last known nearest. The second value is whether there was no one else
 local function identify(ghost, position, weapon)
-	local folder = ReplicatedStorage:FindFirstChild("_PVS_CulledCharacters")
-	if not folder then
-		return nil, false
-	end
-
 	local taken = {}
 	for _, other in ghosts do
 		if other ~= ghost and other.character then
@@ -151,13 +163,9 @@ local function identify(ghost, position, weapon)
 		end
 	end
 
-	local team = Players.LocalPlayer:GetAttribute("Team")
 	local candidates, holders = {}, {}
-	for _, character in folder:GetChildren() do
-		if not taken[character]
-			and character:FindFirstChild("HumanoidRootPart")
-			and not character:GetAttribute("Dead")
-			and not (team and teamOf(character) == team) then
+	for _, character in hiddenEnemies() do
+		if not taken[character] then
 			table.insert(candidates, character)
 			if weapon and holds(character, weapon) then
 				table.insert(holders, character)
@@ -275,6 +283,71 @@ hub.cleanup.add(function()
 	end
 	table.clear(ghosts)
 end)
+
+-- temporary test of whether the fog is worked out from the camera position the client reports for spectators:
+-- while on, that report is moved to where the nearest hidden enemy was last known
+local spoof = { enabled = false, told = false }
+
+local function spoofCamera(payload)
+	local eye = payload.CameraCFrame.Position
+	local nearest, best
+	for _, character in hiddenEnemies() do
+		local position = lastKnown(character)
+		local distance = (position - eye).Magnitude
+		if not best or distance < best then
+			nearest, best = position, distance
+		end
+	end
+	if nearest then
+		-- head height above the root
+		payload.CameraCFrame = payload.CameraCFrame.Rotation + nearest + Vector3.new(0, 2, 0)
+		if not spoof.told then
+			spoof.told = true
+			print("[hub] camera report moved to " .. tostring(nearest))
+		end
+	end
+end
+
+-- the game's packet table for Spectate.UpdateCameraCFrame, whose Send takes { CameraCFrame, UserId }
+local cameraPacket
+for _, object in getgc(true) do
+	if type(object) == "table" then
+		local packet = rawget(object, "UpdateCameraCFrame")
+		if type(packet) == "table" and type(rawget(packet, "Send")) == "function" then
+			cameraPacket = packet
+			break
+		end
+	end
+end
+
+if cameraPacket then
+	local spoofWarned = false
+	local original = cameraPacket.Send
+	-- the field is swapped, not the function hooked: every packet's Send is a closure of the same function
+	local readonly = isreadonly(cameraPacket)
+	setreadonly(cameraPacket, false)
+	cameraPacket.Send = function(payload)
+		if spoof.enabled then
+			-- an error here would otherwise stop the game's own report
+			local ok, err = pcall(spoofCamera, payload)
+			if not ok and not spoofWarned then
+				spoofWarned = true
+				warn("[hub] camera spoof failed: " .. tostring(err))
+			end
+		end
+		return original(payload)
+	end
+	setreadonly(cameraPacket, readonly)
+
+	hub.cleanup.add(function()
+		setreadonly(cameraPacket, false)
+		cameraPacket.Send = original
+		setreadonly(cameraPacket, readonly)
+	end)
+else
+	warn("[hub] BloxStrike packet Spectate.UpdateCameraCFrame not found: camera spoof unavailable")
+	hub.ui.notify("Remotes.Spectate.UpdateCameraCFrame not found, no camera spoof", "error")
+end
 
 local window = hub.ui.createWindow("BloxStrike")
 local tabs = hub.require("universal.lua")(window)
@@ -743,6 +816,13 @@ end)
 espSection:CreateSlider("Heard Memory", 1, 10, heard.memory, true, function(value)
 	heard.memory = value
 end, "%.0f s")
+if cameraPacket then
+	espSection
+		:CreateToggle("Camera Spoof (test)", spoof.enabled, function(value)
+			spoof.enabled = value
+		end)
+		:AddToolTip("Reports your camera at the nearest hidden enemy's last known spot. Spectators see it too")
+end
 
 local visualsTab = window:CreateTab("Visuals", "eye")
 
