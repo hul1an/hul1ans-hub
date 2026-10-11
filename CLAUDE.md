@@ -361,7 +361,11 @@ drew isn't known; no backtrack copies existed; and the game's ragdolls had taken
 `games/CLAUDE.md`), which is not fixed. Since then the invisible copies are opaque and backtrack chams keep their own
 records; not run. Asked the same day, the user said: the `glow` row draws, the glow inside invisible didn't, invisible
 was only tried while spectating, on hit was never tried with a hit landed, and the ragdoll leak is to be left for now
-(visible chams stay on the enemy's own parts). So invisible, backtrack and on hit still need a run while alive. Open: whether a Highlight draws on a part at 0.99
+(visible chams stay on the enemy's own parts). So invisible, backtrack and on hit still need a run while alive. On 2026-10-12 the user reported invisible working
+"but only for some enemies sometimes". Read through the bridge while they played: every enemy in
+`workspace.Characters` had its invisible and overlay copies, at exactly the body's position in the same read, and the
+invisible copy had its Highlight; with no enemy shown there were no copies. So no hub fault was found, and the fog of
+war (an enemy the server hides has no model to draw on) is the likely reason; not confirmed by the user. Open: whether a Highlight draws on a part at 0.99
 transparency and skips one at 1; whether a weld to a body part upsets the game; whether a ragdoll carries its owner's
 id for the team check; whether a killed enemy's parts are still there to copy when the hit is confirmed.
 
