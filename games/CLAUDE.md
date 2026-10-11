@@ -232,6 +232,12 @@
     `Landing<floor>`) were within 1 stud of the maker's root, gun `Shoot` sounds within 8. 14 footsteps and 2
     shots had no shown character near: hidden enemies 50 to 82 studs off, in runs 0.3 s and about 5 studs
     apart. `Bullet` sounds are at the impact, grenade and `C4` sounds at the object.
+  - What the server hears of where the client is, read when the user asked about spoofing the camera to get
+    round the fog: a movement command (`MovementV2.CommandCodec`) carries `Move`, `LookYaw`, `VerticalLook`,
+    `Buttons`, the weapon selection and the predicted speeds, no position, so the server works the position out
+    itself. The one place a camera position is sent is `SpectateController.Broadcast`:
+    `Remotes.Spectate.UpdateCameraCFrame.Send({ CameraCFrame, UserId })` every 0.2 s while a weapon is equipped,
+    every frame once the `Spectators` attribute is above 0. Not known: whether the fog reads that or `LookYaw`.
 - Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
