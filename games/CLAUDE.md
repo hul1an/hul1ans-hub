@@ -189,6 +189,32 @@
   the command before had no Jump, so a held key becomes a fresh press on the first ground command. Ladders and
   everything else about the input are left alone. The hook takes on the class's method. Not known: how much
   speed stamina and the casual landing cut leave over a run of hops.
+- Spread, from `Components.Weapon.Classes.Bullet` and `Components.Weapon` decompiled through the bridge on
+  2026-10-11. `Bullet` is the class the shot hook is on; each gun (`Components.Weapon`) has one as `.Bullet`,
+  made with `Bullet.new(weapon, properties)`.
+  - A gun's `Properties.Spread` (or the fire mode's, `ActiveSpreadConfig`) has `Range.Min` / `Range.Max`,
+    `PerShot`, `RecoverySpeed`, `MovementMultiplier` and `JumpShotMinimum`. The gun's own spread is a
+    `Shared.Spring` at `bullet.Spread` resting at `Range.Min`: a shot adds `PerShot` and it springs back at
+    `RecoverySpeed`. `getTrueSpread()` is that, clamped to the range, plus `CharacterSpeed * MovementMultiplier`,
+    the speed counting as 0 under 6.4 studs a second. In the air the speed is held at the take-off speed plus
+    `JumpShotMinimum` (100 without one), except at the top of a jump with some snipers.
+  - `Weapon.shoot` calls `Bullet:create(Properties.AimingOptions, weapon.IsAiming)` once per `BulletsPerShot`.
+    `create` reads the spread, then adds `PerShot`, then calls `_performRaycast(spread)`. For `SniperScope` guns
+    unscoped the own spread is first raised to 6, 12 or 15 (`MovementMultiplier` 2, 3, other), and an `AWP`
+    scoped for under 0.2 s (`weapon.ScopeStartTick`, a `tick()`) has its whole spread raised to that.
+  - `_performRaycast(spread)` seeds `Random.new` with `os.clock()` in microseconds, read inside the call, so no
+    seed exists before the shot and none can be read ahead. The spread is degrees across the cone, capped at 69:
+    the shot leaves the camera's centre ray by `NextNumber(0, spread / 2)` degrees, at `NextNumber(-pi, pi)` round it.
+  - The client sends each bullet's `Origin` and `Direction` in `Remotes.Inventory.ShootWeapon` (with
+    `IsSniperScoped`, `ShootingHand`, `Identifier`, `Seq`, `ViewTick`), so the server never sees the seed. Not
+    known: whether it checks a direction against anything.
+  - An equipped gun's bullet is `IsActive` and has `updateSpread(dt)` called on it every Stepped; `destroy` clears
+    `Properties`, `Spread` and `Weapon`, after `setActive(false)`.
+- Seeded and Hitchance (written 2026-10-11, not run). `aim.spread` in the game file returns half of what `create`
+  would pass for the next shot. The bullet object comes from a second hook, on `Bullet.updateSpread`, which keeps
+  the last active one it is called for. The `_performRaycast` hook multiplies the spread it is given by
+  `aim.spreadScale()`. Not known: whether a gun that is out when the hub loads is being stepped (if not,
+  Hitchance does nothing until it is switched to), and whether the server notices narrowed shots.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,

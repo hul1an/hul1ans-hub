@@ -98,9 +98,14 @@ local function addCombat(window)
 	local trigger = tab:CreateSection("Triggerbot", "RightSide")
 	toggle(trigger, "Enabled", "Trigger")
 	trigger:CreateToggle("Auto Wall (placeholder)", false, nothing)
-	local seeded = trigger:CreateGroup("Seeded (placeholder)", false, nothing)
-	seeded:CreateToggle("Restricted (placeholder)", false, nothing)
-	seeded:CreateSlider("Strength (placeholder)", 1, 100, 1, true, nothing)
+	-- only a game file that knows its guns' spread has Seeded and Hitchance: it sets aim.spread before it calls this file
+	if aim.spread then
+		slider(group(trigger, "Seeded", "TriggerSeeded"), "Legitimacy", "TriggerLegitimacy", 0, 100, true, "%.0f%%")
+	else
+		local seeded = trigger:CreateGroup("Seeded (placeholder)", false, nothing)
+		seeded:CreateToggle("Restricted (placeholder)", false, nothing)
+		seeded:CreateSlider("Strength (placeholder)", 1, 100, 1, true, nothing)
+	end
 	trigger:CreateMultiDropdown("Hitgroups", HITGROUPS, function(value)
 		settings.TriggerHitgroups = value
 	end, settings.TriggerHitgroups)
@@ -109,7 +114,11 @@ local function addCombat(window)
 	slider(trigger, "Burst", "TriggerBurst", 0, 250, true, "%.0fms")
 	toggle(trigger, "Randomize", "TriggerRandomize")
 	trigger:CreateSlider("Min Damage (placeholder)", 0, 100, 0, true, nothing)
-	trigger:CreateSlider("Min Accuracy (placeholder)", 0, 100, 0, true, nothing)
+	if aim.spread then
+		slider(trigger, "Hitchance", "TriggerHitchance", 0, 100, true, "%.0f%%")
+	else
+		trigger:CreateSlider("Min Accuracy (placeholder)", 0, 100, 0, true, nothing)
+	end
 	trigger:CreateToggle("Auto Scope (placeholder)", false, nothing)
 	trigger:CreateMultiDropdown(
 		"Auto Stop",

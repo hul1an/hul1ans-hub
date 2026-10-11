@@ -16,6 +16,11 @@ local FIRE_HOLD = 0.02
 local DEFAULT_FOV = 70
 -- the trigger only tests targets whose root is this near the view ray: starline's 64 units, about a character's height
 local TRIGGER_REACH = 6
+-- a shot this soon after the trigger's click is taken to be the trigger's: the click reaches the game a frame or two on
+local TRIGGER_SHOT = 0.2
+-- the hit chance is counted over this many angles out from the view ray, at this many places round it
+local CHANCE_RINGS = 8
+local CHANCE_SPOKES = 12
 local AXES = { "X", "Y", "Z" }
 -- the part names behind starline's hitgroups, R15 and R6
 local HITGROUPS = {
@@ -40,7 +45,8 @@ local HITGROUPS = {
 local BODY = { "Chest", "Stomach", "Pelvis" }
 
 -- aim.target is the part currently aimed at, or nil; game files read it.
--- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off
+-- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off,
+-- and aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out
 local aim = {
 	settings = {
 		Enabled = false,
@@ -66,6 +72,9 @@ local aim = {
 		TriggerVisibleDelay = 0,
 		TriggerBurst = 0,
 		TriggerRandomize = false,
+		TriggerSeeded = false,
+		TriggerLegitimacy = 100,
+		TriggerHitchance = 0,
 		TeamCheck = false,
 		VisibilityCheck = true,
 		MaxDistance = 500,
@@ -417,6 +426,37 @@ local function underCrosshair(camera)
 	return nearest
 end
 
+-- the share of its spread a shot of the trigger's keeps
+local function kept()
+	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
+end
+
+-- for a game file's shot hook: what to multiply a shot's spread by. Only the trigger's own shots are narrowed
+function aim.spreadScale()
+	return os.clock() - lastShot < TRIGGER_SHOT and kept() or 1
+end
+
+-- the percentage of shots spread up to an angle off the view ray that would enter a model's trigger hitgroups.
+-- a shot is taken to be as likely at one angle out as at any other, which bunches them towards the middle
+local function hitChance(camera, model, angle)
+	local view = camera.CFrame
+	local parts = hitParts(model, settings.TriggerHitgroups)
+	local hits = 0
+	for ring = 1, CHANCE_RINGS do
+		local out = CFrame.Angles(math.rad(angle * (ring - 0.5) / CHANCE_RINGS), 0, 0)
+		for spoke = 1, CHANCE_SPOKES do
+			local direction = (view * CFrame.Angles(0, 0, 2 * math.pi * spoke / CHANCE_SPOKES) * out).LookVector
+			for _, part in parts do
+				if crosses(part, view.Position, direction) then
+					hits += 1
+					break
+				end
+			end
+		end
+	end
+	return hits / (CHANCE_RINGS * CHANCE_SPOKES) * 100
+end
+
 -- a target that drops out of the list or out of sight starts over
 local function updateSeen(camera, now)
 	local seen = {}
@@ -476,6 +516,12 @@ local function trigger(camera, now, aimed)
 			return
 		end
 		served = true
+	end
+
+	-- a silent shot goes to its target whatever the spread
+	local angle = settings.TriggerHitchance > 0 and not settings.SilentAim and aim.spread and aim.spread()
+	if angle and hitChance(camera, model, angle * kept()) < settings.TriggerHitchance then
+		return
 	end
 
 	if fire(camera) then

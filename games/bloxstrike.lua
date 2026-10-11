@@ -19,6 +19,34 @@ aim.blocked = function()
 	return player:GetAttribute("Dead") or player:GetAttribute("IsSpectating")
 end
 
+-- the game's spread is the angle across a shot's cone in degrees, and it never uses more than this
+local MAX_SPREAD = 69
+-- the bullet object of the gun that is out, kept by the hook on the game's spread update below
+local equipped
+
+-- setting this puts Seeded and Hitchance on the trigger. It follows the game's Bullet.create: the spread is the gun's
+-- own plus what moving adds, an unscoped sniper's own spread is raised to a floor, and so is all of an AWP's in the
+-- first 0.2 s of its scope
+aim.spread = function()
+	if not (equipped and equipped.IsActive) then
+		return nil
+	end
+	local config = equipped.ActiveSpreadConfig or equipped.Properties.Spread
+	local weapon = equipped.Weapon
+	local own = equipped:getBaseSpreadForConfig(config)
+	local least = 0
+	if equipped.Properties.AimingOptions == "SniperScope" then
+		local floor = config.MovementMultiplier == 2 and 6 or config.MovementMultiplier == 3 and 12 or 15
+		if not weapon.IsAiming then
+			own = math.max(own, floor)
+		elseif weapon.Name == "AWP" and tick() - weapon.ScopeStartTick < 0.2 then
+			least = floor
+		end
+	end
+	local spread = math.max(own + equipped:getMovementSpreadForConfig(config), least)
+	return math.min(spread, MAX_SPREAD) / 2
+end
+
 local THIRD_PERSON_STEP = "HubThirdPerson"
 local TEAM_COLORS = {
 	Terrorists = Color3.fromRGB(204, 170, 80),
@@ -443,14 +471,15 @@ task.spawn(function()
 		task.wait(0.5)
 	end
 	if not bullets then
-		warn("[hub] BloxStrike bullet class (_performRaycast) not found: silent aim, tracers and hit effect unavailable")
+		warn("[hub] BloxStrike bullet class (_performRaycast) not found: silent aim, seeded, hitchance, tracers and hit effect unavailable")
 		return
 	end
 
 	local shotWarned = false
 	local original
-	original = hookfunction(bullets._performRaycast, function(...)
-		local returns = table.pack(original(...))
+	original = hookfunction(bullets._performRaycast, function(self, spread, ...)
+		-- the trigger's Seeded narrows its own shots
+		local returns = table.pack(original(self, spread * aim.spreadScale(), ...))
 		if type(returns[1]) == "table" then
 			-- an error here would otherwise break the game's own shooting
 			local ok, err = pcall(onShot, returns[1])
@@ -464,6 +493,19 @@ task.spawn(function()
 
 	hub.cleanup.add(function()
 		hookfunction(bullets._performRaycast, original)
+	end)
+
+	-- the game steps the spread of the gun that is out every frame, which is how the hub learns which bullet object that is
+	local step
+	step = hookfunction(bullets.updateSpread, function(self, ...)
+		if self.IsActive then
+			equipped = self
+		end
+		return step(self, ...)
+	end)
+
+	hub.cleanup.add(function()
+		hookfunction(bullets.updateSpread, step)
 	end)
 end)
 
