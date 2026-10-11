@@ -189,8 +189,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     next round two of the lobby had it; the bridge showed every enemy with its copies in place and a Highlight on
     them. Taken to be two Highlights on one silhouette, the copy's and the body's (the glow row's, or the game's own
     on spectated players), of which Roblox draws one a pixel: the copies are now 1.03 times the size (`COVER`) so
-    theirs is the nearer, and it draws the glow row's outline itself. That only one is drawn, and that the nearer
-    wins, is from memory of how Roblox composites them and not seen here; not run.
+    theirs is the nearer, and it draws the glow row's outline itself. Seen working by the user on 2026-10-12 after that
+    change, so where two Highlights overlap Roblox does draw only the nearer.
   - `overlay` (flat, glow, ghost, glass): copies 1.05 times the size, each welded to its part so it has no lag.
   - `ragdoll` (all five): the enemies' ragdolls from `esp.ragdolls` (set by `main.lua`), painted as visible chams
     paint, or a Highlight fill for solid.
