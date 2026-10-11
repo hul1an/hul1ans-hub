@@ -295,8 +295,14 @@
   tick`, `ViewTick` is lowered by as much. A shot is left alone when the head is under 1.2 studs off that old line,
   since it would hit either way. The first version used the upper torso and 3 studs, which a runner doesn't cover in
   the default 6 ticks: in the user's first run every shot was left alone (0.0 to 0.9 studs off). The second run gave one test
-  shot: 6.3 ticks back, old tick, 1.2 studs off, no damage. One shot settles nothing. `ticks back` at 0 was added
-  after it as a check that a turned shot registers at all: it goes to the head as it is now. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
+  shot: 6.3 ticks back, old tick, 1.2 studs off, no damage. `ticks back` at 0 was added
+  after it as a check that a turned shot registers at all: it goes to the head as it is now.
+- The backtrack test's results (run by the user on 2026-10-11, read from the console): at 0 ticks all 8 shots did
+  damage (17 to 100), so swapping the packet's `Send` and turning its bullets registers. With the old tick none of 4
+  did: 6.3 ticks back at 1.2 studs off the line, and 10.0 to 10.2 ticks back at 1.8, 2.3 and 1.8. So the server did
+  not rewind an enemy 6 to 10 ticks on a lowered `ViewTick`. Not known: whether it ignores `ViewTick`, refuses one
+  that runs backwards, or keeps it within a few ticks of its own figure; a rewind that small can't be told from a
+  head's width with this test. No shot was sent with the real tick, which those results made unnecessary. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
   <n> ticks back, old tick | real tick, <n> studs off: <n> damage | no damage`. Damage with the old tick and none
   with the real one means the server rewinds. Remove it once that is answered, and make starline's backtrack real
   from it if it is a yes.
