@@ -22,7 +22,7 @@ local SIGHT_TIME = 0.1
 -- how much bigger than the body an overlay or an on hit copy is, so that it wraps it
 local SHELL = 1.05
 -- and an invisible chams copy: where two Highlights cover the same pixel only one is drawn, and the copy's has to be
--- the nearer of it and the one on the body, the glow row's or the game's own on a spectated player
+-- the nearer of it and the one on the body, the visible chams' solid fill or the game's own on a spectated player
 local COVER = 1.03
 -- the game's tick, which backtrack chams draw one copy for
 local TICK = 1 / 60
@@ -69,9 +69,6 @@ local esp = {
 		BoxColor = WHITE,
 		Skeleton = false,
 		SkeletonColor = WHITE,
-		Chams = false,
-		ChamsColor = WHITE,
-		ChamsOpacity = 1,
 		VisibleChams = false,
 		VisibleChamsColor = WHITE,
 		VisibleChamsOpacity = 1,
@@ -404,16 +401,10 @@ local function unlight(model)
 	end
 end
 
--- a model's Highlight: the glow is its outline, and the solid visible chams its fill
-local function updateChams(model, source, color)
+-- a model's Highlight: the solid visible chams are its fill
+local function updateChams(model, source)
 	local solid = source == players and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
-	light(
-		model,
-		solid and settings.VisibleChamsColor,
-		settings.VisibleChamsOpacity,
-		settings.Chams and color,
-		settings.ChamsOpacity
-	)
+	light(model, solid and settings.VisibleChamsColor, settings.VisibleChamsOpacity)
 end
 
 -- the parts visible chams repaint: the body, which is the model's own children, and the armour, not what it carries
@@ -620,8 +611,7 @@ local function shade(model, camera)
 		end
 	end
 	if settings.InvisibleChamsMaterial == "solid" then
-		-- these pixels are this Highlight's and not the model's, so the glow row's outline has to be drawn by it too
-		light(set.model, color, opacity, settings.Chams and settings.ChamsColor, settings.ChamsOpacity, true)
+		light(set.model, color, opacity, nil, nil, true)
 	else
 		light(set.model, nil, nil, color, opacity)
 	end
@@ -979,7 +969,7 @@ local function update(model, source, camera, viewport)
 	end
 
 	updateSkeleton(model, camera, own or settings.SkeletonColor)
-	updateChams(model, source, own or settings.ChamsColor)
+	updateChams(model, source)
 
 	return true
 end

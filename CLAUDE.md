@@ -174,6 +174,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   face decals hidden, all kept in `skins` and put back when the row goes off, the enemy leaves the list or the hub
   unloads. Weapons a character carries and parts that are invisible are left alone. A model shows one Highlight
   with one depth mode, so while `glow` is on a solid fill shows through walls with the outline.
+- The `glow` row, the hub's first chams (a Highlight outline through walls on the enemy itself), was removed from the
+  enemies page by the user on 2026-10-12 because it conflicts with invisible chams: two Highlights on one silhouette,
+  of which Roblox draws the nearer. `esp.settings.Chams` and its colour went with it. Invisible's `glow` material
+  and on hit's `glow` are still there. Mentions of the glow row elsewhere in this file are from before that.
 - The rest of the enemies chams card is real too (asked for by the user on 2026-10-11); teammates and local are still
   placeholders. Roblox can't draw a part over a wall (only a Highlight, an always-on-top adornment or something in
   screen space can be). The first version drew copies in two full-screen `ViewportFrame`s to get materials through
@@ -236,10 +240,16 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   left), and `main.lua`'s movement hook counter-strafes. `between shots` drops the could-fire condition (asked for
   by the user after running it: without the option it must not stay stopped between shots), `early` also sets it
   with a target within the trigger's 6 studs of the view ray, and `in air` lets it act off the ground. Seen by the
-  user on 2026-10-11: auto stop does stop the character. Asked for by the user on 2026-10-12: it only acts for an
-  enemy inside the aim's FOV (`max fov`, with the fov mode's scaling, whether the aim is enabled or not), on top of
-  the conditions above. That is measured at the part under the crosshair, and for `early` at the enemy's root, which
-  is where it bites: 6 studs from the view ray is a wide angle up close. Not run.
+  user on 2026-10-11: auto stop does stop the character. Reworked at the user's request on 2026-10-12: it only acts
+  while the trigger is on an enemy (a target under the crosshair, or with Silent Aim the aim's target), or while the
+  aim will have the crosshair on its target by the time the character is still. The second is what `early` now
+  turns on, in place of a target within 6 studs of the view ray; that it sits behind `early` rather than always
+  being on is Claude's reading. `landing` in `aim.lua` gives the aim's time: none without smoothing, else how long
+  the turn takes to shrink to the part's width at smoothing's share a tick, after any switch delay. `aim.stopTime`,
+  set by `main.lua`, gives the stop's: a counter-strafe run forward a tick at a time from the last command's speed
+  with the game's competitive friction 5.2 and ground accelerate 5.5 (`MovementV2.Simulation.Config`; casual and
+  deathmatch use 4 and 5) and the gun's `WalkSpeed`, until under 6.4 studs a second. A FOV condition asked for just
+  before was dropped for this. Not run.
 - BloxStrike's hit and miss logs (asked for by the user on 2026-10-11, with the wording): the `logs` dropdown in misc ›
   general › others has the hub's `hits` and `misses` in place of starline's five, and `log output` is still a
   placeholder. A line is `Hit <name> for <n> damage in <part> with <n>% hitchance`, or with ` | expected <part>`

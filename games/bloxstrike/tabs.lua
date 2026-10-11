@@ -262,8 +262,6 @@ local function addPlayerPage(tab, name, live)
 		local hit = fold("on hit", "HitChams", MATERIALS)
 		slider(hit, "duration", settings, "HitChamsDuration", 0.1, 5, false, "%.1fs")
 		color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor", "HitChamsGlowOpacity")
-		-- the hub's glow is a Highlight's outline, through walls
-		color(toggle(chams, "glow", settings, "Chams"), settings, "ChamsColor", "ChamsOpacity")
 	else
 		for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
 			off.dropdown(off.group(chams, label, true), "material")

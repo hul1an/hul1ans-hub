@@ -993,8 +993,34 @@ local function stop(input, state)
 	input.Move = Vector2.new(cos * x - sin * z, sin * x + cos * z)
 end
 
+-- the game's ground movement is Source's (MovementV2.Simulation.Config, the competitive figures): friction takes this
+-- share of the speed a second, of StopSpeed when slower than it, and a move input adds this many times the gun's walk
+-- speed a second
+local FRICTION = 5.2
+local ACCELERATE = 5.5
+local STOP_SPEED = 6
+local TICK = 1 / 60
+-- the velocity the last movement command ran on
+local velocity = Vector3.zero
+
+-- for the trigger's early auto stop: how long a counter-strafe would take to still the character from the speed it has
+aim.stopTime = function()
+	if not (equipped and equipped.IsActive) then
+		return 0
+	end
+	local walk = equipped.Properties.WalkSpeed
+	local speed = math.sqrt(velocity.X ^ 2 + velocity.Z ^ 2)
+	local seconds = 0
+	while speed > STILL do
+		speed -= (math.max(speed, STOP_SPEED) * FRICTION + ACCELERATE * walk) * TICK
+		seconds += TICK
+	end
+	return seconds
+end
+
 -- what the hub does to a movement command before the game builds and sends it
 local function command(input, state)
+	velocity = state.Velocity
 	if movement.bunnyhop then
 		hop(input, state)
 	end

@@ -43,7 +43,8 @@ local BODY = { "upper torso", "lower torso" }
 -- aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise;
 -- aim.pierces, a function that returns whether a bullet would get from a position to a point on a model;
 -- aim.scope, a function that zooms an unscoped sniper and returns whether it had to;
--- and aim.ready, a function that returns whether the gun out could fire now.
+-- aim.ready, a function that returns whether the gun out could fire now;
+-- and aim.stopTime, a function that returns how many seconds an auto stop would take to still the character.
 -- aim.stopping is true while the trigger's auto stop wants the character still; main.lua's movement hook reads it
 local aim = {
 	settings = {
@@ -466,30 +467,21 @@ local function underCrosshair(camera)
 	return nearest, struck, best, walled
 end
 
--- whether a point is inside the aim's FOV, as findTarget measures it
-local function inFov(camera, point)
-	local offset = point - camera.CFrame.Position
-	local fov = settings.Fov
-	if settings.FovMode == "dynamic" then
-		fov = scaleFov(fov * camera.FieldOfView / DEFAULT_FOV, offset.Magnitude)
+-- how many seconds the pull will take to bring the crosshair onto the part it is aimed at a point of: none without
+-- smoothing, else as long as the turn takes to shrink to the part's width, losing a share of what is left every
+-- tick as smooth has it, humanization and sticky aside. A switch delay still to run comes first
+local function landing(camera, part, point, now)
+	local wait = math.max(switchUntil - now, 0)
+	if not settings.Smoothing then
+		return wait
 	end
-	return math.deg(camera.CFrame.LookVector:Angle(offset)) <= fov
-end
-
--- whether a target a shot can get to is beside the view ray, within the trigger's reach of it and inside the FOV
-local function nearCrosshair(camera)
-	local eye = camera.CFrame.Position
-	local forward = camera.CFrame.LookVector
-	local near = false
-	eachTarget(function(model, root)
-		local offset = root.Position - eye
-		local along = offset:Dot(forward)
-		local beside = (offset - forward * along).Magnitude <= TRIGGER_REACH
-		if not near and along > 0 and beside and inFov(camera, root.Position) then
-			near = reaches(camera, root.Position, model, settings.TriggerAutoWall)
-		end
-	end)
-	return near
+	local offset = point - camera.CFrame.Position
+	local angle = camera.CFrame.LookVector:Angle(offset)
+	local width = math.atan(math.min(part.Size.X, part.Size.Y, part.Size.Z) / 2 / offset.Magnitude)
+	if angle <= width then
+		return wait
+	end
+	return wait + math.log(width / angle) / math.log(1 - 1 / settings.SmoothingValue) / 128
 end
 
 -- for main.lua's shot hook: what to multiply a shot's spread by. Seeded leaves every shot its Legitimacy's share
@@ -675,14 +667,14 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	end
 	if not model then
 		acquired, served, reaction = nil, false, nil
-		-- early, the stop begins with a target beside the crosshair
-		if stop and table.find(stops, "early") and nearCrosshair(camera) then
-			aim.stopping = true
+		-- early, the stop begins while the aim is still turning to its target, if it will be on it by the time the
+		-- character is still
+		if stop and aimedPoint and table.find(stops, "early") and aim.stopTime then
+			aim.stopping = landing(camera, aimedPart, aimedPoint, now) <= aim.stopTime()
 		end
 		return
 	end
-	-- only for a target inside the aim's FOV
-	if stop and inFov(camera, part.Position) then
+	if stop then
 		aim.stopping = true
 	end
 	-- an unscoped sniper is zoomed first and fired once it is

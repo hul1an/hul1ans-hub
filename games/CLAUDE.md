@@ -446,6 +446,10 @@
   of its own in every character: yellow, always on top, fill 0.9 and outline 0.4 transparent. A model shows one
   Highlight, so it competes with the hub's on the same character. Every character also counts as an enemy then,
   since no one's side is `Spectators`.
+- `MovementV2.Simulation.Config`, decompiled on 2026-10-12 for auto stop: `Default` (which `Competitive` is) has
+  `GroundAccelerate` 5.5, `Friction` 5.2, `StopSpeed` 80 units (6 studs), `AirAccelerate` 12, `Gravity` 800 units and
+  `JumpSpeed` 301.99 units, a unit being 0.075 studs; the casual and deathmatch profiles have `GroundAccelerate` 5,
+  `Friction` 4 and `AirAccelerate` 150. A weapon file's `WalkSpeed` is in studs a second (AK-47 17.372, knife 20.2).
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
 - Removed at the user's request on 2026-10-10:
