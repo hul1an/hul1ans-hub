@@ -512,7 +512,9 @@ local function redirect(result, target)
 		end
 	end
 	if not last then
-		return false
+		-- a shot that got to nothing has no hit to rewrite, only its direction, which is what the server is sent
+		result.Direction = (target.Position - rawget(result, "Origin")).Unit
+		return true
 	end
 
 	local position = target.Position
@@ -612,25 +614,32 @@ local function expectation(shot, got)
 	return (shot.expected == got and "" or " | expected " .. shot.expected) .. chance
 end
 
--- angle is how far off the view ray the shot's spread could take it
-local function logShot(result, angle)
+-- angle is how far off the view ray the shot's spread could take it, target the part the shot was turned to if it was
+local function logShot(result, angle, target)
 	local camera = workspace.CurrentCamera
 	local model, part, chance = aim.expected(camera, angle)
 	local shot = { at = os.clock(), expected = part and limb(part), chance = chance }
 
-	for _, hit in rawget(result, "Hits") do
-		local victim = enemyOf(hit.Instance)
-		if victim then
-			local queue = awaited[victim] or {}
-			awaited[victim] = queue
-			-- a shotgun's pellets are one shot
-			if not (queue[#queue] and shot.at - queue[#queue].at < 0.02) then
-				shot.struck = limb(hit.Instance)
-				shot.health = victim:GetAttribute("Health")
-				table.insert(queue, shot)
+	local struck = target
+	if not struck then
+		for _, hit in rawget(result, "Hits") do
+			if enemyOf(hit.Instance) then
+				struck = hit.Instance
+				break
 			end
-			return
 		end
+	end
+	local victim = struck and enemyOf(struck)
+	if victim then
+		local queue = awaited[victim] or {}
+		awaited[victim] = queue
+		-- a shotgun's pellets are one shot
+		if not (queue[#queue] and shot.at - queue[#queue].at < 0.02) then
+			shot.struck = limb(struck)
+			shot.health = victim:GetAttribute("Health")
+			table.insert(queue, shot)
+		end
+		return
 	end
 
 	-- a shot at no one that got to no one isn't a miss
@@ -675,161 +684,15 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 	end
 end))
 
--- temporary: the backtrack test. A shot tells the server which moment of the enemy movement stream the client was
--- looking at (ViewTick), taken to be for rewinding enemies to where the shooter saw them. While the test is on every
--- shot is sent along the line to where the head of the enemy nearest the crosshair was some ticks ago, with the tick moved back
--- as far or left as it was, and the damage that follows says whether the server rewound
-local backtrack = { enabled = false, ticks = 6, oldTick = true }
--- the server's ticks a second
-local TICK_RATE = 60
--- a head must be this many studs off the old line of fire for a shot along it to say anything: a head is about 1.2
--- across and nothing else of the body is at its height
-local MOVED = 1.2
--- by character: where its head was on each frame of the last second, oldest first
-local trail = {}
--- test shots waiting for the server's damage: at, victim, health, and text, the line so far
-local tested = {}
-
-hub.cleanup.add(RunService.Heartbeat:Connect(function()
-	local now = os.clock()
-	local shown = {}
-	if backtrack.enabled then
-		for _, character in players.models(true) do
-			local head = character:FindFirstChild("Head")
-			if head then
-				local points = trail[character] or {}
-				trail[character] = points
-				shown[character] = true
-				table.insert(points, { at = now, position = head.Position })
-				while now - points[1].at > 1 do
-					table.remove(points, 1)
-				end
-			end
-		end
-	end
-	for character in trail do
-		if not shown[character] then
-			trail[character] = nil
-		end
-	end
-
-	for index = #tested, 1, -1 do
-		local shot = tested[index]
-		local dead = shot.victim.Parent == nil or shot.victim:GetAttribute("Dead")
-		local health = dead and 0 or shot.victim:GetAttribute("Health")
-		if health < shot.health then
-			log(shot.text .. string.format(": %.0f damage", shot.health - health))
-			table.remove(tested, index)
-		elseif now - shot.at > REGISTER_TIME then
-			log(shot.text .. ": no damage")
-			table.remove(tested, index)
-		end
-	end
-end))
-
--- payload is the game's shot packet: Bullets, each an Origin and a Direction, and ViewTick
-local function backtrackShot(payload)
-	local first = payload.Bullets[1]
-	if not first then
-		return
-	end
-	local forward = workspace.CurrentCamera.CFrame.LookVector
-	local victim, head, best
-	for character in trail do
-		local part = character:FindFirstChild("Head")
-		local angle = part and forward:Angle(part.Position - first.Origin)
-		if angle and (not best or angle < best) then
-			victim, head, best = character, part, angle
-		end
-	end
-	if not victim then
-		table.insert(written, "backtrack test: no enemy shown, shot left alone")
-		return
-	end
-
-	-- the latest point at least that many ticks old, or the oldest there is of an enemy only just shown
-	local points = trail[victim]
-	local now = os.clock()
-	local old = points[1]
-	for _, point in points do
-		if now - point.at >= backtrack.ticks / TICK_RATE then
-			old = point
-		end
-	end
-	local back = (now - old.at) * TICK_RATE
-	local toward = (old.position - first.Origin).Unit
-	local off = (head.Position - first.Origin):Cross(toward).Magnitude
-	local name = players.label(victim)
-	-- at 0 ticks the shot goes to the head as it is now, to see that a turned shot registers at all
-	if backtrack.ticks > 0 and off < MOVED then
-		table.insert(written, string.format("backtrack test: %s is %.1f studs off the old line, shot left alone", name, off))
-		return
-	end
-
-	for _, bullet in payload.Bullets do
-		bullet.Direction = toward
-	end
-	local tick = "real tick"
-	if backtrack.oldTick and payload.ViewTick then
-		payload.ViewTick -= back
-		tick = "old tick"
-	end
-	table.insert(tested, {
-		at = now,
-		victim = victim,
-		health = victim:GetAttribute("Health"),
-		text = string.format("backtrack test: %s, %.1f ticks back, %s, %.1f studs off", name, back, tick, off),
-	})
-end
-
--- the game's packet table for Inventory.ShootWeapon
-local shotPacket
-for _, object in getgc(true) do
-	if type(object) == "table" then
-		local packet = rawget(object, "ShootWeapon")
-		if type(packet) == "table" and type(rawget(packet, "Send")) == "function" then
-			shotPacket = packet
-			break
-		end
-	end
-end
-
-if shotPacket then
-	local testWarned = false
-	local send = shotPacket.Send
-	-- the field is swapped, not the function hooked: every packet's Send is a closure of the same function
-	local readonly = isreadonly(shotPacket)
-	setreadonly(shotPacket, false)
-	shotPacket.Send = function(payload)
-		if backtrack.enabled then
-			-- an error here would otherwise stop the game's own shot
-			local ok, err = pcall(backtrackShot, payload)
-			if not ok and not testWarned then
-				testWarned = true
-				warn("[hub] backtrack test failed: " .. tostring(err))
-			end
-		end
-		return send(payload)
-	end
-	setreadonly(shotPacket, readonly)
-
-	hub.cleanup.add(function()
-		setreadonly(shotPacket, false)
-		shotPacket.Send = send
-		setreadonly(shotPacket, readonly)
-	end)
-else
-	warn("[hub] BloxStrike packet Inventory.ShootWeapon not found: backtrack test unavailable")
-	hub.ui.notify("Remotes.Inventory.ShootWeapon not found, no backtrack test", "error")
-end
-
 local function onShot(result, spread)
+	-- silent aim turns the shot to the aim's target, backtrack to the enemy whose old place it went through
 	local target = aim.settings.SilentAim and aim.target
+		or aim.rewind(rawget(result, "Origin"), rawget(result, "Direction"))
 	if not (target and target.Parent and redirect(result, target)) then
 		target = nil
 	end
 	if #logs.kinds > 0 then
-		logShot(result, math.min(spread, MAX_SPREAD) / 2)
+		logShot(result, math.min(spread, MAX_SPREAD) / 2, target)
 	end
 
 	if visuals.tracers or visuals.hitEffect then
@@ -1085,7 +948,6 @@ hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
 	logs = logs,
-	backtrack = backtrack,
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })

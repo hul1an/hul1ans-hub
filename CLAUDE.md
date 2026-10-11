@@ -178,6 +178,9 @@ Changes that aren't about any game, such as the menu's style, are exempt.
 - Seeded was reworked at the user's request on 2026-10-11, after a run: with it on every shot's spread is multiplied
   by Legitimacy, 0% none and 100% untouched, the trigger's or not. Before, only shots within 0.2 s of a trigger click
   were narrowed.
+- BloxStrike's backtrack (the targeting card's `backtrack` fold and its `amount`, 0 to 200 ms) is a simulation, at
+  the user's request on 2026-10-11 after the test showed the server doesn't rewind: see `games/CLAUDE.md`. The chams
+  card's backtrack row is still a placeholder, so nothing draws the old places.
 - Kept in the Combat tab though starline has no such thing: the Enabled keybind, BloxStrike's Silent Aim
   toggle, and the Options card, which in BloxStrike is only the per-source target toggles.
 - Removed from BloxStrike's copies by the user on 2026-10-11: the Max Distance sliders of the aim

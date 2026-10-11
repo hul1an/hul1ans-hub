@@ -58,6 +58,8 @@ local aim = {
 		Hitgroups = { "head" },
 		Multipoint = false,
 		MultipointScale = 50,
+		Backtrack = false,
+		BacktrackAmount = 200,
 		Smoothing = false,
 		SmoothingValue = 5,
 		Humanization = 0,
@@ -105,6 +107,9 @@ local frame = 0
 local acquired, served, reaction, visibleFor, burstUntil
 -- each target's health as eachTarget last saw it, for the trigger's lethal check
 local healthOf = setmetatable({}, { __mode = "k" })
+-- backtrack: by model, where each of its parts was on the frames of the backtrack time, oldest first. A record is at
+-- and frames, the CFrame by part
+local past = {}
 
 local function isVisible(camera, point, model)
 	-- the camera is excluded because first person viewmodels are parented to it
@@ -185,11 +190,13 @@ local function reach(part, direction)
 	return math.min(half.X / math.abs(along.X), half.Y / math.abs(along.Y), half.Z / math.abs(along.Z))
 end
 
--- how far along a ray it enters a part's box, or nil when it misses; direction is a unit vector
-local function crosses(part, origin, direction)
+-- how far along a ray it enters a part's box, or nil when it misses; direction is a unit vector. cframe is where the
+-- part is taken to be, if not where it is
+local function crosses(part, origin, direction, cframe)
+	cframe = cframe or part.CFrame
 	local half = part.Size / 2
-	local from = part.CFrame:PointToObjectSpace(origin)
-	local along = part.CFrame:VectorToObjectSpace(direction)
+	local from = cframe:PointToObjectSpace(origin)
+	local along = cframe:VectorToObjectSpace(direction)
 	local near, far = 0, math.huge
 	for _, axis in AXES do
 		local a = (-half[axis] - from[axis]) / along[axis]
@@ -555,6 +562,57 @@ function aim.missed(camera, model, part, origin, direction)
 	return "aim"
 end
 
+local function remember(now)
+	local seen = {}
+	eachTarget(function(model)
+		local frames = {}
+		for _, part in hitParts(model, EVERY) do
+			frames[part] = part.CFrame
+		end
+		local records = past[model] or {}
+		past[model] = records
+		seen[model] = true
+		table.insert(records, { at = now, frames = frames })
+		while now - records[1].at > settings.BacktrackAmount / 1000 do
+			table.remove(records, 1)
+		end
+	end)
+	for model in past do
+		if not seen[model] then
+			past[model] = nil
+		end
+	end
+end
+
+-- for main.lua's shot hook: starline's backtrack, simulated. The server was seen not to rewind enemies for a shot, so
+-- there is no shooting at the past: a shot whose line misses every target as it stands but goes through where a part
+-- of one was within the backtrack time is to be turned to that part where it is now. Returns the part, or nil
+function aim.rewind(origin, direction)
+	if not settings.Backtrack then
+		return nil
+	end
+	for _, records in past do
+		for part in records[#records].frames do
+			if crosses(part, origin, direction) then
+				return nil
+			end
+		end
+	end
+
+	local found, best
+	for _, records in past do
+		for index = 1, #records - 1 do
+			for part, cframe in records[index].frames do
+				local distance = crosses(part, origin, direction, cframe)
+				if distance and (not best or distance < best) then
+					found, best = part, distance
+				end
+			end
+		end
+	end
+	return found
+end
+
 -- a target that drops out of the list or out of sight starts over
 local function updateSeen(camera, now)
 	local seen = {}
@@ -679,6 +737,11 @@ function aim.start()
 		end
 		aim.target = part
 		aim.stopping = false
+		if settings.Backtrack and not blocked then
+			remember(now)
+		else
+			table.clear(past)
+		end
 		if model and settings.AutoScope then
 			aim.scope()
 		end

@@ -288,21 +288,22 @@
   bigger on the client would register nothing. `ViewTick` is an optional Float64 from
   `Runtime:getRemoteViewTick()`, the presentation clock less `RenderInterpolationTicks`, in the server's 60 ticks a
   second: the moment of the enemy stream the client was shown. The client keeps 0.25 s of remote history.
-- Temporary: the backtrack test (misc › general, written 2026-10-11 at the user's request, not run), to learn whether
-  the server rewinds enemies by `ViewTick` and how far back it takes one. The `ShootWeapon` packet table is found
-  through `getgc(true)` and its `Send` swapped. While on, a shot's bullets are turned to where the head of the
-  enemy nearest the crosshair was `ticks back` ago (from a one second trail the hub records) and, with `send old
-  tick`, `ViewTick` is lowered by as much. A shot is left alone when the head is under 1.2 studs off that old line,
-  since it would hit either way. The first version used the upper torso and 3 studs, which a runner doesn't cover in
-  the default 6 ticks: in the user's first run every shot was left alone (0.0 to 0.9 studs off). The second run gave one test
-  shot: 6.3 ticks back, old tick, 1.2 studs off, no damage. `ticks back` at 0 was added
-  after it as a check that a turned shot registers at all: it goes to the head as it is now.
+- The backtrack test (2026-10-11, run by the user, removed again; its code is in commit `70f8cb3`) asked whether the
+  server rewinds enemies by `ViewTick` and how far back it takes one. It swapped the `Send` of the `ShootWeapon`
+  packet table, found through `getgc(true)`, and sent a shot's bullets to where the head of the enemy nearest the
+  crosshair was some ticks ago (from a trail the hub recorded), with `ViewTick` lowered by as much. A shot was left
+  alone when the head was under 1.2 studs off that old line.
 - The backtrack test's results (run by the user on 2026-10-11, read from the console): at 0 ticks all 8 shots did
   damage (17 to 100), so swapping the packet's `Send` and turning its bullets registers. With the old tick none of 4
   did: 6.3 ticks back at 1.2 studs off the line, and 10.0 to 10.2 ticks back at 1.8, 2.3 and 1.8. So the server did
   not rewind an enemy 6 to 10 ticks on a lowered `ViewTick`. Not known: whether it ignores `ViewTick`, refuses one
   that runs backwards, or keeps it within a few ticks of its own figure; a rewind that small can't be told from a
-  head's width with this test. No shot was sent with the real tick, which those results made unnecessary. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
+  head's width with this test. No shot was sent with the real tick, which those results made unnecessary.
+- Backtrack is therefore simulated (asked for by the user the same day, written, not run): `aim.rewind` in
+  `aim.lua` keeps where every target's parts were over the backtrack time, and the shot hook turns a shot that went
+  through one of those old places, and through no target as it stands, to that part where it is now, the way silent
+  aim turns one. The shot really goes to the enemy's present place, so it needs a line to that, not to the old one.
+  `redirect` now also turns a shot that hit nothing, by its direction alone; before, silent aim left those. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
   <n> ticks back, old tick | real tick, <n> studs off: <n> damage | no damage`. Damage with the old tick and none
   with the real one means the server rewinds. Remove it once that is answered, and make starline's backtrack real
   from it if it is a yes.

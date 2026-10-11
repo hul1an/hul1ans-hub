@@ -127,7 +127,7 @@ local function addAimbot(window)
 	slider(targeting, "max fov", settings, "Fov", 0, 30, false)
 	multi(targeting, "hitgroups", settings, "Hitgroups", HITGROUPS)
 	slider(group(targeting, "multipoint", settings, "Multipoint"), "scale", settings, "MultipointScale", 0, 100, true, "%.0f%%")
-	off.slider(off.group(targeting, "backtrack"), "amount", 0, 200, "%.0f ms")
+	slider(group(targeting, "backtrack", settings, "Backtrack"), "amount", settings, "BacktrackAmount", 0, 200, true, "%.0f ms")
 
 	local behavior = page:CreateSection("behavior", "RightSide")
 	local smoothing = group(behavior, "smoothing", settings, "Smoothing")
@@ -365,7 +365,7 @@ local function addVisuals(window, features)
 	off.multi(off.group(bomb, "world info"), "show", { "name", "timer", "distance" })
 end
 
-local function addMisc(window, movement, logs, backtrack)
+local function addMisc(window, movement, logs)
 	local tab = window:CreateTab("misc", "settings")
 	local general = tab:CreateSubTab("general")
 
@@ -407,12 +407,6 @@ local function addMisc(window, movement, logs, backtrack)
 	local lagger = off.group(others, "server lagger")
 	off.slider(lagger, "frequency", 1, 20)
 	off.slider(lagger, "strength", 10, 6000)
-
-	-- temporary, see main.lua
-	local test = general:CreateSection("backtrack test")
-	toggle(test, "enabled", backtrack, "enabled")
-	slider(test, "ticks back", backtrack, "ticks", 0, 30, true)
-	toggle(test, "send old tick", backtrack, "oldTick")
 
 	local page = tab:CreateSubTab("movement")
 
@@ -464,6 +458,6 @@ return function(window, features)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
-	addMisc(window, features.movement, features.logs, features.backtrack)
+	addMisc(window, features.movement, features.logs)
 	window:CreateTab("scripts", "code"):CreateSubTab("list")
 end
