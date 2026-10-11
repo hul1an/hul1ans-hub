@@ -252,14 +252,16 @@ local function addPlayerPage(tab, name, live)
 		-- the hub's own: per tick and its gradient. Without per tick only the oldest place is drawn
 		local ticks = group(fold("backtrack", "BacktrackChams", COPIES), "per tick", settings, "BacktrackChamsPerTick")
 		toggle(ticks, "gradient", settings, "BacktrackChamsGradient")
-		for _, key in { "Oldest", "Newest" } do
-			ticks:CreateColorpicker(key:lower(), function(value)
-				settings["BacktrackChams" .. key] = value
-			end):UpdateColor(settings["BacktrackChams" .. key])
+		for _, label in { "oldest", "newest" } do
+			local key = "BacktrackChams" .. label:gsub("^%l", string.upper)
+			ticks:CreateColorpicker(label, function(value, amount)
+				settings[key] = value
+				settings[key .. "Opacity"] = amount
+			end, true):UpdateColor(settings[key], settings[key .. "Opacity"])
 		end
 		local hit = fold("on hit", "HitChams", MATERIALS)
 		slider(hit, "duration", settings, "HitChamsDuration", 0.1, 5, false, "%.1fs")
-		color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor")
+		color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor", "HitChamsGlowOpacity")
 		-- the hub's glow is a Highlight's outline, through walls
 		color(toggle(chams, "glow", settings, "Chams"), settings, "ChamsColor", "ChamsOpacity")
 	else

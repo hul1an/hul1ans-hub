@@ -1115,7 +1115,8 @@ function Container:CreateMultiDropdown(name, options, callback, initial)
 	return dropdown(self, name, options, callback, initial, true)
 end
 
-function Container:CreateColorpicker(name, callback)
+-- alpha is as on a toggle's swatch: an opacity bar, the opacity after the colour, two more hex digits in a config
+function Container:CreateColorpicker(name, callback, alpha)
 	local row = self:row(22)
 	wash(row, 6.375)
 	label(LABEL, { Text = name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -17, 1, 0), Parent = row })
@@ -1132,24 +1133,24 @@ function Container:CreateColorpicker(name, callback)
 		border.Color = BORDER:Lerp(ACCENT_DIM, amount)
 	end, 0.1, EASE)
 
-	local color = WHITE
-	local function set(value)
-		color = value
+	local color, opacity = WHITE, 1
+	local function set(value, amount)
+		color, opacity = value, amount or opacity
 		swatch.BackgroundColor3 = value
-		callback(value)
+		callback(value, opacity)
 	end
 	row.MouseButton1Click:Connect(function()
-		pickColor(swatch, color, set)
+		pickColor(swatch, color, set, alpha and opacity or nil)
 	end)
 
 	local control = setmetatable({ row = row }, Control)
-	function control:UpdateColor(value)
-		set(value)
+	function control:UpdateColor(value, amount)
+		set(value, amount)
 	end
 	self:register(name, row, function()
-		return color:ToHex()
+		return color:ToHex() .. (alpha and string.format("%02x", math.round(opacity * 255)) or "")
 	end, function(value)
-		set(Color3.fromHex(value))
+		set(Color3.fromHex(value:sub(1, 6)), alpha and #value == 8 and tonumber(value:sub(7), 16) / 255 or nil)
 	end)
 	return control
 end

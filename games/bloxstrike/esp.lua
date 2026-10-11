@@ -23,6 +23,8 @@ local SIGHT_TIME = 0.1
 local SHELL = 1.05
 -- the game's tick, which backtrack chams draw one copy for
 local TICK = 1 / 60
+-- where a backtrack copy waits while it has no record to stand at
+local PARKED = CFrame.new(0, -100000, 0)
 -- the chams materials as they go on a part, glass see-through even at full opacity. Each takes the part's Color.
 -- solid is a colour with no shading, which no material is: it is a Highlight's fill, over this on an on hit copy
 local MATERIALS = {
@@ -89,7 +91,9 @@ local esp = {
 		BacktrackChamsPerTick = false,
 		BacktrackChamsGradient = false,
 		BacktrackChamsOldest = RED,
+		BacktrackChamsOldestOpacity = 1,
 		BacktrackChamsNewest = GREEN,
+		BacktrackChamsNewestOpacity = 1,
 		HitChams = false,
 		HitChamsColor = WHITE,
 		HitChamsOpacity = 1,
@@ -97,6 +101,7 @@ local esp = {
 		HitChamsDuration = 1,
 		HitChamsGlow = false,
 		HitChamsGlowColor = WHITE,
+		HitChamsGlowOpacity = 1,
 		VisibleChamsMaterial = "solid",
 		HealthBar = true,
 		-- the bar's colour at full health; it runs to red as health drops
@@ -558,17 +563,26 @@ local function copyParts(model, parts, parent, scale, welded)
 	return { model = holder, copies = copies }
 end
 
--- gives a set of copies a material, a colour and an opacity
+-- gives a set of copies a material, a colour and an opacity, writing only what has changed since it last did
 local function dress(set, name, color, opacity)
-	if set.name == name and set.color == color and set.opacity == opacity then
+	local look = MATERIALS[name]
+	local material = set.name ~= name and look.material
+	local tint = set.color ~= color
+	local fade = (set.name ~= name or set.opacity ~= opacity) and 1 - opacity * (1 - (look.transparency or 0))
+	if not (material or tint or fade) then
 		return
 	end
 	set.name, set.color, set.opacity = name, color, opacity
-	local look = MATERIALS[name]
 	for _, copy in set.copies do
-		copy.Material = look.material
-		copy.Color = color
-		copy.Transparency = 1 - opacity * (1 - (look.transparency or 0))
+		if material then
+			copy.Material = material
+		end
+		if tint then
+			copy.Color = color
+		end
+		if fade then
+			copy.Transparency = fade
+		end
 	end
 end
 
@@ -622,49 +636,85 @@ end
 -- backtrack chams: copies standing in the world where the aim's backtrack has the model's parts on record. The
 -- oldest place only, or with per tick one for every game tick on record, in a gradient from oldest to newest if set
 local function trail(model)
-	local sets = trails[model]
-	if not sets then
-		sets = {}
-		trails[model] = sets
-	end
 	local records = esp.past[model]
-	local shown = {}
-	-- the last record is where the model is now
-	for index = 1, records and #records - 1 or 0 do
-		local record = records[index]
-		if #shown == 0 or settings.BacktrackChamsPerTick and record.at - shown[#shown].at >= TICK then
-			table.insert(shown, record)
+	if not records then
+		return
+	end
+	local state = trails[model]
+	if not state then
+		state = { picked = {}, drawn = {}, spare = {} }
+		trails[model] = state
+	end
+	local picked, drawn, spare = state.picked, state.drawn, state.spare
+
+	-- a record is taken to draw once a game tick and kept until the aim has dropped it, and its copy stands where it
+	-- was put: moving every copy every frame is what made per tick heavy
+	local newest = records[#records]
+	if #picked == 0 or newest.at - picked[#picked].at >= TICK then
+		table.insert(picked, newest)
+	end
+	while picked[1] and picked[1].at < records[1].at do
+		table.remove(picked, 1)
+	end
+	-- the newest one taken is still where the model is, so it isn't drawn
+	local last = settings.BacktrackChamsPerTick and #picked - 1 or math.min(#picked - 1, 1)
+	local wanted = {}
+	for index = 1, last do
+		wanted[picked[index]] = true
+	end
+	for record, set in drawn do
+		if not wanted[record] then
+			drawn[record] = nil
+			table.insert(spare, set)
 		end
 	end
 
 	local name = settings.BacktrackChamsMaterial
-	for index, record in shown do
-		local set = sets[index]
+	local gradient = settings.BacktrackChamsPerTick and settings.BacktrackChamsGradient and last > 1
+	for index = 1, last do
+		local record = picked[index]
+		local set = drawn[record]
 		if not set then
-			local parts = {}
-			for part in record.frames do
-				table.insert(parts, part)
+			set = table.remove(spare)
+			if not set then
+				local parts = {}
+				for part in record.frames do
+					table.insert(parts, part)
+				end
+				set = copyParts(model, parts, world, 1)
 			end
-			set = copyParts(model, parts, world, 1)
-			sets[index] = set
+			for part, copy in set.copies do
+				copy.CFrame = record.frames[part]
+			end
+			set.parked = false
+			drawn[record] = set
 		end
-		set.model.Parent = world
-		local color = settings.BacktrackChamsColor
-		if settings.BacktrackChamsPerTick and settings.BacktrackChamsGradient and #shown > 1 then
-			color = settings.BacktrackChamsOldest:Lerp(settings.BacktrackChamsNewest, (index - 1) / (#shown - 1))
+		local color, opacity = settings.BacktrackChamsColor, settings.BacktrackChamsOpacity
+		if gradient then
+			local along = (index - 1) / (last - 1)
+			color = settings.BacktrackChamsOldest:Lerp(settings.BacktrackChamsNewest, along)
+			opacity = settings.BacktrackChamsOldestOpacity
+				+ (settings.BacktrackChamsNewestOpacity - settings.BacktrackChamsOldestOpacity) * along
 		end
-		dress(set, name, color, settings.BacktrackChamsOpacity)
-		for part, copy in set.copies do
-			copy.CFrame = record.frames[part]
-		end
+		dress(set, name, color, opacity)
 	end
-	for index = #shown + 1, #sets do
-		sets[index].model.Parent = nil
+	-- a copy with no record to stand at waits out of the way
+	for _, set in spare do
+		if not set.parked then
+			set.parked = true
+			for _, copy in set.copies do
+				copy.CFrame = PARKED
+			end
+		end
 	end
 end
 
 local function endTrail(model)
-	for _, set in trails[model] do
+	local state = trails[model]
+	for _, set in state.drawn do
+		set.model:Destroy()
+	end
+	for _, set in state.spare do
 		set.model:Destroy()
 	end
 	trails[model] = nil
@@ -710,7 +760,8 @@ local function renderFlashes()
 		else
 			local opacity = settings.HitChamsOpacity * left
 			dress(set, name, color, opacity)
-			light(set.model, name == "solid" and color, opacity, settings.HitChamsGlow and settings.HitChamsGlowColor, left)
+			local glow = settings.HitChamsGlow and settings.HitChamsGlowColor
+			light(set.model, name == "solid" and color, opacity, glow, settings.HitChamsGlowOpacity * left)
 		end
 	end
 end

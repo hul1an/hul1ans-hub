@@ -108,11 +108,13 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   recovered either; they are the guessed constants at the top of the file.
 - Left out of the port: the CS2-only screens (inventory, side panel, preset chips), Divider, ListBox,
   typing a slider's value, and the picker's RGB sliders. The picker's alpha bar was left out too until the user asked
-  for it on 2026-10-11: it is opt-in per swatch (a toggle's or a group header's, not the stand-alone
-  `CreateColorpicker` row), so a colour whose feature has no opacity shows no bar. It is the hub's own draw, the
-  colour fading in from the left; the dump only has the bar's address. In BloxStrike the two real chams rows have it:
-  `visible` (the parts' `Transparency`, or the solid fill's; glass is half see-through at full opacity) and `glow`
-  (the outline's). Wiring it to the other colours is Claude's to offer, not asked for.
+  for it on 2026-10-11: it is opt-in per swatch (a toggle's, a group header's, or the stand-alone
+  `CreateColorpicker(name, callback, alpha)` row), so a colour whose feature has no opacity shows no bar. It is the hub's own draw, the
+  colour fading in from the left; the dump only has the bar's address. In BloxStrike every chams colour has it
+  (asked for by the user on 2026-10-11): each row's own (the parts' `Transparency`, or a Highlight's; glass is half
+  see-through at full opacity), `glow`, on hit's `glow`, and the backtrack gradient's `oldest` and `newest`, whose
+  opacities run across the ticks as the colours do. Wiring it to the ESP's other colours is Claude's to offer, not
+  asked for.
 - The Combat tab is starline's aimbot › assist page (`starline-src/assets/gui/pages.json` in the dump has its
   widgets, ranges and formats), asked for by the user on 2026-10-10. A control or option labelled
   `(placeholder)` is a starline feature that needs game code the hub doesn't have: it is drawn and saved in
@@ -188,7 +190,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     paint, or a Highlight fill for solid.
   - `backtrack` (flat, glow, ghost, glass): copies standing in the world at the places in `esp.past`, the aim's
     backtrack records, which the aim keeps while either its backtrack or this row is on, over the aim's `amount`.
-    Walls hide it. Through walls it
+    Walls hide it. Seen working by the user on 2026-10-11, with per tick a massive performance hit: every copy was
+    moved every frame, and the set of records drawn changed every frame, since it was counted from the oldest. Now
+    a record is taken once a tick and its copy put down once and left, so the cost is a tick's fifteen moves, plus a
+    recolour of every copy a tick with the gradient on; not run since. Through walls it
     would be one Highlight a tick, past the 31 Roblox draws, or one for the whole trail in one colour, which the
     gradient rules out. The oldest record only; with `per tick` (asked for by the user) one for every 1/60 s on
     record but the present; with its `gradient` (also asked for) the colours run from `oldest` to `newest`, two
