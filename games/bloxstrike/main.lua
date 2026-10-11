@@ -78,6 +78,18 @@ local function teamOf(character)
 	return owner and owner:GetAttribute("Team")
 end
 
+-- auto scope: zooms the gun that is out if it is a sniper not yet scoped, with the call the game's secondary fire key
+-- makes, and returns whether it had to. The call starts a thread of its own so that no hub function is under it,
+-- because the game has functions that look down the stack for an executor's
+aim.scope = function()
+	local weapon = equipped and equipped.IsActive and equipped.Weapon
+	if not weapon or equipped.Properties.AimingOptions ~= "SniperScope" or weapon.IsAiming then
+		return false
+	end
+	task.spawn(weapon.scope, weapon, true)
+	return true
+end
+
 -- the game's numbers are CS2's, where damage falls by the gun's RangeModifier every 500 units; a unit is 0.075 studs here
 local FALLOFF = 37.5
 
@@ -734,6 +746,40 @@ local function hop(input, state)
 	end
 end
 
+-- under this speed the game counts the character as standing still for spread
+local STILL = 6.4
+
+-- the trigger's auto stop: a counter-strafe, the move input turned against the way the character is going until it is
+-- slow enough, and no move input after that
+local function stop(input, state)
+	if state.MovementMode ~= "Walking" then
+		return
+	end
+	if not (state.OnGround or table.find(aim.settings.TriggerAutoStop, "in air")) then
+		return
+	end
+	local velocity = state.Velocity
+	local speed = math.sqrt(velocity.X ^ 2 + velocity.Z ^ 2)
+	if speed < STILL then
+		input.Move = Vector2.zero
+		return
+	end
+	-- the game's ProvenMath.moveVectorToWorld the other way round: a world direction as a move input for this yaw
+	local sin, cos = math.sin(input.LookYaw), math.cos(input.LookYaw)
+	local x, z = -velocity.X / speed, -velocity.Z / speed
+	input.Move = Vector2.new(cos * x - sin * z, sin * x + cos * z)
+end
+
+-- what the hub does to a movement command before the game builds and sends it
+local function command(input, state)
+	if movement.bunnyhop then
+		hop(input, state)
+	end
+	if aim.stopping then
+		stop(input, state)
+	end
+end
+
 -- the movement runtime's class, whose _buildCommandInput gets each command's input and the state it will run on
 local runtime
 for _, object in getgc(true) do
@@ -744,16 +790,14 @@ for _, object in getgc(true) do
 end
 
 if runtime then
-	local hopWarned = false
+	local commandWarned = false
 	local original
 	original = hookfunction(runtime._buildCommandInput, function(self, input, state, ...)
-		if movement.bunnyhop then
-			-- an error here would otherwise stop the game's own movement
-			local ok, err = pcall(hop, input, state)
-			if not ok and not hopWarned then
-				hopWarned = true
-				warn("[hub] bunnyhop hook failed: " .. tostring(err))
-			end
+		-- an error here would otherwise stop the game's own movement
+		local ok, err = pcall(command, input, state)
+		if not ok and not commandWarned then
+			commandWarned = true
+			warn("[hub] movement hook failed: " .. tostring(err))
 		end
 		return original(self, input, state, ...)
 	end)
@@ -762,8 +806,8 @@ if runtime then
 		hookfunction(runtime._buildCommandInput, original)
 	end)
 else
-	warn("[hub] BloxStrike movement runtime (_buildCommandInput) not found: bunnyhop unavailable")
-	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop", "error")
+	warn("[hub] BloxStrike movement runtime (_buildCommandInput) not found: bunnyhop and auto stop unavailable")
+	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop or auto stop", "error")
 end
 
 local window = hub.ui.createWindow("BloxStrike")

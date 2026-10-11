@@ -246,6 +246,23 @@
     hub calls none of them: `aim.pierces` in `main.lua` (written, not run) repeats the rule with its own raycasts.
   - Not known: how the server applies `WallbangMultiplier` (the hub applies it once per shot), and whether it
     repeats the penetration check.
+- Scoping and the move input, decompiled through the bridge on 2026-10-11 for auto scope and auto stop:
+  - Keys are rebindable (`Settings.Keyboard/Mouse`). The `SecondaryFire` action calls `weapon:scope(true)` on
+    `InventoryController.getCurrentEquipped()` when its `Properties.HasScope`. A bullet object has that weapon as
+    `.Weapon`.
+  - `Weapon:scope(true)` does nothing during the equip lockout, a reload or a shot. Otherwise it sets `IsAiming` and,
+    for `AimingOptions == "SniperScope"`, steps `CurrentScopeIncrement` (a third call unscopes); for
+    `"AutomaticScope"` it toggles. A sniper unscopes itself after a shot and scopes again if the player's Auto
+    Re-Zoom setting is on.
+  - `aim.scope` in `main.lua` (written, not run) runs it with `task.spawn(weapon.scope, weapon, true)` so the call has
+    no hub function under it on the stack.
+  - A command's `Move` is a Vector2, X to the right and Y forward, and becomes the simulation's `MoveVector`.
+    `ProvenMath.moveVectorToWorld(move, yaw)` gives the world direction `(cos * X + sin * Y, 0, -sin * X + cos * Y)`,
+    the yaw being the command's `LookYaw` in radians. Ground movement is Source's: friction, then acceleration
+    towards that direction (`ProvenSimulator.GroundMove.walkMove`).
+  - Auto stop (`stop` in `main.lua`'s `_buildCommandInput` hook, written, not run) sets `Move` to the direction
+    against `state.Velocity` while the horizontal speed is over 6.4 studs a second, and to zero under that. Not known:
+    whether the server minds a move input the keys didn't make.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
@@ -354,6 +371,6 @@
   toggle is under the aim's Enabled; the shot hook reads it and
   still redirects to `aim.target`. The aim core under it is new and Auto Fire is gone, so Team Check and the
   silent aim target need seeing again.
-  Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage (the game's own ray
-  passes through root parts), and whether
+  The root part is no longer in a hitgroup, so silent aim only redirects to it for a model with no body parts
+  (a heard ghost). Not known: whether
   the triggerbot's `VirtualInputManager` click shows as that button being held.

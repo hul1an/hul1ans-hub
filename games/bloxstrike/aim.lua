@@ -24,33 +24,29 @@ local TRIGGER_SHOT = 0.2
 local CHANCE_RINGS = 8
 local CHANCE_SPOKES = 12
 local AXES = { "X", "Y", "Z" }
--- the part names behind starline's hitgroups, R15 and R6
+-- the hitgroups are the parts of the R15 body the game's characters have. The root part isn't one: the game's
+-- bullets pass through it
 local HITGROUPS = {
 	head = { "Head" },
-	chest = { "UpperTorso", "Torso" },
-	stomach = { "HumanoidRootPart" },
-	pelvis = { "LowerTorso" },
-	arms = {
-		"LeftUpperArm",
-		"LeftLowerArm",
-		"LeftHand",
-		"RightUpperArm",
-		"RightLowerArm",
-		"RightHand",
-		"Left Arm",
-		"Right Arm",
-	},
-	legs = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg", "Left Leg", "Right Leg" },
+	["upper torso"] = { "UpperTorso" },
+	["lower torso"] = { "LowerTorso" },
+	arms = { "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm" },
+	hands = { "LeftHand", "RightHand" },
+	legs = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg" },
 	feet = { "LeftFoot", "RightFoot" },
 }
--- what force baim aims at in place of the chosen hitgroups
-local BODY = { "chest", "stomach", "pelvis" }
+-- what force baim and baim if lethal aim at in place of the chosen hitgroups
+local BODY = { "upper torso", "lower torso" }
+-- how long "between shots" keeps the auto stop on after a shot of the trigger's
+local STOP_HOLD = 0.25
 
 -- aim.target is the part currently aimed at, or nil; main.lua's shot hook reads it.
 -- main.lua sets aim.blocked, a function that returns true while the aim and the trigger must stay off;
 -- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out;
 -- aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise;
--- and aim.pierces, a function that returns whether a bullet would get from a position to a point on a model
+-- aim.pierces, a function that returns whether a bullet would get from a position to a point on a model;
+-- and aim.scope, a function that zooms an unscoped sniper and returns whether it had to.
+-- aim.stopping is true while the trigger's auto stop wants the character still; main.lua's movement hook reads it
 local aim = {
 	settings = {
 		Enabled = false,
@@ -73,9 +69,11 @@ local aim = {
 		AutoWall = false,
 		MinDamage = 0,
 		ForceBaim = false,
+		BaimIfLethal = false,
+		AutoScope = false,
 		Trigger = false,
 		TriggerAutoWall = false,
-		TriggerHitgroups = { "head", "chest", "stomach", "pelvis", "arms", "legs", "feet" },
+		TriggerHitgroups = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" },
 		TriggerDelay = 0,
 		TriggerVisibleDelay = 0,
 		TriggerBurst = 0,
@@ -84,6 +82,8 @@ local aim = {
 		TriggerLegitimacy = 100,
 		TriggerHitchance = 0,
 		TriggerMinDamage = 0,
+		TriggerAutoScope = false,
+		TriggerAutoStop = {},
 		MaxDistance = 10000,
 	},
 }
@@ -211,6 +211,14 @@ local function scaleFov(fov, distance)
 	return fov * (1 - 0.7 * math.clamp((distance - near) / (FOV_RANGE - near), 0, 1))
 end
 
+-- whether a shot to the body would kill a model from where the camera is
+local function bodyKills(model, eye)
+	local torso = model:FindFirstChild("UpperTorso")
+	local health = healthOf[model]
+	local damage = torso and health and aim.damage(torso, (torso.Position - eye).Magnitude)
+	return damage and damage >= health or false
+end
+
 -- starline's "closest" hitbox selection: of a model's chosen parts, the point a shot can get to nearest the crosshair
 local function evaluate(camera, model, forward, fov)
 	local eye = camera.CFrame.Position
@@ -232,24 +240,38 @@ local function evaluate(camera, model, forward, fov)
 		end
 	end
 
-	for _, part in hitParts(model, settings.ForceBaim and BODY or settings.Hitgroups) do
-		local center = part.Position
-		consider(part, center)
-		if settings.Multipoint then
-			-- points out towards the part's edges as the camera sees it, 0.9 of the way there at full scale
-			local toward = (center - eye).Unit
-			local right = toward:Cross(Vector3.yAxis).Unit
-			local scale = settings.MultipointScale / 100 * 0.9
-			local side = right * reach(part, right) * scale
-			consider(part, center + side)
-			consider(part, center - side)
-			-- the head gets four, everything else the two to its sides
-			if part.Name == "Head" then
-				local up = right:Cross(toward)
-				local rise = up * reach(part, up) * scale
-				consider(part, center + rise)
-				consider(part, center - rise)
+	local function scan(groups)
+		for _, part in hitParts(model, groups) do
+			local center = part.Position
+			consider(part, center)
+			if settings.Multipoint then
+				-- points out towards the part's edges as the camera sees it, 0.9 of the way there at full scale
+				local toward = (center - eye).Unit
+				local right = toward:Cross(Vector3.yAxis).Unit
+				local scale = settings.MultipointScale / 100 * 0.9
+				local side = right * reach(part, right) * scale
+				consider(part, center + side)
+				consider(part, center - side)
+				-- the head gets four, everything else the two to its sides
+				if part.Name == "Head" then
+					local up = right:Cross(toward)
+					local rise = up * reach(part, up) * scale
+					consider(part, center + rise)
+					consider(part, center - rise)
+				end
 			end
+		end
+	end
+
+	if settings.ForceBaim then
+		scan(BODY)
+	else
+		-- starline's baim if lethal: the body is taken first when a shot to it would kill
+		if settings.BaimIfLethal and bodyKills(model, eye) then
+			scan(BODY)
+		end
+		if not bestPart then
+			scan(settings.Hitgroups)
 		end
 	end
 
@@ -452,6 +474,21 @@ local function underCrosshair(camera)
 	return nearest, struck, best, walled
 end
 
+-- whether a target a shot can get to is beside the view ray, within the trigger's reach of it
+local function nearCrosshair(camera)
+	local eye = camera.CFrame.Position
+	local forward = camera.CFrame.LookVector
+	local near = false
+	eachTarget(function(model, root)
+		local offset = root.Position - eye
+		local along = offset:Dot(forward)
+		if not near and along > 0 and (offset - forward * along).Magnitude <= TRIGGER_REACH then
+			near = reaches(camera, root.Position, model, settings.TriggerAutoWall)
+		end
+	end)
+	return near
+end
+
 -- the share of its spread a shot of the trigger's keeps
 local function kept()
 	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
@@ -514,6 +551,13 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 		updateSeen(camera, now)
 	end
 
+	-- starline's auto stop is on with any of its options chosen: it holds the character still while a target is under
+	-- the crosshair, and each option adds to when
+	local stops = settings.TriggerAutoStop
+	if table.find(stops, "between shots") and now - lastShot < STOP_HOLD then
+		aim.stopping = true
+	end
+
 	-- after a shot it keeps firing for the burst time, target or not
 	if burstUntil then
 		if now < burstUntil then
@@ -534,6 +578,17 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	end
 	if not model then
 		acquired, served, reaction = nil, false, nil
+		-- early, the stop begins with a target beside the crosshair
+		if table.find(stops, "early") and nearCrosshair(camera) then
+			aim.stopping = true
+		end
+		return
+	end
+	if #stops > 0 then
+		aim.stopping = true
+	end
+	-- an unscoped sniper is zoomed first and fired once it is
+	if settings.TriggerAutoScope and aim.scope() then
 		return
 	end
 	-- rolled once each time a target comes under the crosshair
@@ -589,6 +644,10 @@ function aim.start()
 			model, part, point, fov = findTarget(camera)
 		end
 		aim.target = part
+		aim.stopping = false
+		if model and settings.AutoScope then
+			aim.scope()
+		end
 
 		-- the FOV is an angle, so its radius on screen follows the camera's field of view
 		local viewport = camera.ViewportSize
@@ -617,6 +676,7 @@ function aim.start()
 		RunService:UnbindFromRenderStep(STEP_NAME)
 		circle:Remove()
 		aim.target = nil
+		aim.stopping = false
 	end)
 end
 

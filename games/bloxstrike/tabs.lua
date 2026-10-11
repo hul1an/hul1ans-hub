@@ -5,7 +5,8 @@ local aim = hub.require("games/bloxstrike/aim.lua")
 esp.start()
 aim.start()
 
-local HITGROUPS = { "head", "chest", "stomach", "pelvis", "arms", "legs", "feet" }
+-- the hub's own, the R15 body; starline's are head, chest, stomach, pelvis, arms, legs and feet
+local HITGROUPS = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" }
 -- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
 -- has been seen, so teammates get the same rows and local gets every one
 local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
@@ -140,8 +141,8 @@ local function addAimbot(window)
 	toggle(accuracy, "auto wall", settings, "AutoWall")
 	slider(accuracy, "min damage", settings, "MinDamage", 0, 100, true)
 	toggle(accuracy, "force baim", settings, "ForceBaim")
-	off.toggle(accuracy, "baim if lethal")
-	off.toggle(accuracy, "auto scope")
+	toggle(accuracy, "baim if lethal", settings, "BaimIfLethal")
+	toggle(accuracy, "auto scope", settings, "AutoScope")
 
 	local assist = tab:CreateSubTab("assist")
 
@@ -157,8 +158,8 @@ local function addAimbot(window)
 	slider(trigger, "min damage", settings, "TriggerMinDamage", 0, 100, true)
 	-- in the place of starline's min accuracy
 	slider(trigger, "hitchance", settings, "TriggerHitchance", 0, 100, true, "%.0f%%")
-	off.toggle(trigger, "auto scope")
-	off.multi(trigger, "auto stop", { "early", "between shots", "in air" })
+	toggle(trigger, "auto scope", settings, "TriggerAutoScope")
+	multi(trigger, "auto stop", settings, "TriggerAutoStop", { "early", "between shots", "in air" })
 
 	local rcs = assist:CreateSection("rcs", "RightSide")
 	off.toggle(off.group(rcs, "enabled"), "standalone")
