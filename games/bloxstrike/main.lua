@@ -743,6 +743,7 @@ local function backtrackShot(payload)
 		end
 	end
 	if not victim then
+		table.insert(written, "backtrack test: no enemy shown, shot left alone")
 		return
 	end
 
@@ -759,7 +760,8 @@ local function backtrackShot(payload)
 	local toward = (old.position - first.Origin).Unit
 	local off = (head.Position - first.Origin):Cross(toward).Magnitude
 	local name = players.label(victim)
-	if off < MOVED then
+	-- at 0 ticks the shot goes to the head as it is now, to see that a turned shot registers at all
+	if backtrack.ticks > 0 and off < MOVED then
 		table.insert(written, string.format("backtrack test: %s is %.1f studs off the old line, shot left alone", name, off))
 		return
 	end

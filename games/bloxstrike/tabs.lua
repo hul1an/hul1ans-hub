@@ -411,7 +411,7 @@ local function addMisc(window, movement, logs, backtrack)
 	-- temporary, see main.lua
 	local test = general:CreateSection("backtrack test")
 	toggle(test, "enabled", backtrack, "enabled")
-	slider(test, "ticks back", backtrack, "ticks", 1, 30, true)
+	slider(test, "ticks back", backtrack, "ticks", 0, 30, true)
 	toggle(test, "send old tick", backtrack, "oldTick")
 
 	local page = tab:CreateSubTab("movement")
