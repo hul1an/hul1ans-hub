@@ -410,6 +410,20 @@
   - A Player also has `Money`, `HasDefuseKit`, `HasRescueKit`, `IsSniperScoped`, `ScopeIncrement` and `Ping`.
     `Armor`'s `Health` can be a fraction (`86.63`).
   - No bot was in that match, so what a bot holds is still only its `BotLoadout`, every gun it has.
+- How a character is drawn, read through the bridge on 2026-10-11 for chams materials (nothing written yet):
+  - The fifteen body parts are MeshParts in `Plastic` with a skin `Color` and no `TextureID`; the look comes from a
+    `SurfaceAppearance` child (`ColorMap` and a `TexturePack`, `AlphaMode` `Overlay`, `Color` white). The head also
+    has two `face` Decals and two SpecialMeshes.
+  - `CharacterArmor` is a model of MeshParts tagged `CharacterAccessory` (`Helmet`, `HeadCover`, `Eyes`, `Vest`,
+    `VestDetails`, `Belt`, `Holster`, the kneepads, the gloves), each with its own `Material` (`CorrodedMetal` on the
+    vest) and `TextureID`; the gloves have a `SurfaceAppearance` instead.
+  - Lighting is `Future` with a `BloomEffect` and `EnvironmentSpecularScale` 1, so Neon blooms and shiny materials
+    reflect the sky.
+  - `MaterialService` holds about 400 `MaterialVariant`s, the maps' own. A part shows one when its `Material` is the
+    variant's `BaseMaterial` and its `MaterialVariant` the name. Ones with a pattern: `Grid` and `Blockout`
+    (SmoothPlastic), `Skin` and `Celestial Wall Trim` (Plastic), `Marble` (Marble), `Y2K glass_block_window` (Foil),
+    and under `Cache` `A23D_Stained-Glass_Substance 3D_PNG_1K`, `MetalPerforatedRound002`, `MetalPlateDiamondWorn002`
+    and `PanelsAcousticMetalMeshGrid001` (all Metal). What any of them looks like on a body wasn't seen.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.
