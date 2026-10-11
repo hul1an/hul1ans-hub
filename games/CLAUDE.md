@@ -425,6 +425,17 @@
     (SmoothPlastic), `Skin` and `Celestial Wall Trim` (Plastic), `Marble` (Marble), `Y2K glass_block_window` (Foil),
     and under `Cache` `A23D_Stained-Glass_Substance 3D_PNG_1K`, `MetalPerforatedRound002`, `MetalPlateDiamondWorn002`
     and `PanelsAcousticMetalMeshGrid001` (all Metal). What any of them looks like on a body wasn't seen.
+- Ragdolls, from `ReplicatedStorage.Classes.Ragdoll` decompiled through the bridge on 2026-10-11 for ragdoll chams:
+  - The client makes them. For every character it clones a corpse ahead of time into `workspace.Debris`, named
+    `__PreparedRagdoll_<name>`, hidden through `LocalTransparencyModifier`, with the character's attributes copied on
+    and `ClientRagdoll`, `PreparedRagdoll`, `RagdollReady` and `RagdollStaged` set. One seen had the same body parts,
+    `CharacterArmor`, and `RagdollJoints` and `RagdollColliders` folders, and kept `PresentationOwnerUserId`.
+  - On death `ActivateCharacter` renames the corpse to the character's name, clears `PreparedRagdoll`, sets `Dead`
+    and shows it; the character itself is hidden through `LocalTransparencyModifier`. Done with, a corpse is renamed
+    `__PooledRagdoll`, has `Dead` cleared and is used again. So a ragdoll in use is a child of `workspace.Debris` with
+    `ClientRagdoll` and `Dead`, which is what `esp.ragdolls` in `main.lua` lists.
+  - `workspace.Debris` also holds dropped things (`Magazine`, models named by GUID) and the sound parts.
+  - Not seen: an active ragdoll's attributes (none was caught live), and whether a bot's keeps its `Team`.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.

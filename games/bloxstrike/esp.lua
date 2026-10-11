@@ -17,9 +17,17 @@ local UNIT = 0.075
 local AVATAR_SIZE = 14
 local ICON_SIZE = Vector2.new(48, 16)
 local ARROW_SHADOW = Vector2.new(2, 2)
--- the visible chams materials that go on a model's own parts, glass see-through even at full opacity. Each takes the
--- part's Color
+-- where a copy that isn't to be drawn is put
+local PARKED = CFrame.new(0, -100000, 0)
+-- how much bigger than the body an overlay or an on hit copy is, so that it wraps it
+local SHELL = 1.05
+-- the game's tick, which backtrack chams draw one copy for
+local TICK = 1 / 60
+-- the chams materials as they go on a part, glass see-through even at full opacity. Each takes the part's Color.
+-- solid is a colour with no shading, which no material is: on a real model it is a Highlight's fill, and a copy gets
+-- this and is drawn in the viewport that has no light
 local MATERIALS = {
+	solid = { material = Enum.Material.SmoothPlastic },
 	flat = { material = Enum.Material.SmoothPlastic },
 	glow = { material = Enum.Material.Neon },
 	ghost = { material = Enum.Material.ForceField },
@@ -63,6 +71,33 @@ local esp = {
 		VisibleChams = false,
 		VisibleChamsColor = WHITE,
 		VisibleChamsOpacity = 1,
+		InvisibleChams = false,
+		InvisibleChamsColor = WHITE,
+		InvisibleChamsOpacity = 1,
+		InvisibleChamsMaterial = "solid",
+		OverlayChams = false,
+		OverlayChamsColor = WHITE,
+		OverlayChamsOpacity = 1,
+		OverlayChamsMaterial = "ghost",
+		RagdollChams = false,
+		RagdollChamsColor = WHITE,
+		RagdollChamsOpacity = 1,
+		RagdollChamsMaterial = "solid",
+		BacktrackChams = false,
+		BacktrackChamsColor = WHITE,
+		BacktrackChamsOpacity = 1,
+		BacktrackChamsMaterial = "solid",
+		BacktrackChamsPerTick = false,
+		BacktrackChamsGradient = false,
+		BacktrackChamsOldest = RED,
+		BacktrackChamsNewest = GREEN,
+		HitChams = false,
+		HitChamsColor = WHITE,
+		HitChamsOpacity = 1,
+		HitChamsMaterial = "solid",
+		HitChamsDuration = 1,
+		HitChamsGlow = false,
+		HitChamsGlowColor = WHITE,
 		VisibleChamsMaterial = "solid",
 		HealthBar = true,
 		-- the bar's colour at full health; it runs to red as health drops
@@ -95,6 +130,9 @@ local esp = {
 	sources = {},
 	-- by model, when it was last heard; main.lua writes it for only audible
 	audible = setmetatable({}, { __mode = "k" }),
+	-- by model, where each of its parts was on the frames of the backtrack time, oldest first: a record is at and
+	-- frames, the CFrame by part. The aim keeps it for its backtrack and the backtrack chams draw it
+	past = {},
 }
 
 local settings = esp.settings
@@ -108,6 +146,14 @@ local sounds = {}
 -- by model, what visible chams has done to it: the material's name and the colour, and what each part (parts), skin
 -- (taken, by where it was) and face decal (decals) had before
 local skins = {}
+-- the copies the other chams draw, each set a Model and its copies by part. By model: the invisible chams' set, the
+-- overlay's, the backtrack's list of sets with one a tick, and the on hit set with when it began
+local shades, shells, trails, flashes = {}, {}, {}, {}
+-- the ragdolls the ragdoll chams had last frame
+local ragdolls = {}
+-- two viewports over the whole screen, which is the one way to draw a part over walls, and a folder in the world for
+-- the copies that walls should hide
+local lit, unlit, world
 local container, screen
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -320,11 +366,12 @@ local function updateSkeleton(model, camera, color)
 	end
 end
 
--- a model's Highlight: the glow is its outline, through walls, and the solid visible chams its fill
-local function updateChams(model, source, color)
+-- the hub's Highlight on a model: a fill colour and an outline colour, each with its opacity and either left out for
+-- none. A model shows one Highlight and that has one depth mode, so an outline, which is there to be seen through
+-- walls, takes the fill through them with it
+local function light(model, fill, fillOpacity, line, lineOpacity)
 	local highlight = highlights[model]
-	local solid = source == players and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
-	if not (settings.Chams or solid) then
+	if not (fill or line) then
 		if highlight then
 			highlight.Enabled = false
 		end
@@ -336,13 +383,31 @@ local function updateChams(model, source, color)
 		highlight.Parent = container
 		highlights[model] = highlight
 	end
-	-- a model shows one Highlight and that has one depth mode, so with the glow on a solid fill goes through walls too
-	highlight.DepthMode = settings.Chams and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
-	highlight.FillColor = settings.VisibleChamsColor
-	highlight.FillTransparency = solid and 1 - settings.VisibleChamsOpacity or 1
-	highlight.OutlineColor = color
-	highlight.OutlineTransparency = settings.Chams and 1 - settings.ChamsOpacity or 1
+	highlight.DepthMode = line and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+	highlight.FillColor = fill or WHITE
+	highlight.FillTransparency = fill and 1 - fillOpacity or 1
+	highlight.OutlineColor = line or WHITE
+	highlight.OutlineTransparency = line and 1 - lineOpacity or 1
 	highlight.Enabled = true
+end
+
+local function unlight(model)
+	if highlights[model] then
+		highlights[model]:Destroy()
+		highlights[model] = nil
+	end
+end
+
+-- a model's Highlight: the glow is its outline, and the solid visible chams its fill
+local function updateChams(model, source, color)
+	local solid = source == players and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
+	light(
+		model,
+		solid and settings.VisibleChamsColor,
+		settings.VisibleChamsOpacity,
+		settings.Chams and color,
+		settings.ChamsOpacity
+	)
 end
 
 -- the parts visible chams repaint: the body, which is the model's own children, and the armour, not what it carries
@@ -369,7 +434,7 @@ end
 local function paint(model, name, color, opacity)
 	local skin = skins[model]
 	if not skin then
-		skin = { parts = {}, taken = {}, decals = {} }
+		skin = { parts = {}, taken = {}, textures = {} }
 		skins[model] = skin
 	end
 	local changed = skin.name ~= name or skin.color ~= color or skin.opacity ~= opacity
@@ -391,14 +456,18 @@ local function paint(model, name, color, opacity)
 				}
 			skin.parts[part] = old
 			if old then
-				-- the skin is a SurfaceAppearance, which covers the material while it is on the part; the face is decals
+				-- the skin is a SurfaceAppearance, which covers the material while it is on the part; the face is decals,
+				-- and a head that is a plain Part has its texture on a SpecialMesh
 				for _, child in part:GetChildren() do
 					if child:IsA("SurfaceAppearance") then
 						skin.taken[child] = part
 						child.Parent = nil
 					elseif child:IsA("Decal") then
-						skin.decals[child] = child.Transparency
+						skin.textures[child] = { "Transparency", child.Transparency }
 						child.Transparency = 1
+					elseif child:IsA("SpecialMesh") then
+						skin.textures[child] = { "TextureId", child.TextureId }
+						child.TextureId = ""
 					end
 				end
 				if old.TextureID then
@@ -432,9 +501,258 @@ local function strip(model)
 			appearance.Parent = part
 		end
 	end
-	for decal, transparency in skin.decals do
-		decal.Transparency = transparency
+	for child, old in skin.textures do
+		child[old[1]] = old[2]
 	end
+end
+
+-- whether a part of a model is one that shows, going by what it was before paint changed it
+local function showing(model, part)
+	local skin = skins[model]
+	local old = skin and skin.parts[part]
+	if old ~= nil then
+		return old ~= false
+	end
+	return part.Transparency < 1
+end
+
+-- bare copies of some of a model's parts under a Model of their own, to be dressed and put where the model is or
+-- was. Welded, each copy rides on its part; otherwise it stays where it is put. The result is the Model and the
+-- copies by part
+local function copyParts(model, parts, parent, scale, welded)
+	local holder = Instance.new("Model")
+	local copies = {}
+	for _, part in parts do
+		if showing(model, part) then
+			local copy = part:Clone()
+			-- a head that is a plain Part keeps the SpecialMesh that shapes it
+			for _, child in copy:GetChildren() do
+				if child:IsA("SpecialMesh") then
+					child.TextureId = ""
+				else
+					child:Destroy()
+				end
+			end
+			copy.Anchored = not welded
+			copy.CanCollide = false
+			copy.CanQuery = false
+			copy.CanTouch = false
+			copy.CastShadow = false
+			copy.Massless = true
+			copy.LocalTransparencyModifier = 0
+			copy.MaterialVariant = ""
+			copy.Size = part.Size * scale
+			if copy:IsA("MeshPart") then
+				copy.TextureID = ""
+			end
+			if welded then
+				local weld = Instance.new("Weld")
+				weld.Part0 = part
+				weld.Part1 = copy
+				weld.Parent = copy
+			end
+			copy.Parent = holder
+			copies[part] = copy
+		end
+	end
+	holder.Parent = parent
+	return { model = holder, copies = copies }
+end
+
+-- gives a set of copies a material, a colour and an opacity
+local function dress(set, name, color, opacity)
+	if set.name == name and set.color == color and set.opacity == opacity then
+		return
+	end
+	set.name, set.color, set.opacity = name, color, opacity
+	local look = MATERIALS[name]
+	for _, copy in set.copies do
+		copy.Material = look.material
+		copy.Color = color
+		copy.Transparency = 1 - opacity * (1 - (look.transparency or 0))
+	end
+end
+
+-- puts a set of copies on screen over the world: in the viewport with no light for solid, the lit one for the rest
+local function stage(set, name)
+	set.model.Parent = name == "solid" and unlit or lit
+end
+
+-- destroys the copies kept by model for those that are gone, or all of them with the row off
+local function prune(kept, on, seen)
+	for model, set in kept do
+		if not (on and seen[model]) then
+			set.model:Destroy()
+			kept[model] = nil
+		end
+	end
+end
+
+-- invisible chams: copies drawn over the world, so through walls, of the parts the camera has no line to
+local function shade(model, camera)
+	local set = shades[model]
+	if not set then
+		set = copyParts(model, bodyParts(model), nil, 1)
+		shades[model] = set
+	end
+	local name = settings.InvisibleChamsMaterial
+	dress(set, name, settings.InvisibleChamsColor, settings.InvisibleChamsOpacity)
+	stage(set, name)
+	for part, copy in set.copies do
+		-- a part in plain sight is left to the model itself, and to the visible chams
+		copy.CFrame = esp.visible(camera, part.Position, model) and PARKED or part.CFrame
+	end
+end
+
+-- overlay chams: a second skin a little bigger than the body, riding on it in the world
+local function shell(model)
+	local set = shells[model]
+	if not set then
+		set = copyParts(model, bodyParts(model), world, SHELL, true)
+		shells[model] = set
+	end
+	dress(set, settings.OverlayChamsMaterial, settings.OverlayChamsColor, settings.OverlayChamsOpacity)
+end
+
+-- backtrack chams: copies where the aim's backtrack has the model's parts on record, drawn over the world. The
+-- oldest place only, or with per tick one for every game tick on record, in a gradient from oldest to newest if set
+local function trail(model)
+	local sets = trails[model]
+	if not sets then
+		sets = {}
+		trails[model] = sets
+	end
+	local records = esp.past[model]
+	local shown = {}
+	-- the last record is where the model is now
+	for index = 1, records and #records - 1 or 0 do
+		local record = records[index]
+		if #shown == 0 or settings.BacktrackChamsPerTick and record.at - shown[#shown].at >= TICK then
+			table.insert(shown, record)
+		end
+	end
+
+	local name = settings.BacktrackChamsMaterial
+	for index, record in shown do
+		local set = sets[index]
+		if not set then
+			local parts = {}
+			for part in record.frames do
+				table.insert(parts, part)
+			end
+			set = copyParts(model, parts, nil, 1)
+			sets[index] = set
+		end
+		local color = settings.BacktrackChamsColor
+		if settings.BacktrackChamsPerTick and settings.BacktrackChamsGradient and #shown > 1 then
+			color = settings.BacktrackChamsOldest:Lerp(settings.BacktrackChamsNewest, (index - 1) / (#shown - 1))
+		end
+		dress(set, name, color, settings.BacktrackChamsOpacity)
+		stage(set, name)
+		for part, copy in set.copies do
+			copy.CFrame = record.frames[part] or PARKED
+		end
+	end
+	for index = #shown + 1, #sets do
+		sets[index].model.Parent = nil
+	end
+end
+
+local function endTrail(model)
+	for _, set in trails[model] do
+		set.model:Destroy()
+	end
+	trails[model] = nil
+end
+
+-- where a model's body parts are, for esp.flash later
+function esp.pose(model)
+	local frames = {}
+	for _, part in bodyParts(model) do
+		frames[part] = part.CFrame
+	end
+	return frames
+end
+
+-- on hit chams: main.lua calls this when a shot of the user's has hurt a model, with the pose it had when the shot was
+-- fired. A copy stands there, a little bigger than the body it may still be around, and fades. One a model at a time
+function esp.flash(model, frames)
+	if not (settings.Enabled and settings.HitChams) then
+		return
+	end
+	local old = flashes[model]
+	if old then
+		unlight(old.model)
+		old.model:Destroy()
+	end
+	local set = copyParts(model, bodyParts(model), world, SHELL)
+	for part, copy in set.copies do
+		copy.CFrame = frames[part] or part.CFrame
+	end
+	set.at = os.clock()
+	flashes[model] = set
+end
+
+local function renderFlashes()
+	local now = os.clock()
+	local name, color = settings.HitChamsMaterial, settings.HitChamsColor
+	for model, set in flashes do
+		local left = 1 - (now - set.at) / settings.HitChamsDuration
+		if left <= 0 or not (settings.Enabled and settings.HitChams) then
+			unlight(set.model)
+			set.model:Destroy()
+			flashes[model] = nil
+		else
+			local opacity = settings.HitChamsOpacity * left
+			dress(set, name, color, opacity)
+			light(set.model, name == "solid" and color, opacity, settings.HitChamsGlow and settings.HitChamsGlowColor, left)
+		end
+	end
+end
+
+-- ragdoll chams: the enemies' ragdolls, which main.lua lists, painted as the visible chams paint the living
+local function renderRagdolls(painted)
+	local lying = {}
+	if settings.RagdollChams and esp.ragdolls then
+		local name = settings.RagdollChamsMaterial
+		for _, model in esp.ragdolls() do
+			lying[model] = true
+			if name == "solid" then
+				light(model, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
+			else
+				light(model)
+				painted[model] = true
+				paint(model, name, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
+			end
+		end
+	end
+	for model in ragdolls do
+		if not lying[model] then
+			unlight(model)
+		end
+	end
+	ragdolls = lying
+end
+
+-- undoes every kind of chams, for the esp going off and the hub unloading
+local function clearChams()
+	for model in skins do
+		strip(model)
+	end
+	prune(shades, false)
+	prune(shells, false)
+	for model in trails do
+		endTrail(model)
+	end
+	for model, set in flashes do
+		unlight(set.model)
+		set.model:Destroy()
+		flashes[model] = nil
+	end
+	for model in ragdolls do
+		unlight(model)
+	end
+	ragdolls = {}
 end
 
 -- an arrow towards a model that is off the screen, its tip the offset in from the screen's edge
@@ -637,21 +955,35 @@ local function render()
 		for model in sets do
 			hide(model)
 		end
-		for model in skins do
-			strip(model)
-		end
+		clearChams()
 		return
 	end
+	lit.CurrentCamera = camera
+	unlit.CurrentCamera = camera
 
 	-- solid is the Highlight's fill; every other visible chams material goes on the players' own parts
 	local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
+	-- the models whose own parts chams have painted this frame
+	local painted = {}
 	local seen = {}
 	for _, source in esp.sources do
 		if source.enabled then
 			for _, model in source.models(true) do
 				seen[model] = true
-				if material and source == players then
-					paint(model, material, settings.VisibleChamsColor, settings.VisibleChamsOpacity)
+				if source == players then
+					if material then
+						painted[model] = true
+						paint(model, material, settings.VisibleChamsColor, settings.VisibleChamsOpacity)
+					end
+					if settings.InvisibleChams then
+						shade(model, camera)
+					end
+					if settings.OverlayChams then
+						shell(model)
+					end
+					if settings.BacktrackChams then
+						trail(model)
+					end
 				end
 				if not update(model, source, camera, viewport) and sets[model] then
 					hide(model)
@@ -666,9 +998,18 @@ local function render()
 			destroy(model)
 		end
 	end
+	renderRagdolls(painted)
+	renderFlashes()
 	for model in skins do
-		if not (material and seen[model]) then
+		if not painted[model] then
 			strip(model)
+		end
+	end
+	prune(shades, settings.InvisibleChams, seen)
+	prune(shells, settings.OverlayChams, seen)
+	for model in trails do
+		if not (settings.BacktrackChams and seen[model]) then
+			endTrail(model)
 		end
 	end
 end
@@ -682,14 +1023,25 @@ function esp.start()
 	screen.ResetOnSpawn = false
 	screen.DisplayOrder = -1
 	screen.Parent = gethui()
+	lit = Instance.new("ViewportFrame")
+	unlit = Instance.new("ViewportFrame")
+	-- with all ambient and no light a part is its colour and nothing more
+	unlit.Ambient = WHITE
+	unlit.LightColor = BLACK
+	for _, frame in { lit, unlit } do
+		frame.BackgroundTransparency = 1
+		frame.Size = UDim2.fromScale(1, 1)
+		frame.Parent = screen
+	end
+	-- under the camera, where the game's bullets and the aim's line of sight look past it
+	world = hub.cleanup.add(Instance.new("Folder"))
+	world.Parent = workspace.CurrentCamera
 
 	hub.cleanup.add(function()
 		for model in sets do
 			destroy(model)
 		end
-		for model in skins do
-			strip(model)
-		end
+		clearChams()
 		for _, sound in sounds do
 			sound.circle:Remove()
 		end

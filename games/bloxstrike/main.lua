@@ -520,6 +520,21 @@ hub.cleanup.add(function()
 	table.clear(ghosts)
 end)
 
+-- the game keeps a copy of every character ready under workspace.Debris and turns it into the ragdoll on death: one in
+-- use has ClientRagdoll and Dead set, and its character's attributes, so its side is found as a character's is
+if debris then
+	esp.ragdolls = function()
+		local models = {}
+		local team = Players.LocalPlayer:GetAttribute("Team")
+		for _, model in debris:GetChildren() do
+			if model:GetAttribute("ClientRagdoll") and model:GetAttribute("Dead") and teamOf(model) ~= team then
+				table.insert(models, model)
+			end
+		end
+		return models
+	end
+end
+
 -- tracers and hit effects live under the camera, where the aim assist's visibility ray ignores them
 local effects = hub.cleanup.add(Instance.new("Folder"))
 effects.Parent = workspace.CurrentCamera
@@ -704,6 +719,8 @@ local function logShot(result, angle, target)
 		if not (queue[#queue] and shot.at - queue[#queue].at < 0.02) then
 			shot.struck = limb(struck)
 			shot.health = victim:GetAttribute("Health")
+			-- where the on hit chams will stand, if the shot turns out to have hurt
+			shot.pose = esp.settings.HitChams and esp.pose(victim)
 			table.insert(queue, shot)
 		end
 		return
@@ -730,6 +747,9 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 		local dead = victim.Parent == nil or victim:GetAttribute("Dead")
 		local health = dead and 0 or victim:GetAttribute("Health")
 		if health < shot.health then
+			if shot.pose then
+				esp.flash(victim, shot.pose)
+			end
 			if table.find(logs.kinds, "hits") then
 				local damage = string.format(" for %.0f damage in ", shot.health - health)
 				log("Hit " .. players.label(victim) .. damage .. shot.struck .. expectation(shot, shot.struck))
@@ -760,7 +780,8 @@ local function onShot(result, spread)
 	if not (target and target.Parent and redirect(result, target, point)) then
 		target = nil
 	end
-	if #logs.kinds > 0 then
+	-- the logs and the on hit chams both go by which shots got to an enemy
+	if #logs.kinds > 0 or esp.settings.HitChams then
 		logShot(result, math.min(spread, MAX_SPREAD) / 2, target)
 	end
 

@@ -171,9 +171,28 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   opacity) after taking the skin off: each part's `SurfaceAppearance` is unparented, its `TextureID` cleared and the
   face decals hidden, all kept in `skins` and put back when the row goes off, the enemy leaves the list or the hub
   unloads. Weapons a character carries and parts that are invisible are left alone. A model shows one Highlight
-  with one depth mode, so while `glow` is on a solid fill shows through walls with the outline. The other rows are
-  still placeholders; through walls a real material needs copies in a `ViewportFrame`, since Roblox can't draw a part
-  over a wall (only a Highlight, an always-on-top adornment or something in screen space).
+  with one depth mode, so while `glow` is on a solid fill shows through walls with the outline.
+- The rest of the enemies chams card is real too (asked for by the user on 2026-10-11); teammates and local are still
+  placeholders. Roblox can't draw a part over a wall (only a Highlight, an always-on-top adornment or something in
+  screen space can be), so what must show through walls is bare copies of the body parts in two full-screen
+  `ViewportFrame`s under `gethui()` on the game's camera: one lit, and one with all ambient and no light, which is
+  what makes a copy `solid`. Copies are `part:Clone()` with the children destroyed. How each row is done is Claude's:
+  - `invisible`: viewport copies following the body; a part the camera has a line to is parked out of view, so the
+    model itself and the visible chams show there. That is a ray a part a frame.
+  - `overlay`: copies 1.05 times the size in a folder under the camera, each welded to its part so it has no lag. No
+    solid in its materials.
+  - `ragdoll`: the enemies' ragdolls from `esp.ragdolls` (set by `main.lua`), painted as visible chams paint, or a
+    Highlight fill for solid.
+  - `backtrack`: viewport copies at the places in `esp.past`, the aim's backtrack records, so it draws nothing
+    unless the aim's backtrack is on. The oldest record only; with `per tick` (asked for by the user) one for every
+    1/60 s on record but the present; with its `gradient` (also asked for) the colours run from `oldest` to
+    `newest`, two colour rows in the per tick fold, in place of the row's own colour. Armour isn't recorded, so a
+    backtrack copy is the fifteen body parts.
+  - `on hit`: when a shot of the user's has hurt an enemy (the hit logs' check, which now also runs with the row on)
+    `esp.flash` stands a copy in the world in the pose from when the shot was fired, 1.05 times the size, fading over
+    `duration`; its `glow` is a Highlight outline through walls and solid a Highlight fill. One a victim at a time.
+  - In a viewport Neon has no bloom, so `glow` there is a bright flat colour; what `ghost` and `glass` do there
+    wasn't known when written.
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
@@ -211,7 +230,7 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   were narrowed.
 - BloxStrike's backtrack (the targeting card's `backtrack` fold and its `amount`, 0 to 200 ms) is a simulation, at
   the user's request on 2026-10-11 after the test showed the server doesn't rewind: see `games/CLAUDE.md`. The chams
-  card's backtrack row is still a placeholder, so nothing draws the old places.
+  card's backtrack row draws the old places from the same records, which now live in `esp.past`.
 - Kept in the Combat tab though starline has no such thing: the Enabled keybind, BloxStrike's Silent Aim
   toggle, and the Options card, which in BloxStrike is only the per-source target toggles.
 - Removed from BloxStrike's copies by the user on 2026-10-11: the Max Distance sliders of the aim
@@ -321,6 +340,12 @@ with the drawings, whether a Drawing text takes a line break and has `TextBounds
 
 The picker's opacity bar was written on 2026-10-11 and has not been run. Open: whether the bar and the moved hex row
 draw as intended, and how a half-transparent `Neon` or `ForceField` part looks.
+
+The invisible, overlay, ragdoll, backtrack and on hit chams were written on 2026-10-11 and have not been run. Open:
+whether a `ViewportFrame` on the game's camera lines its copies up with the world, what it costs, and what each
+material looks like in one; whether a body part clones (`Archivable`) and a weld to it upsets the game; whether a
+ragdoll carries its owner's id for the team check; whether a killed enemy's parts are still there to copy when the
+hit is confirmed.
 
 Visible chams were written on 2026-10-11 and have not been run. Open: whether the game minds its characters' parts
 being changed or puts a skin back mid-round, whether a `SurfaceAppearance` comes back cleanly, what each material

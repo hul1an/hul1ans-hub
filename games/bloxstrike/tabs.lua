@@ -11,6 +11,8 @@ local HITGROUPS = { "head", "upper torso", "lower torso", "arms", "hands", "legs
 local FLAGS = { "money", "armor", "kit", "scoped", "bot" }
 -- the hub's chams materials; starline's are default, flat, glow, ghost, pearlescent, galaxy and more
 local MATERIALS = { "solid", "flat", "glow", "ghost", "glass" }
+-- an overlay is a second skin on a body in plain sight, where solid has nothing to draw with
+local OVERLAYS = { "flat", "glow", "ghost", "glass" }
 -- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
 -- has been seen, so teammates get the same rows and local gets every one
 local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
@@ -232,23 +234,40 @@ local function addPlayerPage(tab, name, live)
 	end
 
 	local chams = page:CreateSection("chams", "RightSide")
-	for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
-		if live and label == "visible" then
-			local visible = group(chams, label, settings, "VisibleChams")
-			color(visible.header, settings, "VisibleChamsColor", "VisibleChamsOpacity")
-			dropdown(visible, "material", settings, "VisibleChamsMaterial", MATERIALS)
-		else
-			off.dropdown(off.group(chams, label, true), "material")
-		end
-	end
-	local hit = off.group(chams, "on hit", true)
-	off.dropdown(hit, "material")
-	off.slider(hit, "duration", 0.1, 5, "%.1fs")
-	off.toggle(hit, "glow", true)
-	-- the hub's chams are a Highlight, a glow through walls
 	if live then
+		-- a chams row: its fold, the colour and opacity on its header and its material. key is the row's esp setting,
+		-- which the others are named after
+		local function fold(label, key, materials)
+			local row = group(chams, label, settings, key)
+			color(row.header, settings, key .. "Color", key .. "Opacity")
+			dropdown(row, "material", settings, key .. "Material", materials)
+			return row
+		end
+		fold("visible", "VisibleChams", MATERIALS)
+		fold("invisible", "InvisibleChams", MATERIALS)
+		fold("overlay", "OverlayChams", OVERLAYS)
+		fold("ragdoll", "RagdollChams", MATERIALS)
+		-- the hub's own: per tick and its gradient. Without per tick only the oldest place is drawn
+		local ticks = group(fold("backtrack", "BacktrackChams", MATERIALS), "per tick", settings, "BacktrackChamsPerTick")
+		toggle(ticks, "gradient", settings, "BacktrackChamsGradient")
+		for _, key in { "Oldest", "Newest" } do
+			ticks:CreateColorpicker(key:lower(), function(value)
+				settings["BacktrackChams" .. key] = value
+			end):UpdateColor(settings["BacktrackChams" .. key])
+		end
+		local hit = fold("on hit", "HitChams", MATERIALS)
+		slider(hit, "duration", settings, "HitChamsDuration", 0.1, 5, false, "%.1fs")
+		color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor")
+		-- the hub's glow is a Highlight's outline, through walls
 		color(toggle(chams, "glow", settings, "Chams"), settings, "ChamsColor", "ChamsOpacity")
 	else
+		for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
+			off.dropdown(off.group(chams, label, true), "material")
+		end
+		local hit = off.group(chams, "on hit", true)
+		off.dropdown(hit, "material")
+		off.slider(hit, "duration", 0.1, 5, "%.1fs")
+		off.toggle(hit, "glow", true)
 		off.toggle(chams, "glow", true)
 	end
 

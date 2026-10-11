@@ -108,8 +108,8 @@ local acquired, served, reaction, visibleFor, burstUntil
 -- each target's health as eachTarget last saw it, for the trigger's lethal check
 local healthOf = setmetatable({}, { __mode = "k" })
 -- backtrack: by model, where each of its parts was on the frames of the backtrack time, oldest first. A record is at
--- and frames, the CFrame by part
-local past = {}
+-- and frames, the CFrame by part. The table is the esp's, whose backtrack chams draw it
+local past = esp.past
 
 -- the esp's line of sight check, which its only visible uses too
 local isVisible = esp.visible
