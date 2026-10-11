@@ -18,10 +18,11 @@ end
 local hub = {}
 local modules = {}
 
--- httpget answers a failed request with an empty body, not a status code
+-- httpget answers a failed request with the error page's body, not a status code, and a body like
+-- "404: Not Found" would otherwise surface as a parse error one loadstring later
 function hub.fetch(url)
 	local body = httpget(url)
-	assert(body ~= "", url .. " returned nothing")
+	assert(body ~= "" and not body:find("^%d%d%d: "), url .. " returned nothing usable")
 	return body
 end
 

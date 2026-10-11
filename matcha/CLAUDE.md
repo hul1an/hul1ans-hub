@@ -27,7 +27,8 @@ Nothing here has run in Matcha yet.
   because its wall check would only ever hit the local character.
 - No `cloneref`, `gethui`, `getcustomasset`, `getgenv`, `request` or `Random`. Services come from
   `game:GetService` directly, randomness from `math.random`, the single-instance guard lives in
-  `_G.Hub`, and HTTP goes through `httpget`, which answers a failure with an empty body.
+  `_G.Hub`, and HTTP goes through `httpget`, which answers a failure with the error page's body
+  (`404: Not Found`), so `hub.fetch` rejects bodies that start `<code>: `.
 - `Player.DisplayName`, `GetPlayerFromCharacter` and `GetPlayerByUserId` aren't documented; labels
   and owners come from scanning `GetPlayers` for `Name` and `UserId`.
 - `Color3:Lerp` and `GetPivot` aren't documented. `core/esp.lua` mixes the health bar colour by
