@@ -17,6 +17,14 @@ local UNIT = 0.075
 local AVATAR_SIZE = 14
 local ICON_SIZE = Vector2.new(48, 16)
 local ARROW_SHADOW = Vector2.new(2, 2)
+-- the visible chams materials that go on a model's own parts, some with an opacity of their own. Each takes the
+-- part's Color
+local MATERIALS = {
+	flat = { material = Enum.Material.SmoothPlastic },
+	glow = { material = Enum.Material.Neon },
+	ghost = { material = Enum.Material.ForceField },
+	glass = { material = Enum.Material.Glass, transparency = 0.5 },
+}
 
 local BONES_R15 = {
 	{ "Head", "UpperTorso" },
@@ -51,6 +59,9 @@ local esp = {
 		SkeletonColor = WHITE,
 		Chams = false,
 		ChamsColor = WHITE,
+		VisibleChams = false,
+		VisibleChamsColor = WHITE,
+		VisibleChamsMaterial = "solid",
 		HealthBar = true,
 		-- the bar's colour at full health; it runs to red as health drops
 		HealthBarColor = GREEN,
@@ -92,6 +103,9 @@ local highlights = {}
 local images = {}
 -- the marks of sounds: position, at and circle
 local sounds = {}
+-- by model, what visible chams has done to it: the material's name and the colour, and what each part (parts), skin
+-- (taken, by where it was) and face decal (decals) had before
+local skins = {}
 local container, screen
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -304,9 +318,11 @@ local function updateSkeleton(model, camera, color)
 	end
 end
 
-local function updateChams(model, color)
+-- a model's Highlight: the glow is its outline, through walls, and the solid visible chams its fill
+local function updateChams(model, source, color)
 	local highlight = highlights[model]
-	if not settings.Chams then
+	local solid = source == players and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
+	if not (settings.Chams or solid) then
 		if highlight then
 			highlight.Enabled = false
 		end
@@ -314,15 +330,109 @@ local function updateChams(model, color)
 	end
 	if not highlight then
 		highlight = Instance.new("Highlight")
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.FillTransparency = 1
 		highlight.Adornee = model
 		highlight.Parent = container
 		highlights[model] = highlight
 	end
-	highlight.FillColor = color
+	-- a model shows one Highlight and that has one depth mode, so with the glow on a solid fill goes through walls too
+	highlight.DepthMode = settings.Chams and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
+	highlight.FillColor = settings.VisibleChamsColor
+	highlight.FillTransparency = solid and 0 or 1
 	highlight.OutlineColor = color
+	highlight.OutlineTransparency = settings.Chams and 0 or 1
 	highlight.Enabled = true
+end
+
+-- the parts visible chams repaint: the body, which is the model's own children, and the armour, not what it carries
+local function bodyParts(model)
+	local parts = {}
+	for _, child in model:GetChildren() do
+		if child:IsA("BasePart") then
+			table.insert(parts, child)
+		end
+	end
+	local armor = model:FindFirstChild("CharacterArmor")
+	if armor then
+		for _, child in armor:GetDescendants() do
+			if child:IsA("BasePart") then
+				table.insert(parts, child)
+			end
+		end
+	end
+	return parts
+end
+
+-- gives a model's parts a material and a colour, remembering what each had. It runs every frame, so a part the game
+-- adds later is done too
+local function paint(model, name, color)
+	local skin = skins[model]
+	if not skin then
+		skin = { parts = {}, taken = {}, decals = {} }
+		skins[model] = skin
+	end
+	local changed = skin.name ~= name or skin.color ~= color
+	skin.name, skin.color = name, color
+	local look = MATERIALS[name]
+
+	for _, part in bodyParts(model) do
+		local old = skin.parts[part]
+		local new = old == nil
+		if new then
+			-- a part that can't be seen, like the root, is left that way
+			old = part.Transparency < 1
+				and {
+					Material = part.Material,
+					MaterialVariant = part.MaterialVariant,
+					Color = part.Color,
+					Transparency = part.Transparency,
+					TextureID = part:IsA("MeshPart") and part.TextureID or nil,
+				}
+			skin.parts[part] = old
+			if old then
+				-- the skin is a SurfaceAppearance, which covers the material while it is on the part; the face is decals
+				for _, child in part:GetChildren() do
+					if child:IsA("SurfaceAppearance") then
+						skin.taken[child] = part
+						child.Parent = nil
+					elseif child:IsA("Decal") then
+						skin.decals[child] = child.Transparency
+						child.Transparency = 1
+					end
+				end
+				if old.TextureID then
+					part.TextureID = ""
+				end
+				part.MaterialVariant = ""
+			end
+		end
+		if old and (new or changed) then
+			part.Material = look.material
+			part.Color = color
+			part.Transparency = look.transparency or old.Transparency
+		end
+	end
+end
+
+-- puts back what paint changed
+local function strip(model)
+	local skin = skins[model]
+	skins[model] = nil
+	for part, old in skin.parts do
+		if old then
+			for property, value in old do
+				part[property] = value
+			end
+		end
+	end
+	for appearance, part in skin.taken do
+		-- a part the game has destroyed can't be given it back
+		if part.Parent then
+			appearance.Parent = part
+		end
+	end
+	for decal, transparency in skin.decals do
+		decal.Transparency = transparency
+	end
 end
 
 -- an arrow towards a model that is off the screen, its tip the offset in from the screen's edge
@@ -486,7 +596,7 @@ local function update(model, source, camera, viewport)
 	end
 
 	updateSkeleton(model, camera, own or settings.SkeletonColor)
-	updateChams(model, own or settings.ChamsColor)
+	updateChams(model, source, own or settings.ChamsColor)
 
 	return true
 end
@@ -525,14 +635,22 @@ local function render()
 		for model in sets do
 			hide(model)
 		end
+		for model in skins do
+			strip(model)
+		end
 		return
 	end
 
+	-- solid is the Highlight's fill; every other visible chams material goes on the players' own parts
+	local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
 	local seen = {}
 	for _, source in esp.sources do
 		if source.enabled then
 			for _, model in source.models(true) do
 				seen[model] = true
+				if material and source == players then
+					paint(model, material, settings.VisibleChamsColor)
+				end
 				if not update(model, source, camera, viewport) and sets[model] then
 					hide(model)
 				end
@@ -544,6 +662,11 @@ local function render()
 	for model in sets do
 		if not seen[model] then
 			destroy(model)
+		end
+	end
+	for model in skins do
+		if not (material and seen[model]) then
+			strip(model)
 		end
 	end
 end
@@ -561,6 +684,9 @@ function esp.start()
 	hub.cleanup.add(function()
 		for model in sets do
 			destroy(model)
+		end
+		for model in skins do
+			strip(model)
 		end
 		for _, sound in sounds do
 			sound.circle:Remove()

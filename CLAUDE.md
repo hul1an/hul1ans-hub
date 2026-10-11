@@ -159,6 +159,16 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     arrow again 2 pixels down and right.
   - The ammo bar is the rounds left over the magazine's, under the box, then the weapon name, then the icon in a 48
     by 16 box. The avatar is 14 pixels, left of the name. Bots get none of these but the `bot` flag.
+- The chams card's `visible` row is real on players › enemies (asked for by the user on 2026-10-11, with the
+  materials solid, flat, glow, ghost and glass, each taking the row's colour). The user chose to change the enemy's
+  own parts over drawing copies. `solid` is the model's Highlight with an opaque fill, depth tested; the others set
+  the `Material` and `Color` of the body and armour parts (`SmoothPlastic`, `Neon`, `ForceField`, `Glass` at half
+  opacity) after taking the skin off: each part's `SurfaceAppearance` is unparented, its `TextureID` cleared and the
+  face decals hidden, all kept in `skins` and put back when the row goes off, the enemy leaves the list or the hub
+  unloads. Weapons a character carries and parts that are invisible are left alone. A model shows one Highlight
+  with one depth mode, so while `glow` is on a solid fill shows through walls with the outline. The other rows are
+  still placeholders; through walls a real material needs copies in a `ViewportFrame`, since Roblox can't draw a part
+  over a wall (only a Highlight, an always-on-top adornment or something in screen space).
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
@@ -303,6 +313,10 @@ The enemies esp card's rows (only visible, only audible, avatar, weapon name, we
 offscreen arrows) were written on 2026-10-11 and have not been run. Open: whether a ScreenGui's ImageLabels line up
 with the drawings, whether a Drawing text takes a line break and has `TextBounds`, and whether an enemy's
 `CurrentEquipped` keeps up with their rounds.
+
+Visible chams were written on 2026-10-11 and have not been run. Open: whether the game minds its characters' parts
+being changed or puts a skin back mid-round, whether a `SurfaceAppearance` comes back cleanly, what each material
+looks like on a body, and whether a changed body material alters what the client's own bullet ray goes through.
 
 The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
 

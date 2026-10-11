@@ -410,7 +410,8 @@
   - A Player also has `Money`, `HasDefuseKit`, `HasRescueKit`, `IsSniperScoped`, `ScopeIncrement` and `Ping`.
     `Armor`'s `Health` can be a fraction (`86.63`).
   - No bot was in that match, so what a bot holds is still only its `BotLoadout`, every gun it has.
-- How a character is drawn, read through the bridge on 2026-10-11 for chams materials (nothing written yet):
+- How a character is drawn, read through the bridge on 2026-10-11 for chams materials (what `esp.lua`'s visible chams
+  change, see the root `CLAUDE.md`):
   - The fifteen body parts are MeshParts in `Plastic` with a skin `Color` and no `TextureID`; the look comes from a
     `SurfaceAppearance` child (`ColorMap` and a `TexturePack`, `AlphaMode` `Overlay`, `Color` white). The head also
     has two `face` Decals and two SpecialMeshes.

@@ -9,6 +9,8 @@ aim.start()
 local HITGROUPS = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" }
 -- the dump has no options for the esp's flags; these are what the game tells the client about an enemy
 local FLAGS = { "money", "armor", "kit", "scoped", "bot" }
+-- the hub's chams materials; starline's are default, flat, glow, ghost, pearlescent, galaxy and more
+local MATERIALS = { "solid", "flat", "glow", "ghost", "glass" }
 -- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
 -- has been seen, so teammates get the same rows and local gets every one
 local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
@@ -227,7 +229,13 @@ local function addPlayerPage(tab, name, live)
 
 	local chams = page:CreateSection("chams", "RightSide")
 	for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
-		off.dropdown(off.group(chams, label, true), "material")
+		if live and label == "visible" then
+			local visible = group(chams, label, settings, "VisibleChams")
+			color(visible.header, settings, "VisibleChamsColor")
+			dropdown(visible, "material", settings, "VisibleChamsMaterial", MATERIALS)
+		else
+			off.dropdown(off.group(chams, label, true), "material")
+		end
 	end
 	local hit = off.group(chams, "on hit", true)
 	off.dropdown(hit, "material")
