@@ -116,7 +116,6 @@ local function createSet()
 		healthBack = draw("Square", { Filled = true, Color = BLACK }),
 		health = draw("Square", { Filled = true }),
 		name = draw("Text", { Size = 13, Center = true, Outline = true }),
-		distance = draw("Text", { Size = 13, Center = true, Outline = true }),
 	}
 end
 
@@ -290,11 +289,6 @@ local function update(model, source, camera, viewport)
 		set.name.Text = source.label(model)
 		set.name.Position = Vector2.new(x + width / 2, y - 16)
 	end
-
-	set.distance.Visible = true
-	set.distance.Color = own or settings.NameColor
-	set.distance.Text = math.floor(distance) .. " studs"
-	set.distance.Position = Vector2.new(x + width / 2, y + height + 2)
 
 	updateSkeleton(model, camera, own or settings.SkeletonColor)
 	updateChams(model, own or settings.ChamsColor)
