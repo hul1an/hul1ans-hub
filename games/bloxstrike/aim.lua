@@ -732,7 +732,8 @@ function aim.start()
 		end
 		aim.target = part
 		aim.stopping = false
-		if settings.Backtrack and not blocked then
+		-- the esp's backtrack chams draw the records whether the aim's backtrack is on or not
+		if settings.Backtrack and not blocked or esp.settings.BacktrackChams then
 			remember(now)
 		else
 			table.clear(past)

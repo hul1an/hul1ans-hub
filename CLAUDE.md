@@ -178,15 +178,17 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   walls (commit `3d284a8`); the user had it removed the same day as too heavy, and for now a row that shows through
   walls only offers what a Highlight can draw: `solid`, its fill, and `glow`, its outline. Copies are `part:Clone()`
   with the children destroyed, kept in a folder under the camera. How each row is done is Claude's:
-  - `invisible` (solid, glow): a Highlight through walls on copies welded to the body at 0.99 transparency, so they
-    aren't seen themselves. It is on copies and not the model so that a part the camera has a line to can be left
-    out (its copy fully transparent, which a Highlight skips), leaving the model and the visible chams to show there.
-    That is a ray a part, every 0.1 s (`SIGHT_TIME`).
+  - `invisible` (solid, glow): a Highlight through walls on copies welded to the body. It is on copies and not the
+    model so that a part the camera has a line to can be left out (its copy fully transparent, which a Highlight
+    skips), leaving the model and the visible chams to show there. A copy out of sight is opaque in the row's
+    colour, with the wall in front of it; it was 0.99 transparent at first, changed after the user reported nothing
+    drawing, in case a Highlight leaves such a part out. That is a ray a part, every 0.1 s (`SIGHT_TIME`).
   - `overlay` (flat, glow, ghost, glass): copies 1.05 times the size, each welded to its part so it has no lag.
   - `ragdoll` (all five): the enemies' ragdolls from `esp.ragdolls` (set by `main.lua`), painted as visible chams
     paint, or a Highlight fill for solid.
   - `backtrack` (flat, glow, ghost, glass): copies standing in the world at the places in `esp.past`, the aim's
-    backtrack records, so it draws nothing unless the aim's backtrack is on, and walls hide it. Through walls it
+    backtrack records, which the aim keeps while either its backtrack or this row is on, over the aim's `amount`.
+    Walls hide it. Through walls it
     would be one Highlight a tick, past the 31 Roblox draws, or one for the whole trail in one colour, which the
     gradient rules out. The oldest record only; with `per tick` (asked for by the user) one for every 1/60 s on
     record but the present; with its `gradient` (also asked for) the colours run from `oldest` to `newest`, two
@@ -344,9 +346,12 @@ with the drawings, whether a Drawing text takes a line break and has `TextBounds
 The picker's opacity bar was written on 2026-10-11 and has not been run. Open: whether the bar and the moved hex row
 draw as intended, and how a half-transparent `Neon` or `ForceField` part looks.
 
-The invisible, overlay, ragdoll, backtrack and on hit chams were written on 2026-10-11. The user ran the viewport
-version and reported only that it was too heavy, not what else they saw; the Highlight version of invisible and the
-world version of backtrack that replaced it have not been run. Open: whether a Highlight draws on a part at 0.99
+The invisible, overlay, ragdoll, backtrack and on hit chams were written on 2026-10-11. The user ran the Highlight
+version and reported that only visible and overlay work, without saying what the others showed. Read through the
+bridge in that session: the invisible copies and their Highlights were there and set as written, so why nothing
+drew isn't known; no backtrack copies existed; and the game's ragdolls had taken on the visible chams' paint (see
+`games/CLAUDE.md`), which is not fixed. Since then the invisible copies are opaque and backtrack chams keep their own
+records; not run. Open: whether a Highlight draws on a part at 0.99
 transparency and skips one at 1; whether a weld to a body part upsets the game; whether a ragdoll carries its owner's
 id for the team check; whether a killed enemy's parts are still there to copy when the hit is confirmed.
 

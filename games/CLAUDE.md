@@ -435,7 +435,19 @@
     `__PooledRagdoll`, has `Dead` cleared and is used again. So a ragdoll in use is a child of `workspace.Debris` with
     `ClientRagdoll` and `Dead`, which is what `esp.ragdolls` in `main.lua` lists.
   - `workspace.Debris` also holds dropped things (`Magazine`, models named by GUID) and the sound parts.
-  - Not seen: an active ragdoll's attributes (none was caught live), and whether a bot's keeps its `Team`.
+  - Seen live later the same day: a ragdoll in use (`workspace.Debris.<name>`) has `ClientRagdoll`, `Dead`,
+    `Ragdolled`, `RagdollCreatedAt` and its owner's `PresentationOwnerUserId`; a bot's pooled corpse keeps `Team`.
+  - The corpse is cloned from the character as it stands, so with the hub's visible chams painting the character
+    every `__PreparedRagdoll_` came out in the chams' material and colour and with no `SurfaceAppearance` (read
+    through the bridge: `Glass`, the chams' blue, transparency 0.66, where the local player's own corpse was
+    untouched). `syncCorpseAppearance` also copies each body part's `Color` across when a pooled corpse is reused.
+    So painting a character's own parts leaks into the game's ragdolls, and nothing puts those back on unload.
+- While the local player spectates (`Team` is `Spectators`, `Dead` and `IsSpectating` set) the game puts a `Highlight`
+  of its own in every character: yellow, always on top, fill 0.9 and outline 0.4 transparent. A model shows one
+  Highlight, so it competes with the hub's on the same character. Every character also counts as an enemy then,
+  since no one's side is `Spectators`.
+- `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
+  are there.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.

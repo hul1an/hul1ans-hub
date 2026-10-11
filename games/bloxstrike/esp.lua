@@ -583,25 +583,25 @@ local function prune(kept, on, seen)
 	end
 end
 
--- invisible chams: a Highlight through walls, solid its fill and glow its outline, on copies riding on the body
--- that can't themselves be seen. It is on copies so that it can leave out what is in plain sight, which the model's
--- own Highlight couldn't
+-- invisible chams: a Highlight through walls, solid its fill and glow its outline, on copies riding on the body. It
+-- is on copies so that it can leave out what is in plain sight, which the model's own Highlight couldn't
 local function shade(model, camera)
 	local set = shades[model]
 	if not set then
 		set = copyParts(model, bodyParts(model), world, 1, true)
 		shades[model] = set
 	end
+	local color, opacity = settings.InvisibleChamsColor, settings.InvisibleChamsOpacity
 	local now = os.clock()
 	if now - (set.checked or 0) > SIGHT_TIME then
 		set.checked = now
 		for part, copy in set.copies do
-			-- a Highlight leaves a fully transparent part out and draws one that is all but. A part in plain sight is
-			-- left to the model itself, and to the visible chams
-			copy.Transparency = esp.visible(camera, part.Position, model) and 1 or 0.99
+			-- a Highlight leaves a fully transparent part out, so a part in plain sight is left to the model itself and
+			-- to the visible chams. A copy out of sight has the wall in front of it, and is only there to be highlit
+			copy.Transparency = esp.visible(camera, part.Position, model) and 1 or 0
+			copy.Color = color
 		end
 	end
-	local color, opacity = settings.InvisibleChamsColor, settings.InvisibleChamsOpacity
 	if settings.InvisibleChamsMaterial == "solid" then
 		light(set.model, color, opacity, nil, nil, true)
 	else
