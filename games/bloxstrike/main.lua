@@ -838,7 +838,7 @@ local function setThirdPerson(enabled)
 	end
 	thirdPerson = enabled
 	if enabled then
-		-- after the aim assist's step, which is one after the camera's
+		-- after the game's own camera step, which is one after the camera's
 		RunService:BindToRenderStep(THIRD_PERSON_STEP, Enum.RenderPriority.Camera.Value + 2, thirdPersonStep)
 	else
 		RunService:UnbindFromRenderStep(THIRD_PERSON_STEP)

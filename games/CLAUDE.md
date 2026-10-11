@@ -74,10 +74,24 @@
   `Controllers.SpectateController` also counts its own spectate and
   freecam instances as spectating (`IsSpectatingNow`), which the hub doesn't read. The local player's `Team`
   can be `Spectators`, per that module.
-- Third person binds a render step two after the camera's (one after the aim assist), shows the local
+- The camera, from `Controllers.CameraController` decompiled through the bridge on 2026-10-11 after every trigger shot
+  logged as missed by `aim`:
+  - It keeps a base view. A render step at the camera's priority - 1 puts the camera back on it, the default
+    `PlayerModule` camera then turns it by the mouse at the camera's priority, and a step at + 1 saves what it finds
+    as the new base and shows the base with recoil, kick and shake on top (`getCameraCFrame`).
+  - `Weapon:shoot` calls `toWeaponFirePosition()` before the bullet is cast, which puts the camera on the base with
+    the recoil at full, and `_performRaycast` takes the camera's centre ray. So shots leave along the base view.
+  - The hub's aim wrote its view at + 1, after the save or before it by luck of the binding order: it was shown, lost
+    at the next frame's reset, and never fired along. That is why the trigger fired with the crosshair drawn on a
+    target and the bullet went where the base pointed. The aim step is now at the camera's own priority, before the
+    save.
+  - The fire key's shot runs in `FireAction.SameFrameFire`, a render step at + 2. The game has a gamepad
+    `AimAssistController` of its own that turns the view in the + 1 step.
+  - Recoil is part of the view a shot leaves along, and the hub's aim doesn't see it (RCS is a placeholder).
+- Third person binds a render step two after the camera's (one after the game's own camera step), shows the local
   character and hides every Model under the camera through `LocalTransparencyModifier`, remembering the
-  old values to restore. It does not touch zoom limits or `CameraMode`. Not known: whether shots still
-  come from the right place with the camera pulled back.
+  old values to restore. It does not touch zoom limits or `CameraMode`. Shots still leave from the first person
+  view: the game puts the camera back on its base before each one.
 - Night mode saves the six Lighting properties it changes and rewrites them every frame while on.
 - From the user's dump (`hul1ans-hub/bloxstrike_dump.json`, one snapshot of a 10-player match):
   - Fog of war: the game culls players it decides you can't see (it calls this PVS). A live, visible

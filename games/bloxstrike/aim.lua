@@ -664,8 +664,9 @@ function aim.start()
 	circle.Thickness = 1
 	circle.NumSides = 64
 
-	-- bound after the camera update so the game's camera script doesn't overwrite the aim
-	RunService:BindToRenderStep(STEP_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
+	-- bound with the camera's own update. One step later the game takes the view it finds as its own, which it shows
+	-- with the recoil on top and fires every shot from, so a view written after that is seen and never shot along
+	RunService:BindToRenderStep(STEP_NAME, Enum.RenderPriority.Camera.Value, function(dt)
 		local camera = workspace.CurrentCamera
 		local now = os.clock()
 		local blocked = aim.blocked and aim.blocked()
