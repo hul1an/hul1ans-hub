@@ -34,8 +34,7 @@ local function addCombat(window)
 	if settings.SilentAim ~= nil then
 		toggle(general, "Silent Aim", "SilentAim")
 	end
-	toggle(general, "Draw FOV", "DrawFov")
-	general:CreateColorpicker("FOV Color", function(color)
+	toggle(general, "Draw FOV", "DrawFov"):CreateColorpicker(function(color)
 		settings.FovColor = color
 	end):UpdateColor(settings.FovColor)
 	general:CreateMultiDropdown("Disablers", { "Jump" }, function(value)
@@ -67,21 +66,23 @@ local function addCombat(window)
 	local accuracy = tab:CreateSection("Accuracy", "LeftSide")
 	toggle(accuracy, "Force Baim", "ForceBaim")
 
-	local options = tab:CreateSection("Options", "RightSide")
-	toggle(options, "Team Check", "TeamCheck")
-	toggle(options, "Visibility Check", "VisibilityCheck")
-	slider(options, "Max Distance", "MaxDistance", 0, 3000, true)
-	toggle(options, "Target Color", "TargetColor")
 	-- players are always targeted, the other sources are opt-in
-	for index = 2, #esp.sources do
-		local source = esp.sources[index]
-		options:CreateToggle("Target " .. source.name, source.aim, function(value)
-			source.aim = value
-		end)
+	if #esp.sources > 1 then
+		local options = tab:CreateSection("Options", "RightSide")
+		for index = 2, #esp.sources do
+			local source = esp.sources[index]
+			options:CreateToggle(source.aimToggle or "Target " .. source.name, source.aim, function(value)
+				source.aim = value
+			end)
+		end
 	end
 
 	local trigger = tab:CreateSection("Triggerbot", "RightSide")
 	toggle(trigger, "Enabled", "Trigger")
+	-- only a game file that knows its guns' spread has Seeded and Hitchance: it sets aim.spread before it calls this file
+	if aim.spread then
+		slider(group(trigger, "Seeded", "TriggerSeeded"), "Legitimacy", "TriggerLegitimacy", 0, 100, true, "%.0f%%")
+	end
 	trigger:CreateMultiDropdown("Hitgroups", HITGROUPS, function(value)
 		settings.TriggerHitgroups = value
 	end, settings.TriggerHitgroups)
@@ -89,6 +90,13 @@ local function addCombat(window)
 	slider(trigger, "Visible Delay", "TriggerVisibleDelay", 0, 650, true, "%.0fms")
 	slider(trigger, "Burst", "TriggerBurst", 0, 250, true, "%.0fms")
 	toggle(trigger, "Randomize", "TriggerRandomize")
+	-- only a game file that knows its guns' damage has this: it sets aim.damage before it calls this file
+	if aim.damage then
+		slider(trigger, "Min Damage", "TriggerMinDamage", 0, 100, true)
+	end
+	if aim.spread then
+		slider(trigger, "Hitchance", "TriggerHitchance", 0, 100, true, "%.0f%%")
+	end
 
 	return tab
 end
@@ -103,32 +111,44 @@ local function addEsp(window)
 
 	for _, source in esp.sources do
 		local section = tab:CreateSection(source.name, "RightSide")
-		section:CreateToggle("Show " .. source.name, source.enabled, function(value)
+		local show = section:CreateToggle(source.toggle or "Show " .. source.name, source.enabled, function(value)
 			source.enabled = value
 		end)
-		section:CreateColorpicker("Color", function(color)
-			source.color = color
-		end):UpdateColor(source.color)
-		section:CreateSlider("Max Distance", 0, 3000, source.maxDistance, true, function(value)
-			source.maxDistance = value
-		end)
-		section:CreateToggle("Tracers", source.tracers, function(value)
-			source.tracers = value
-		end)
+		-- the players have no colour of their own: theirs are the element colours under Options
+		if source.color then
+			show:CreateColorpicker(function(color)
+				source.color = color
+			end):UpdateColor(source.color)
+		end
+		if source.options then
+			source.options(section)
+		end
+		section
+			:CreateToggle("Tracers", source.tracers, function(value)
+				source.tracers = value
+			end)
+			:CreateColorpicker(function(color)
+				source.tracerColor = color
+			end)
+			:UpdateColor(source.tracerColor)
 	end
 
+	-- each element's toggle with its colour beside it, the setting named after the toggle's with Color on the end
 	local options = tab:CreateSection("Options", "LeftSide")
-	local function toggle(name, key)
-		options:CreateToggle(name, settings[key], function(value)
-			settings[key] = value
-		end)
+	local function element(name, key)
+		options
+			:CreateToggle(name, settings[key], function(value)
+				settings[key] = value
+			end)
+			:CreateColorpicker(function(color)
+				settings[key .. "Color"] = color
+			end)
+			:UpdateColor(settings[key .. "Color"])
 	end
-	toggle("Team Check", "TeamCheck")
-	toggle("Box", "Box")
-	toggle("Skeleton", "Skeleton")
-	toggle("Health Bar", "HealthBar")
-	toggle("Name", "Name")
-	toggle("Distance", "Distance")
+	element("Box", "Box")
+	element("Skeleton", "Skeleton")
+	element("Health Bar", "HealthBar")
+	element("Name", "Name")
 
 	return tab
 end

@@ -20,6 +20,12 @@ local function emit(control, sec)
 			control.value = value
 			control.callback(value)
 		end)
+		if control.picker then
+			sec:ColorPicker(control.key .. "/color", control.picker.color.R, control.picker.color.G, control.picker.color.B, 1, function(color)
+				control.picker.color = color
+				control.picker.callback(color)
+			end)
+		end
 		if control.keybind then
 			sec:Keybind(control.key .. "/bind", control.keybind.key, "toggle")
 		end
@@ -91,6 +97,15 @@ local function builders(list, keyFor, prefix)
 		local control = { kind = "toggle", key = keyFor(label), name = name(label), value = value, callback = callback }
 		table.insert(list, control)
 		return {
+			-- a swatch on the toggle's row, made before the keybind like the menu's own
+			CreateColorpicker = function(picked)
+				control.picker = { callback = picked, color = Color3.new(1, 1, 1) }
+				return {
+					UpdateColor = function(_, color)
+						control.picker.color = color
+					end,
+				}
+			end,
 			-- "NONE" or a KeyCode name; Matcha takes an unbound 0, a virtual-key code or an Enum
 			CreateKeybind = function(_, bind)
 				control.keybind = { key = bind == "NONE" and 0 or Enum.KeyCode[bind] }

@@ -126,7 +126,7 @@ in an executor in the target game and reported what they saw. Say "written, not 
   the text should) and BloxStrike's Team Colors, with `colorOf` on a source. In their place each ESP element
   has its own colour, and colour pickers attach to a toggle's row; Draw FOV and BloxStrike's Bullet Tracers
   carry theirs that way too. The health bar's colour is the one at full health and it still runs to red. Not known: whether that game puts players on one Roblox
-  team, in which case the aim can no longer target them. `matcha/` has none of these changes.
+  team, in which case the aim can no longer target them. `matcha/` carries these changes too, written and not run.
 - Removed by the user on 2026-10-10: hold right mouse to aim (the aim is on whenever Enabled is) and Auto
   Fire (the triggerbot took its place). Auto Fire clicked whenever there was a target in the FOV, which is
   what paired with silent aim, so with Silent Aim on the triggerbot does the same, with its delays; without

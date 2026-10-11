@@ -10,8 +10,15 @@ local FIRE_DELAY = 0.05
 local FIRE_HOLD = 0.02
 -- Roblox's default field of view, which a dynamic FOV is scaled against
 local DEFAULT_FOV = 70
+-- the range a dynamic FOV shrinks over, in studs
+local FOV_RANGE = 500
 -- the trigger only tests targets whose root is this near the view ray: starline's 64 units, about a character's height
 local TRIGGER_REACH = 6
+-- a shot this soon after the trigger's click is taken to be the trigger's: the click reaches the game a frame or two on
+local TRIGGER_SHOT = 0.2
+-- the hit chance is counted over this many angles out from the view ray, at this many places round it
+local CHANCE_RINGS = 8
+local CHANCE_SPOKES = 12
 local AXES = { "X", "Y", "Z" }
 -- the part names behind starline's hitgroups, R15 and R6
 local HITGROUPS = {
@@ -35,7 +42,10 @@ local HITGROUPS = {
 -- what force baim aims at in place of the chosen hitgroups
 local BODY = { "Chest", "Stomach", "Pelvis" }
 
--- aim.target is the part currently aimed at, or nil; game files read it
+-- aim.target is the part currently aimed at, or nil; game files read it.
+-- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off;
+-- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out,
+-- and aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise
 local aim = {
 	settings = {
 		Enabled = false,
@@ -61,10 +71,11 @@ local aim = {
 		TriggerVisibleDelay = 0,
 		TriggerBurst = 0,
 		TriggerRandomize = false,
-		TeamCheck = false,
-		VisibilityCheck = true,
-		MaxDistance = 500,
-		TargetColor = false,
+		TriggerSeeded = false,
+		TriggerLegitimacy = 100,
+		TriggerHitchance = 0,
+		TriggerMinDamage = 0,
+		MaxDistance = 10000,
 	},
 }
 
@@ -85,6 +96,8 @@ local switchUntil = 0
 local seenSince = {}
 local frame = 0
 local acquired, served, reaction, visibleFor, burstUntil
+-- each target's health as eachTarget last saw it, for the trigger's lethal check
+local healthOf = setmetatable({}, { __mode = "k" })
 
 -- Matcha documents no Random; a number between min and max
 local function between(min, max)
@@ -135,10 +148,11 @@ end
 local function eachTarget(callback)
 	for _, source in esp.sources do
 		if source.aim then
-			for _, model in source.models(settings.TeamCheck) do
+			for _, model in source.models(true) do
 				local health = esp.health(model, source)
 				local root = model:FindFirstChild("HumanoidRootPart")
 				if root and not (health and health <= 0) then
+					healthOf[model] = health
 					callback(model, root, health)
 				end
 			end
@@ -187,11 +201,11 @@ end
 
 -- starline's dynamic FOV: half as wide again point blank, as set at 30% of the range, 30% of it at full range
 local function scaleFov(fov, distance)
-	local near = settings.MaxDistance * 0.3
+	local near = FOV_RANGE * 0.3
 	if distance <= near then
 		return fov * (1.5 - 0.5 * distance / near)
 	end
-	return fov * (1 - 0.7 * math.clamp((distance - near) / (settings.MaxDistance - near), 0, 1))
+	return fov * (1 - 0.7 * math.clamp((distance - near) / (FOV_RANGE - near), 0, 1))
 end
 
 -- starline's "closest" hitbox selection: of a model's chosen parts, the visible point nearest the crosshair
@@ -203,7 +217,7 @@ local function evaluate(camera, model, forward, fov)
 		local angle = math.deg(forward:Angle(point - eye))
 		if angle <= fov
 			and (not bestAngle or angle < bestAngle)
-			and (not settings.VisibilityCheck or isVisible(camera, point, model)) then
+			and isVisible(camera, point, model) then
 			bestPart, bestPoint, bestAngle = part, point, angle
 		end
 	end
@@ -404,11 +418,11 @@ local function fire()
 	return true
 end
 
--- the target whose trigger hitgroups the view ray enters first with nothing in the way
+-- the target whose trigger hitgroups the view ray enters first with nothing in the way, the part it enters and how far off
 local function underCrosshair(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
-	local nearest, best
+	local nearest, struck, best
 
 	eachTarget(function(model, root)
 		local offset = root.Position - eye
@@ -421,13 +435,44 @@ local function underCrosshair(camera)
 			if distance
 				and distance <= settings.MaxDistance
 				and (not best or distance < best)
-				and (not settings.VisibilityCheck or isVisible(camera, eye + forward * distance, model)) then
-				nearest, best = model, distance
+				and isVisible(camera, eye + forward * distance, model) then
+				nearest, struck, best = model, part, distance
 			end
 		end
 	end)
 
-	return nearest
+	return nearest, struck, best
+end
+
+-- the share of its spread a shot of the trigger's keeps
+local function kept()
+	return settings.TriggerSeeded and settings.TriggerLegitimacy / 100 or 1
+end
+
+-- for a game file's shot hook: what to multiply a shot's spread by. Only the trigger's own shots are narrowed
+function aim.spreadScale()
+	return os.clock() - lastShot < TRIGGER_SHOT and kept() or 1
+end
+
+-- the percentage of shots spread up to an angle off the view ray that would enter a model's trigger hitgroups.
+-- a shot is taken to be as likely at one angle out as at any other, which bunches them towards the middle
+local function hitChance(camera, model, angle)
+	local view = camera.CFrame
+	local parts = hitParts(model, settings.TriggerHitgroups)
+	local hits = 0
+	for ring = 1, CHANCE_RINGS do
+		local out = CFrame.Angles(math.rad(angle * (ring - 0.5) / CHANCE_RINGS), 0, 0)
+		for spoke = 1, CHANCE_SPOKES do
+			local direction = (view * CFrame.Angles(0, 0, 2 * math.pi * spoke / CHANCE_SPOKES) * out).LookVector
+			for _, part in parts do
+				if crosses(part, view.Position, direction) then
+					hits += 1
+					break
+				end
+			end
+		end
+	end
+	return hits / (CHANCE_RINGS * CHANCE_SPOKES) * 100
 end
 
 -- a target that drops out of the list or out of sight starts over
@@ -449,8 +494,8 @@ local function roll(milliseconds)
 end
 
 -- starline's triggerbot: clicks while a target is under the crosshair, once its delays have run.
--- aimed is the model the aim has, or nil
-local function trigger(camera, now, aimed)
+-- aimed is the model the aim has and aimedPart its part, or nil
+local function trigger(camera, now, aimed, aimedPart)
 	-- the user is firing themselves
 	if ismouse1pressed() and not clicking then
 		return
@@ -471,7 +516,12 @@ local function trigger(camera, now, aimed)
 	end
 
 	-- a silent shot goes to the aim's target wherever the crosshair is, so that target counts as under it
-	local model = settings.SilentAim and aimed or underCrosshair(camera)
+	local model, part, distance = aimed, aimedPart, nil
+	if settings.SilentAim then
+		distance = part and (part.Position - camera.CFrame.Position).Magnitude
+	else
+		model, part, distance = underCrosshair(camera)
+	end
 	if not model then
 		acquired, served, reaction = nil, false, nil
 		return
@@ -491,6 +541,18 @@ local function trigger(camera, now, aimed)
 		served = true
 	end
 
+	-- a silent shot goes to its target whatever the spread. The chance is that of an untouched shot, Seeded or not
+	local angle = settings.TriggerHitchance > 0 and not settings.SilentAim and aim.spread and aim.spread()
+	if angle and hitChance(camera, model, angle) < settings.TriggerHitchance then
+		return
+	end
+
+	-- a shot that would kill passes whatever the setting
+	local damage = settings.TriggerMinDamage > 0 and aim.damage and aim.damage(part, distance)
+	if damage and damage < math.min(settings.TriggerMinDamage, healthOf[model] or math.huge) then
+		return
+	end
+
 	if fire() then
 		acquired, served, reaction = nil, false, nil
 		if settings.TriggerBurst > 0 then
@@ -508,7 +570,8 @@ function aim.start()
 	hub.cleanup.add(RunService.RenderStepped:Connect(function(dt)
 		local camera = workspace.CurrentCamera
 		local now = os.clock()
-		local blocked = table.find(settings.Disablers, "Jump") ~= nil and airborne(camera)
+		local blocked = aim.blocked and aim.blocked()
+			or table.find(settings.Disablers, "Jump") ~= nil and airborne(camera)
 
 		if clicking and now >= clickUntil then
 			mouse1release()
@@ -521,7 +584,6 @@ function aim.start()
 			model, part, point, fov = findTarget(camera)
 		end
 		aim.target = part
-		esp.highlight = settings.TargetColor and model or nil
 
 		-- the FOV is an angle, so its radius on screen follows the camera's field of view
 		local viewport = camera.ViewportSize
@@ -542,7 +604,7 @@ function aim.start()
 		end
 
 		if settings.Trigger and not blocked then
-			trigger(camera, now, model)
+			trigger(camera, now, model, part)
 		end
 	end))
 
@@ -553,7 +615,6 @@ function aim.start()
 			clicking = false
 		end
 		aim.target = nil
-		esp.highlight = nil
 	end)
 end
 

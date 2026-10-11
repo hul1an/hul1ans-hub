@@ -7,7 +7,6 @@ local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.new(0, 0, 0)
 local GREEN = Color3.fromRGB(80, 220, 100)
 local RED = Color3.fromRGB(230, 60, 60)
-local HIGHLIGHT = Color3.new(1, 0, 0)
 
 local BONES_R15 = {
 	{ "Head", "UpperTorso" },
@@ -41,12 +40,15 @@ end
 local esp = {
 	settings = {
 		Enabled = false,
-		TeamCheck = false,
 		Box = true,
+		BoxColor = WHITE,
 		Skeleton = false,
+		SkeletonColor = WHITE,
 		HealthBar = true,
+		-- the bar's colour at full health; it runs to red as health drops
+		HealthBarColor = GREEN,
 		Name = true,
-		Distance = true,
+		NameColor = WHITE,
 	},
 	sources = {},
 }
@@ -67,14 +69,16 @@ function esp.health(model, source)
 	return nil
 end
 
--- models(skipTeammates) returns the models to draw, label(model) their name text
+-- models(skipTeammates) returns the models to draw, label(model) their name text.
+-- a source given a colour is drawn in it throughout; one without, the players, in each element's colour from the settings
 function esp.addSource(name, color, models, label)
 	local source = {
 		name = name,
 		enabled = true,
 		color = color,
-		maxDistance = 1000,
+		maxDistance = 10000,
 		tracers = false,
+		tracerColor = color or WHITE,
 		aim = false,
 		models = models,
 		label = label,
@@ -83,8 +87,7 @@ function esp.addSource(name, color, models, label)
 	return source
 end
 
--- esp.highlight is a model drawn in red instead of its source colour, set by the aim assist
-local players = esp.addSource("Players", WHITE, function(skipTeammates)
+local players = esp.addSource("Players", nil, function(skipTeammates)
 	local characters = {}
 	local team = skipTeammates and Players.LocalPlayer.Team
 	for _, player in Players:GetPlayers() do
@@ -222,7 +225,13 @@ local function update(model, source, camera, viewport)
 		sets[model] = set
 	end
 
-	local color = model == esp.highlight and HIGHLIGHT or source.colorOf and source.colorOf(model) or source.color
+	-- a source may fade its models: opacityOf(model) gives 0 to 1, which is what a drawing's Transparency holds
+	local opacity = source.opacityOf and source.opacityOf(model) or 1
+	for _, object in set do
+		object.Transparency = opacity
+	end
+
+	local own = source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall
 	local width = height / 2
@@ -233,12 +242,12 @@ local function update(model, source, camera, viewport)
 	set.boxOutline.Position = Vector2.new(x, y)
 	set.boxOutline.Size = Vector2.new(width, height)
 	set.box.Visible = settings.Box
-	set.box.Color = color
+	set.box.Color = own or settings.BoxColor
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)
 
 	set.tracer.Visible = source.tracers
-	set.tracer.Color = color
+	set.tracer.Color = source.tracerColor
 	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
 	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
@@ -249,24 +258,24 @@ local function update(model, source, camera, viewport)
 		local fraction = math.clamp(health / maxHealth, 0, 1)
 		set.healthBack.Position = Vector2.new(x - 7, y - 1)
 		set.healthBack.Size = Vector2.new(4, height + 2)
-		set.health.Color = lerp(RED, GREEN, fraction)
+		set.health.Color = lerp(RED, settings.HealthBarColor, fraction)
 		set.health.Position = Vector2.new(x - 6, y + height * (1 - fraction))
 		set.health.Size = Vector2.new(2, height * fraction)
 	end
 
 	set.name.Visible = settings.Name
-	set.name.Color = color
+	set.name.Color = own or settings.NameColor
 	if settings.Name then
 		set.name.Text = source.label(model)
 		set.name.Position = Vector2.new(x + width / 2, y - 16)
 	end
 
-	set.distance.Visible = settings.Distance
-	set.distance.Color = color
+	set.distance.Visible = true
+	set.distance.Color = own or settings.NameColor
 	set.distance.Text = math.floor(distance) .. " studs"
 	set.distance.Position = Vector2.new(x + width / 2, y + height + 2)
 
-	updateSkeleton(model, color)
+	updateSkeleton(model, own or settings.SkeletonColor)
 
 	return true
 end
@@ -284,7 +293,7 @@ local function render()
 	local seen = {}
 	for _, source in esp.sources do
 		if source.enabled then
-			for _, model in source.models(settings.TeamCheck) do
+			for _, model in source.models(true) do
 				seen[model] = true
 				if not update(model, source, camera, viewport) and sets[model] then
 					hide(model)
