@@ -318,7 +318,7 @@ local function updateChams(model, color)
 	if not highlight then
 		highlight = Instance.new("Highlight")
 		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.FillTransparency = 0.6
+		highlight.FillTransparency = 1
 		highlight.Adornee = model
 		highlight.Parent = container
 		highlights[model] = highlight
