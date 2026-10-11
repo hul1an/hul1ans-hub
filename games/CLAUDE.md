@@ -302,7 +302,9 @@
 - Backtrack is therefore simulated (asked for by the user the same day, written, not run): `aim.rewind` in
   `aim.lua` keeps where every target's parts were over the backtrack time, and the shot hook turns a shot that went
   through one of those old places, and through no target as it stands, to that part where it is now, the way silent
-  aim turns one. The shot really goes to the enemy's present place, so it needs a line to that, not to the old one.
+  aim turns one. It is turned to the same place on the part, the middle of the line's way through the old box, and of
+  several old places on the line the one `aim.damage` rates highest is taken, the latest of equals (asked for by the
+  user). The shot really goes to the enemy's present place, so it needs a line to that, not to the old one.
   `redirect` now also turns a shot that hit nothing, by its direction alone; before, silent aim left those. Each test shot ends as a line on screen and in the console: `backtrack test: <name>,
   <n> ticks back, old tick | real tick, <n> studs off: <n> damage | no damage`. Damage with the old tick and none
   with the real one means the server rewinds. Remove it once that is answered, and make starline's backtrack real

@@ -499,7 +499,8 @@ local function hitEffect(position)
 end
 
 -- rewrites a finished bullet raycast so its last hit is the target; returns whether it did
-local function redirect(result, target)
+local function redirect(result, target, point)
+	local position = point or target.Position
 	local hits = rawget(result, "Hits")
 	if type(hits) ~= "table" then
 		return false
@@ -513,11 +514,10 @@ local function redirect(result, target)
 	end
 	if not last then
 		-- a shot that got to nothing has no hit to rewrite, only its direction, which is what the server is sent
-		result.Direction = (target.Position - rawget(result, "Origin")).Unit
+		result.Direction = (position - rawget(result, "Origin")).Unit
 		return true
 	end
 
-	local position = target.Position
 	local final = hits[last]
 	final.Instance = target
 	final.Position = position
@@ -549,9 +549,9 @@ local function redirect(result, target)
 end
 
 -- where a shot ended: the redirected target, else its last hit, else the end of its ray
-local function shotEnd(result, origin, target)
-	if target then
-		return target.Position
+local function shotEnd(result, origin, turned)
+	if turned then
+		return turned
 	end
 	local hits = rawget(result, "Hits")
 	local last = type(hits) == "table" and hits[#hits]
@@ -685,10 +685,12 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 end))
 
 local function onShot(result, spread)
-	-- silent aim turns the shot to the aim's target, backtrack to the enemy whose old place it went through
-	local target = aim.settings.SilentAim and aim.target
-		or aim.rewind(rawget(result, "Origin"), rawget(result, "Direction"))
-	if not (target and target.Parent and redirect(result, target)) then
+	-- silent aim turns the shot to the aim's target, backtrack to the place on an enemy whose old place it went through
+	local target, point = aim.settings.SilentAim and aim.target, nil
+	if not target then
+		target, point = aim.rewind(rawget(result, "Origin"), rawget(result, "Direction"))
+	end
+	if not (target and target.Parent and redirect(result, target, point)) then
 		target = nil
 	end
 	if #logs.kinds > 0 then
@@ -697,7 +699,7 @@ local function onShot(result, spread)
 
 	if visuals.tracers or visuals.hitEffect then
 		local origin = rawget(result, "Origin") or workspace.CurrentCamera.CFrame.Position
-		local finish = typeof(origin) == "Vector3" and shotEnd(result, origin, target)
+		local finish = typeof(origin) == "Vector3" and shotEnd(result, origin, target and (point or target.Position))
 		if finish then
 			if visuals.tracers then
 				tracer(origin, finish)

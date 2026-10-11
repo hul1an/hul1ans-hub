@@ -190,8 +190,8 @@ local function reach(part, direction)
 	return math.min(half.X / math.abs(along.X), half.Y / math.abs(along.Y), half.Z / math.abs(along.Z))
 end
 
--- how far along a ray it enters a part's box, or nil when it misses; direction is a unit vector. cframe is where the
--- part is taken to be, if not where it is
+-- how far along a ray it enters a part's box and how far along it leaves, or nil when it misses; direction is a unit
+-- vector. cframe is where the part is taken to be, if not where it is
 local function crosses(part, origin, direction, cframe)
 	cframe = cframe or part.CFrame
 	local half = part.Size / 2
@@ -204,7 +204,10 @@ local function crosses(part, origin, direction, cframe)
 		near = math.max(near, math.min(a, b))
 		far = math.min(far, math.max(a, b))
 	end
-	return near <= far and near or nil
+	if near <= far then
+		return near, far
+	end
+	return nil
 end
 
 -- starline's dynamic FOV: half as wide again point blank, as set at 30% of the range, 30% of it at full range
@@ -586,7 +589,9 @@ end
 
 -- for main.lua's shot hook: starline's backtrack, simulated. The server was seen not to rewind enemies for a shot, so
 -- there is no shooting at the past: a shot whose line misses every target as it stands but goes through where a part
--- of one was within the backtrack time is to be turned to that part where it is now. Returns the part, or nil
+-- of one was within the backtrack time is to be turned to that part where it is now, at the place on it the line
+-- went through. Of several old places on the line it is the one a shot does most damage to, the latest of equals.
+-- Returns the part and the point on it, or nil
 function aim.rewind(origin, direction)
 	if not settings.Backtrack then
 		return nil
@@ -599,18 +604,24 @@ function aim.rewind(origin, direction)
 		end
 	end
 
-	local found, best
+	local found, spot, best
 	for _, records in past do
-		for index = 1, #records - 1 do
+		for index = #records - 1, 1, -1 do
 			for part, cframe in records[index].frames do
-				local distance = crosses(part, origin, direction, cframe)
-				if distance and (not best or distance < best) then
-					found, best = part, distance
+				local near, far = crosses(part, origin, direction, cframe)
+				local damage = near and (aim.damage(part, near) or 0)
+				if damage and (not best or damage > best) then
+					found, best = part, damage
+					-- the middle of the line's way through the old box, as a place on the part
+					spot = cframe:PointToObjectSpace(origin + direction * (near + far) / 2)
 				end
 			end
 		end
 	end
-	return found
+	if found then
+		return found, found.CFrame:PointToWorldSpace(spot)
+	end
+	return nil
 end
 
 -- a target that drops out of the list or out of sight starts over
