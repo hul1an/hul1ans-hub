@@ -85,7 +85,6 @@ local function addCombat(window)
 	local options = tab:CreateSection("Options", "RightSide")
 	toggle(options, "Team Check", "TeamCheck")
 	toggle(options, "Visibility Check", "VisibilityCheck")
-	slider(options, "Max Distance", "MaxDistance", 0, 3000, true)
 	toggle(options, "Target Color", "TargetColor")
 	-- players are always targeted, the other sources are opt-in
 	for index = 2, #esp.sources do
@@ -158,9 +157,6 @@ local function addEsp(window)
 		section:CreateColorpicker("Color", function(color)
 			source.color = color
 		end):UpdateColor(source.color)
-		section:CreateSlider("Max Distance", 0, 3000, source.maxDistance, true, function(value)
-			source.maxDistance = value
-		end)
 		section:CreateToggle("Tracers", source.tracers, function(value)
 			source.tracers = value
 		end)
