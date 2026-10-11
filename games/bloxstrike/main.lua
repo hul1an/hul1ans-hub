@@ -2,7 +2,6 @@ local hub = ...
 
 local Players = cloneref(game:GetService("Players"))
 local RunService = cloneref(game:GetService("RunService"))
-local UserInputService = cloneref(game:GetService("UserInputService"))
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
@@ -624,126 +623,6 @@ hub.cleanup.add(function()
 	setThirdPerson(false)
 end)
 
--- anti-aim turns the local character's back to the nearest enemy and bends its neck and waist joints
-local antiAim = {
-	enabled = false,
-	pitch = "down",
-	customPitch = 0,
-	yaw = "at targets",
-	spinSpeed = 15,
-	disableOnFire = true,
-}
-local originals = {}
-local antiAimCharacter
-local spin = 0
-local jointsWarned = false
-
-local function joint(parent, name)
-	local child = parent and parent:FindFirstChild(name)
-	return child and child:IsA("JointInstance") and child or nil
-end
-
-local function setJoint(target, offset)
-	if originals[target] == nil then
-		originals[target] = target.C0
-	end
-	target.C0 = originals[target] * offset
-end
-
-local function restoreJoints()
-	for target, c0 in originals do
-		target.C0 = c0
-	end
-end
-
-local function nearestEnemy(position)
-	local nearest, best
-	for _, character in players.models(true) do
-		local root = character:FindFirstChild("HumanoidRootPart")
-		local distance = root and (root.Position - position).Magnitude
-		if distance and (not best or distance < best) then
-			nearest, best = root, distance
-		end
-	end
-	return nearest
-end
-
-local function antiAimStep()
-	local character = Players.LocalPlayer.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then
-		return
-	end
-	if character ~= antiAimCharacter then
-		antiAimCharacter = character
-		table.clear(originals)
-	end
-
-	if antiAim.disableOnFire and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-		restoreJoints()
-		return
-	end
-
-	-- back to the enemy, or to where the camera looks when there is none
-	local enemy = aim.target or nearestEnemy(root.Position)
-	local away = enemy and root.Position - enemy.Position or -workspace.CurrentCamera.CFrame.LookVector
-	away = Vector3.new(away.X, 0, away.Z)
-	if away.Magnitude > 0.001 then
-		root.CFrame = CFrame.lookAt(root.Position, root.Position + away.Unit)
-	end
-
-	local pitch = math.rad(-89)
-	if antiAim.pitch == "up" then
-		pitch = math.rad(89)
-	elseif antiAim.pitch == "jitter" then
-		pitch = math.rad(math.random() > 0.5 and -89 or 89)
-	elseif antiAim.pitch == "custom" then
-		pitch = math.rad(antiAim.customPitch)
-	end
-
-	local yaw = 0
-	if antiAim.yaw == "spinbot" then
-		spin = (spin + antiAim.spinSpeed) % 360
-		yaw = math.rad(spin)
-	elseif antiAim.yaw == "jitter" then
-		yaw = math.rad(math.random() > 0.5 and 90 or -90)
-	elseif antiAim.yaw == "sideways" then
-		yaw = math.rad(90)
-	elseif antiAim.yaw == "backwards" then
-		yaw = math.pi
-	end
-
-	local head = character:FindFirstChild("Head")
-	local upper = character:FindFirstChild("UpperTorso")
-	local neck = joint(head, "Neck") or joint(upper, "Neck")
-	local waist = joint(upper, "Waist") or joint(character:FindFirstChild("LowerTorso"), "Waist")
-	local rootJoint = joint(root, "RootJoint")
-	if not (neck or waist) and not jointsWarned then
-		jointsWarned = true
-		warn("[hub] anti-aim: no Neck or Waist joint on the character, only the root part is turned")
-	end
-
-	if neck then
-		setJoint(neck, CFrame.Angles(pitch, yaw, 0))
-	end
-	if waist then
-		setJoint(waist, CFrame.Angles(pitch * 0.4, 0, 0))
-	end
-	if rootJoint then
-		setJoint(rootJoint, antiAim.yaw == "spinbot" and CFrame.Angles(0, 0, yaw) or CFrame.identity)
-	end
-end
-
-hub.cleanup.add(RunService.RenderStepped:Connect(function()
-	if antiAim.enabled then
-		antiAimStep()
-	elseif next(originals) then
-		restoreJoints()
-		table.clear(originals)
-	end
-end))
-hub.cleanup.add(restoreJoints)
-
 -- the game sends the jump button for as long as the key is held and its simulation only jumps on a fresh press,
 -- so bunnyhop drops the button from every command but the first one on the ground
 local JUMP = 1
@@ -793,7 +672,6 @@ end
 
 local window = hub.ui.createWindow("BloxStrike")
 hub.require("games/bloxstrike/tabs.lua")(window, {
-	antiAim = antiAim,
 	visuals = visuals,
 	movement = movement,
 	setNight = setNight,

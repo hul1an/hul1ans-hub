@@ -57,7 +57,7 @@ local aim = {
 		DrawFov = false,
 		FovColor = Color3.new(1, 1, 1),
 		Disablers = {},
-		Selection = "crosshair",
+		Selection = "fov",
 		FovMode = "static",
 		Fov = 10,
 		Hitgroups = { "head" },
@@ -264,7 +264,7 @@ local function findTarget(camera)
 		end
 
 		local score = distance
-		if settings.Selection == "crosshair" then
+		if settings.Selection == "fov" then
 			score = angle
 		elseif settings.Selection == "health" then
 			score = health or math.huge

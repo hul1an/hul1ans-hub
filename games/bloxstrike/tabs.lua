@@ -96,31 +96,22 @@ function off.multi(parent, name, options)
 	parent:CreateMultiDropdown(name .. " (placeholder)", options or {}, nothing):Disable()
 end
 
-local function addAimbot(window, antiAim)
+local function addAimbot(window)
 	local settings = aim.settings
 	local tab = window:CreateTab("aimbot", "crosshairs")
-
-	-- the dump has no cards for starline's first page, and starline no page for the hub's anti-aim
-	local anti = tab:CreateSubTab("aimbot"):CreateSection("anti-aim", "LeftSide")
-	toggle(anti, "enabled", antiAim, "enabled")
-	dropdown(anti, "pitch", antiAim, "pitch", { "down", "up", "jitter", "custom" })
-	slider(anti, "custom pitch", antiAim, "customPitch", -89, 89, true)
-	dropdown(anti, "yaw", antiAim, "yaw", { "at targets", "backwards", "spinbot", "jitter", "sideways", "off" })
-	slider(anti, "spin speed", antiAim, "spinSpeed", 1, 50, true)
-	toggle(anti, "disable on fire", antiAim, "disableOnFire")
-
-	local page = tab:CreateSubTab("assist")
+	local page = tab:CreateSubTab("aimbot")
 
 	local general = page:CreateSection("general", "LeftSide")
 	local enabled = group(general, "enabled", settings, "Enabled")
 	enabled.header:CreateKeybind("NONE")
 	local fov = toggle(enabled, "draw fov", settings, "DrawFov")
 	color(fov, settings, "FovColor")
+	-- the hub's own
 	toggle(general, "silent aim", settings, "SilentAim")
 	multi(general, "disablers", settings, "Disablers", { "flash (placeholder)", "smoke (placeholder)", "jump" })
 
 	local targeting = page:CreateSection("targeting", "LeftSide")
-	dropdown(targeting, "target selection", settings, "Selection", { "crosshair", "health", "distance" })
+	dropdown(targeting, "target selection", settings, "Selection", { "fov", "health", "distance" })
 	targeting:CreateDropdown(
 		"hitbox selection",
 		{ "closest", "highest damage (placeholder)", "dynamic (placeholder)" },
@@ -133,7 +124,7 @@ local function addAimbot(window, antiAim)
 	slider(group(targeting, "multipoint", settings, "Multipoint"), "scale", settings, "MultipointScale", 0, 100, true, "%.0f%%")
 	off.slider(off.group(targeting, "backtrack"), "amount", 0, 200, "%.0f ms")
 
-	local behavior = page:CreateSection("behavior", "LeftSide")
+	local behavior = page:CreateSection("behavior", "RightSide")
 	local smoothing = group(behavior, "smoothing", settings, "Smoothing")
 	slider(smoothing, "value", settings, "SmoothingValue", 5, 50, false, "%.1f")
 	slider(smoothing, "humanization", settings, "Humanization", 0, 100, true, "%.0f%%")
@@ -141,7 +132,7 @@ local function addAimbot(window, antiAim)
 	slider(behavior, "switch delay", settings, "SwitchDelay", 0, 500, true, "%.0fms")
 	slider(behavior, "mouse override", settings, "MouseOverride", 0, 100, true, "%.0f%%")
 
-	local accuracy = page:CreateSection("accuracy", "LeftSide")
+	local accuracy = page:CreateSection("accuracy", "RightSide")
 	off.toggle(accuracy, "auto wall")
 	off.slider(accuracy, "min damage", 0, 100)
 	toggle(accuracy, "force baim", settings, "ForceBaim")
@@ -155,7 +146,9 @@ local function addAimbot(window, antiAim)
 		toggle(options, source.aimToggle or "target " .. source.name, source, "aim")
 	end
 
-	local trigger = page:CreateSection("triggerbot", "RightSide")
+	local assist = tab:CreateSubTab("assist")
+
+	local trigger = assist:CreateSection("triggerbot", "LeftSide")
 	toggle(trigger, "enabled", settings, "Trigger")
 	off.toggle(trigger, "auto wall")
 	slider(group(trigger, "seeded", settings, "TriggerSeeded"), "legitimacy", settings, "TriggerLegitimacy", 0, 100, true, "%.0f%%")
@@ -165,11 +158,12 @@ local function addAimbot(window, antiAim)
 	slider(trigger, "burst", settings, "TriggerBurst", 0, 250, true, "%.0fms")
 	toggle(trigger, "randomize", settings, "TriggerRandomize")
 	slider(trigger, "min damage", settings, "TriggerMinDamage", 0, 100, true)
+	-- in the place of starline's min accuracy
 	slider(trigger, "hitchance", settings, "TriggerHitchance", 0, 100, true, "%.0f%%")
 	off.toggle(trigger, "auto scope")
 	off.multi(trigger, "auto stop", { "early", "between shots", "in air" })
 
-	local rcs = page:CreateSection("rcs", "RightSide")
+	local rcs = assist:CreateSection("rcs", "RightSide")
 	off.toggle(off.group(rcs, "enabled"), "standalone")
 	off.slider(off.group(rcs, "humanize"), "amount", 0, 15)
 	off.slider(rcs, "vertical", 0, 100, "%.0f%%")
@@ -457,10 +451,10 @@ local function addMisc(window, movement)
 	off.slider(graph, "bg opacity", 0, 1, "%.2f")
 end
 
--- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its antiAim, visuals
--- and movement settings, setNight and setThirdPerson
+-- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals and
+-- movement settings, setNight and setThirdPerson
 return function(window, features)
-	addAimbot(window, features.antiAim)
+	addAimbot(window)
 	addPlayers(window)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches

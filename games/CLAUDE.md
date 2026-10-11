@@ -62,7 +62,7 @@
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
 - `games/bloxstrike/` is starline's whole menu tree (`tabs.lua` over `esp.lua` and `aim.lua`, see the root
   `CLAUDE.md`) with what `main.lua` has behind it: Silent Aim, the trigger's Seeded, Hitchance and Min Damage,
-  Anti-Aim, the Heard source, Third Person, Night Mode, Bullet Tracers, Hit Effect, Bhop (`auto jump`) and Eject.
+  the Heard source, Third Person, Night Mode, Bullet Tracers, Hit Effect, Bhop (`auto jump`) and Eject.
   It replaces the built-in players source's
   `models`, `label` and `health` with the game's own rules below. Team Colors was removed by the user on 2026-10-11. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
@@ -79,11 +79,6 @@
   old values to restore. It does not touch zoom limits or `CameraMode`. Not known: whether shots still
   come from the right place with the camera pulled back.
 - Night mode saves the six Lighting properties it changes and rewrites them every frame while on.
-- Anti-aim (Combat tab) is a straight port, asked for by the user after being told it may only be
-  visible locally: each frame it turns `HumanoidRootPart` so the character's back faces `aim.target` or
-  the nearest un-culled enemy (or away from the camera), and offsets the `Neck` / `Waist` joints' `C0`
-  by the chosen pitch and yaw, restoring the saved `C0` when off or while firing. Unconfirmed: whether the
-  character has those joints at all, and whether any of it replicates to other players.
 - From the user's dump (`hul1ans-hub/bloxstrike_dump.json`, one snapshot of a 10-player match):
   - Fog of war: the game culls players it decides you can't see (it calls this PVS). A live, visible
     player's `player.Character` is `workspace.Characters.<name>`; a culled one is moved to
@@ -338,6 +333,6 @@
 - Since the starline combat port of 2026-10-10 silent aim is the setting `aim.settings.SilentAim`, whose
   toggle is under the aim's Enabled; the shot hook reads it and
   still redirects to `aim.target`. The aim core under it is new and Auto Fire is gone, so Team Check and the
-  silent aim target need seeing again. Anti-aim's Disable On Fire now only looks at the left mouse button.
+  silent aim target need seeing again.
   Not known: whether a shot redirected to `HumanoidRootPart` (the Stomach hitgroup) does damage, and whether
   the triggerbot's `VirtualInputManager` click shows as that button being held.
