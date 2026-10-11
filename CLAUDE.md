@@ -236,7 +236,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   left), and `main.lua`'s movement hook counter-strafes. `between shots` drops the could-fire condition (asked for
   by the user after running it: without the option it must not stay stopped between shots), `early` also sets it
   with a target within the trigger's 6 studs of the view ray, and `in air` lets it act off the ground. Seen by the
-  user on 2026-10-11: auto stop does stop the character.
+  user on 2026-10-11: auto stop does stop the character. Asked for by the user on 2026-10-12: it only acts for an
+  enemy inside the aim's FOV (`max fov`, with the fov mode's scaling, whether the aim is enabled or not), on top of
+  the conditions above. That is measured at the part under the crosshair, and for `early` at the enemy's root, which
+  is where it bites: 6 studs from the view ray is a wide angle up close. Not run.
 - BloxStrike's hit and miss logs (asked for by the user on 2026-10-11, with the wording): the `logs` dropdown in misc ›
   general › others has the hub's `hits` and `misses` in place of starline's five, and `log output` is still a
   placeholder. A line is `Hit <name> for <n> damage in <part> with <n>% hitchance`, or with ` | expected <part>`

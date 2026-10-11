@@ -466,7 +466,17 @@ local function underCrosshair(camera)
 	return nearest, struck, best, walled
 end
 
--- whether a target a shot can get to is beside the view ray, within the trigger's reach of it
+-- whether a point is inside the aim's FOV, as findTarget measures it
+local function inFov(camera, point)
+	local offset = point - camera.CFrame.Position
+	local fov = settings.Fov
+	if settings.FovMode == "dynamic" then
+		fov = scaleFov(fov * camera.FieldOfView / DEFAULT_FOV, offset.Magnitude)
+	end
+	return math.deg(camera.CFrame.LookVector:Angle(offset)) <= fov
+end
+
+-- whether a target a shot can get to is beside the view ray, within the trigger's reach of it and inside the FOV
 local function nearCrosshair(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
@@ -474,7 +484,8 @@ local function nearCrosshair(camera)
 	eachTarget(function(model, root)
 		local offset = root.Position - eye
 		local along = offset:Dot(forward)
-		if not near and along > 0 and (offset - forward * along).Magnitude <= TRIGGER_REACH then
+		local beside = (offset - forward * along).Magnitude <= TRIGGER_REACH
+		if not near and along > 0 and beside and inFov(camera, root.Position) then
 			near = reaches(camera, root.Position, model, settings.TriggerAutoWall)
 		end
 	end)
@@ -670,7 +681,8 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 		end
 		return
 	end
-	if stop then
+	-- only for a target inside the aim's FOV
+	if stop and inFov(camera, part.Position) then
 		aim.stopping = true
 	end
 	-- an unscoped sniper is zoomed first and fired once it is
