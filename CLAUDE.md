@@ -210,9 +210,11 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
   through something has its Min Damage figure multiplied by the gun's `WallbangMultiplier` once. The accuracy card's
-  `min damage` (`MinDamage`, asked for as "autowall min damage" the same day) is the aim's: a point it could only
-  reach through something is left alone when the shot would do less than the setting and less than the target's
-  health. It does not hold the aim off a target in plain sight; that reading of the request is Claude's. With Silent Aim on
+  `min damage` (`MinDamage`, asked for as "autowall min damage" the same day) is the aim's: a point is left alone
+  when the shot would do less than the setting and less than the target's health. At first that only held for a point
+  reached through something, Claude's reading of the request; on 2026-10-12 the user reported the aim taking
+  hitboxes that wouldn't do the damage set, and it now holds in plain sight too. With no gun out there is no figure
+  and every point passes. With Silent Aim on
   the trigger follows the aim's target, so the aim's Auto Wall is the one that counts. A trigger Visible Delay above
   0 still needs the target to have been in sight, so it holds fire on a target only reachable through a wall.
 - BloxStrike's hitgroups are the R15 body's (asked for by the user on 2026-10-11, to reflect Roblox anatomy), not

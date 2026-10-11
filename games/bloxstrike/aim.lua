@@ -222,9 +222,9 @@ local function evaluate(camera, model, forward, fov)
 			return
 		end
 		local reached, through = reaches(camera, point, model, settings.AutoWall)
-		-- a shot through something has to do the minimum damage, unless it would kill
-		if reached and through and settings.MinDamage > 0 then
-			local damage = aim.damage(part, (point - eye).Magnitude, true)
+		-- a shot has to do the minimum damage, in plain sight or through something, unless it would kill
+		if reached and settings.MinDamage > 0 then
+			local damage = aim.damage(part, (point - eye).Magnitude, through)
 			reached = not damage or damage >= math.min(settings.MinDamage, healthOf[model] or math.huge)
 		end
 		if reached then
