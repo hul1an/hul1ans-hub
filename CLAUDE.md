@@ -36,6 +36,9 @@ in an executor in the target game and reported what they saw. Say "written, not 
 - Target is any executor at 100% sUNC. Only call functions sUNC covers. No executor-specific globals
   (`syn`, `fluxus`, `KRNL_LOADED`, ...). If it isn't certain a function is in sUNC, ask before using
   it. `identifyexecutor()` is for logging only, never for branching.
+- Potassium's API docs are at `https://docs.potassium.pro`, with a page index at `/llms.txt`. They list
+  functions beyond sUNC, among them `getproperties`, `decompile` and `saveinstance`; being listed there
+  doesn't make one usable in the hub.
 - Passing sUNC means the functions exist and pass its checks, not that they behave the same in every
   game. Hooks, `getgc`, `getconnections` and the like still have to be seen working in the game.
 - Use `task.spawn / delay / wait`, never `spawn / delay / wait`.
