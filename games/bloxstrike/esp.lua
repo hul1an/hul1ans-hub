@@ -17,7 +17,7 @@ local UNIT = 0.075
 local AVATAR_SIZE = 14
 local ICON_SIZE = Vector2.new(48, 16)
 local ARROW_SHADOW = Vector2.new(2, 2)
--- the visible chams materials that go on a model's own parts, some with an opacity of their own. Each takes the
+-- the visible chams materials that go on a model's own parts, glass see-through even at full opacity. Each takes the
 -- part's Color
 local MATERIALS = {
 	flat = { material = Enum.Material.SmoothPlastic },
@@ -59,8 +59,10 @@ local esp = {
 		SkeletonColor = WHITE,
 		Chams = false,
 		ChamsColor = WHITE,
+		ChamsOpacity = 1,
 		VisibleChams = false,
 		VisibleChamsColor = WHITE,
+		VisibleChamsOpacity = 1,
 		VisibleChamsMaterial = "solid",
 		HealthBar = true,
 		-- the bar's colour at full health; it runs to red as health drops
@@ -337,9 +339,9 @@ local function updateChams(model, source, color)
 	-- a model shows one Highlight and that has one depth mode, so with the glow on a solid fill goes through walls too
 	highlight.DepthMode = settings.Chams and Enum.HighlightDepthMode.AlwaysOnTop or Enum.HighlightDepthMode.Occluded
 	highlight.FillColor = settings.VisibleChamsColor
-	highlight.FillTransparency = solid and 0 or 1
+	highlight.FillTransparency = solid and 1 - settings.VisibleChamsOpacity or 1
 	highlight.OutlineColor = color
-	highlight.OutlineTransparency = settings.Chams and 0 or 1
+	highlight.OutlineTransparency = settings.Chams and 1 - settings.ChamsOpacity or 1
 	highlight.Enabled = true
 end
 
@@ -362,16 +364,16 @@ local function bodyParts(model)
 	return parts
 end
 
--- gives a model's parts a material and a colour, remembering what each had. It runs every frame, so a part the game
--- adds later is done too
-local function paint(model, name, color)
+-- gives a model's parts a material, a colour and an opacity, remembering what each had. It runs every frame, so a part
+-- the game adds later is done too
+local function paint(model, name, color, opacity)
 	local skin = skins[model]
 	if not skin then
 		skin = { parts = {}, taken = {}, decals = {} }
 		skins[model] = skin
 	end
-	local changed = skin.name ~= name or skin.color ~= color
-	skin.name, skin.color = name, color
+	local changed = skin.name ~= name or skin.color ~= color or skin.opacity ~= opacity
+	skin.name, skin.color, skin.opacity = name, color, opacity
 	local look = MATERIALS[name]
 
 	for _, part in bodyParts(model) do
@@ -408,7 +410,7 @@ local function paint(model, name, color)
 		if old and (new or changed) then
 			part.Material = look.material
 			part.Color = color
-			part.Transparency = look.transparency or old.Transparency
+			part.Transparency = 1 - opacity * (1 - (look.transparency or old.Transparency))
 		end
 	end
 end
@@ -649,7 +651,7 @@ local function render()
 			for _, model in source.models(true) do
 				seen[model] = true
 				if material and source == players then
-					paint(model, material, settings.VisibleChamsColor)
+					paint(model, material, settings.VisibleChamsColor, settings.VisibleChamsOpacity)
 				end
 				if not update(model, source, camera, viewport) and sets[model] then
 					hide(model)

@@ -469,10 +469,9 @@ function ui.log(text)
 	end)
 end
 
--- one colour picker shared by every swatch: hue, saturation and value of the colour being edited
+-- one colour picker shared by every swatch: hue, saturation and value of the colour being edited, and its opacity
 local picker = panel(PANEL, 3)
-picker.Size = UDim2.fromOffset(186, 192)
-local hue, saturation, brightness, picked = 0, 0, 1, nil
+local hue, saturation, brightness, opacity, picked = 0, 0, 1, 1, nil
 
 local square = frame({ Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(150, 150), Parent = picker })
 corner(square, 2)
@@ -514,6 +513,20 @@ local handle = frame({
 })
 make("UIStroke", { Color = WHITE, Transparency = 0.72, Parent = handle })
 
+-- the opacity bar, only shown for a swatch that takes an opacity: the colour fading in from the left
+local fade = frame({ BackgroundColor3 = WHITE, Position = UDim2.fromOffset(8, 166), Size = UDim2.fromOffset(150, 12), Parent = picker })
+corner(fade, 2)
+outline(fade, BORDER, 2)
+make("UIGradient", { Transparency = NumberSequence.new(1, 0), Parent = fade })
+local fadeHandle = frame({
+	BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Size = UDim2.new(0, 5, 1, 4),
+	ZIndex = 6,
+	Parent = fade,
+})
+make("UIStroke", { Color = WHITE, Transparency = 0.72, Parent = fadeHandle })
+
 local hex = field(picker, UDim2.fromOffset(8, 166), UDim2.fromOffset(148, 18), "hex")
 local copy = button({
 	BackgroundColor3 = CHIP,
@@ -537,9 +550,11 @@ local function showPicked(report)
 	cursor.Position = UDim2.fromScale(saturation, 1 - brightness)
 	cursor.BackgroundColor3 = color
 	handle.Position = UDim2.fromScale(0.5, hue)
+	fade.BackgroundColor3 = color
+	fadeHandle.Position = UDim2.fromScale(opacity, 0.5)
 	hex.Text = color:ToHex()
 	if report then
-		picked(color)
+		picked(color, opacity)
 	end
 end
 
@@ -549,6 +564,10 @@ slide(button({ Size = UDim2.fromScale(1, 1), ZIndex = 7, Parent = square }), squ
 end)
 slide(button({ Size = UDim2.fromScale(1, 1), ZIndex = 7, Parent = rainbow }), rainbow, function(_, y)
 	hue = y
+	showPicked(true)
+end)
+slide(button({ Size = UDim2.fromScale(1, 1), ZIndex = 7, Parent = fade }), fade, function(x)
+	opacity = x
 	showPicked(true)
 end)
 hex.FocusLost:Connect(function()
@@ -562,9 +581,17 @@ copy.MouseButton1Click:Connect(function()
 	setclipboard(hex.Text)
 end)
 
-local function pickColor(anchor, color, changed)
+-- alpha is the opacity being edited with the colour, 0 to 1, or nil for a swatch that has none; changed gets both
+local function pickColor(anchor, color, changed, alpha)
 	hue, saturation, brightness = color:ToHSV()
+	opacity = alpha or 1
 	picked = changed
+	-- the hex row moves down to make room for the opacity bar
+	local drop = alpha and 20 or 0
+	fade.Visible = alpha ~= nil
+	hex.Parent.Position = UDim2.fromOffset(8, 166 + drop)
+	copy.Position = UDim2.fromOffset(160, 166 + drop)
+	picker.Size = UDim2.fromOffset(186, 192 + drop)
 	showPicked(false)
 	openPopup(picker, anchor.AbsolutePosition.X + 20, anchor.AbsolutePosition.Y)
 end
@@ -740,8 +767,9 @@ function Container:CreateToggle(name, default, callback)
 	local toggle = setmetatable({ row = row, label = text }, Control)
 
 	-- a colour swatch beside the box that opens the picker, white until UpdateColor like a picker of its own.
-	-- it is made before a keybind, whose chip goes to the left of it
-	function toggle:CreateColorpicker(picked)
+	-- it is made before a keybind, whose chip goes to the left of it. With alpha its picker has the opacity bar, picked
+	-- gets the opacity, 0 to 1, after the colour, and a config keeps it as two more hex digits
+	function toggle:CreateColorpicker(picked, alpha)
 		local swatch = button({
 			BackgroundColor3 = WHITE,
 			BackgroundTransparency = 0,
@@ -755,28 +783,28 @@ function Container:CreateToggle(name, default, callback)
 		inset += 17
 		text.Size = UDim2.new(1, -inset, 1, 0)
 
-		local color = WHITE
-		local function apply(value)
-			color = value
+		local color, opacity = WHITE, 1
+		local function apply(value, amount)
+			color, opacity = value, amount or opacity
 			swatch.BackgroundColor3 = value
-			picked(value)
+			picked(value, opacity)
 		end
 		swatch.MouseButton1Click:Connect(function()
-			pickColor(swatch, color, apply)
+			pickColor(swatch, color, apply, alpha and opacity or nil)
 		end)
 
 		table.insert(container.window.controls, {
 			key = container.path .. "/" .. name .. " color",
 			get = function()
-				return color:ToHex()
+				return color:ToHex() .. (alpha and string.format("%02x", math.round(opacity * 255)) or "")
 			end,
 			set = function(value)
-				apply(Color3.fromHex(value))
+				apply(Color3.fromHex(value:sub(1, 6)), alpha and #value == 8 and tonumber(value:sub(7), 16) / 255 or nil)
 			end,
 		})
 		local picker = {}
-		function picker:UpdateColor(value)
-			apply(value)
+		function picker:UpdateColor(value, amount)
+			apply(value, amount)
 		end
 		return picker
 	end

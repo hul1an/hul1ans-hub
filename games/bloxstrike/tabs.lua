@@ -61,11 +61,15 @@ local function multi(parent, name, settings, key, options)
 	end, settings[key])
 end
 
--- the swatch of a toggle or of a group's header
-local function color(control, settings, key)
-	control:CreateColorpicker(function(value)
+-- the swatch of a toggle or of a group's header. opacity is the key of the setting its picker's opacity bar keeps, for
+-- a colour that has one
+local function color(control, settings, key, opacity)
+	control:CreateColorpicker(function(value, amount)
 		settings[key] = value
-	end):UpdateColor(settings[key])
+		if opacity then
+			settings[opacity] = amount
+		end
+	end, opacity ~= nil):UpdateColor(settings[key], opacity and settings[opacity])
 end
 
 -- placeholders: starline's controls that need game code the hub doesn't have, drawn greyed out with nothing behind
@@ -231,7 +235,7 @@ local function addPlayerPage(tab, name, live)
 	for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
 		if live and label == "visible" then
 			local visible = group(chams, label, settings, "VisibleChams")
-			color(visible.header, settings, "VisibleChamsColor")
+			color(visible.header, settings, "VisibleChamsColor", "VisibleChamsOpacity")
 			dropdown(visible, "material", settings, "VisibleChamsMaterial", MATERIALS)
 		else
 			off.dropdown(off.group(chams, label, true), "material")
@@ -242,7 +246,11 @@ local function addPlayerPage(tab, name, live)
 	off.slider(hit, "duration", 0.1, 5, "%.1fs")
 	off.toggle(hit, "glow", true)
 	-- the hub's chams are a Highlight, a glow through walls
-	row(chams, "glow", "Chams")
+	if live then
+		color(toggle(chams, "glow", settings, "Chams"), settings, "ChamsColor", "ChamsOpacity")
+	else
+		off.toggle(chams, "glow", true)
+	end
 
 	if not live then
 		return
