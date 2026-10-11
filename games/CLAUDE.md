@@ -243,12 +243,16 @@
     `Wait`, the server-side `SendTo...`); `Send(payload)` checks the payload against the packet's schema, encodes
     it with `Network.BufferCodec` and fires the remote. `UpdateCameraCFrame` is unreliable, a struct of
     `CameraCFrame` (CFrame) and `UserId`, limited to 60 a second.
-- Temporary: Camera Spoof (test) in the ESP tab's BloxStrike section, asked for by the user on 2026-10-11 to learn
-  whether the fog reads the reported camera (written, not run). The `UpdateCameraCFrame` packet table is found
-  through `getgc(true)` and its `Send` field swapped (`setreadonly`) for a wrapper that, while the toggle is on,
-  moves the reported position to the last known spot of the nearest hidden enemy, 2 studs up, keeping the
-  rotation. It prints once to the console when a report is first moved. It works if enemies near that spot
-  leave `_PVS_CulledCharacters` for `workspace.Characters`. Remove it once that is answered either way.
+- The camera spoof test (2026-10-11, run by the user, removed again; its code is in commit `65ef1de`) answered
+  the question above: the fog does not read the reported camera. It swapped the `Send` field of the
+  `UpdateCameraCFrame` packet table, found through `getgc(true)`, for a wrapper that moved the reported position
+  to the last known spot of the nearest hidden enemy. The console showed a report moved to the enemy spawn,
+  and with the toggle on and the user alive at their own spawn at the start of a round, all six enemies stayed
+  in `_PVS_CulledCharacters` at theirs. So the swap works as a way to change what a packet sends.
+- Seen in the same session while the user was dead with `IsSpectating` true and `SpectatePerspective`
+  `First-Person`: a living enemy was in `workspace.Characters` with a live position and a living teammate was
+  culled, the opposite of what an alive player gets. Read as the server sending the view of whoever is being
+  spectated (the game spectates `LastKiller` first), not confirmed: who was being spectated wasn't read.
 - Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
