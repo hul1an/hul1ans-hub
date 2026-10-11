@@ -7,7 +7,6 @@ local WHITE = Color3.new(1, 1, 1)
 local BLACK = Color3.new(0, 0, 0)
 local GREEN = Color3.fromRGB(80, 220, 100)
 local RED = Color3.fromRGB(230, 60, 60)
-local HIGHLIGHT = Color3.new(1, 0, 0)
 
 local BONES_R15 = {
 	{ "Head", "UpperTorso" },
@@ -71,7 +70,7 @@ function esp.addSource(name, color, models, label)
 		name = name,
 		enabled = true,
 		color = color,
-		maxDistance = 1000,
+		maxDistance = 10000,
 		tracers = false,
 		aim = false,
 		models = models,
@@ -81,7 +80,6 @@ function esp.addSource(name, color, models, label)
 	return source
 end
 
--- esp.highlight is a model drawn in red instead of its source colour, set by the aim assist
 local players = esp.addSource("Players", WHITE, function(skipTeammates)
 	local characters = {}
 	local team = skipTeammates and Players.LocalPlayer.Team
@@ -248,7 +246,7 @@ local function update(model, source, camera, viewport)
 		object.Transparency = opacity
 	end
 
-	local color = model == esp.highlight and HIGHLIGHT or source.colorOf and source.colorOf(model) or source.color
+	local color = source.colorOf and source.colorOf(model) or source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall
 	local width = height / 2

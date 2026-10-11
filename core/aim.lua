@@ -14,6 +14,8 @@ local FIRE_DELAY = 0.05
 local FIRE_HOLD = 0.02
 -- Roblox's default field of view, which a dynamic FOV is scaled against
 local DEFAULT_FOV = 70
+-- the range a dynamic FOV shrinks over, in studs
+local FOV_RANGE = 500
 -- the trigger only tests targets whose root is this near the view ray: starline's 64 units, about a character's height
 local TRIGGER_REACH = 6
 -- a shot this soon after the trigger's click is taken to be the trigger's: the click reaches the game a frame or two on
@@ -77,10 +79,7 @@ local aim = {
 		TriggerLegitimacy = 100,
 		TriggerHitchance = 0,
 		TriggerMinDamage = 0,
-		TeamCheck = false,
-		VisibilityCheck = true,
-		MaxDistance = 500,
-		TargetColor = false,
+		MaxDistance = 10000,
 	},
 }
 
@@ -138,7 +137,7 @@ end
 local function eachTarget(callback)
 	for _, source in esp.sources do
 		if source.aim then
-			for _, model in source.models(settings.TeamCheck) do
+			for _, model in source.models(true) do
 				local health = esp.health(model, source)
 				local root = model:FindFirstChild("HumanoidRootPart")
 				if root and not (health and health <= 0) then
@@ -191,11 +190,11 @@ end
 
 -- starline's dynamic FOV: half as wide again point blank, as set at 30% of the range, 30% of it at full range
 local function scaleFov(fov, distance)
-	local near = settings.MaxDistance * 0.3
+	local near = FOV_RANGE * 0.3
 	if distance <= near then
 		return fov * (1.5 - 0.5 * distance / near)
 	end
-	return fov * (1 - 0.7 * math.clamp((distance - near) / (settings.MaxDistance - near), 0, 1))
+	return fov * (1 - 0.7 * math.clamp((distance - near) / (FOV_RANGE - near), 0, 1))
 end
 
 -- starline's "closest" hitbox selection: of a model's chosen parts, the visible point nearest the crosshair
@@ -207,7 +206,7 @@ local function evaluate(camera, model, forward, fov)
 		local angle = math.deg(forward:Angle(point - eye))
 		if angle <= fov
 			and (not bestAngle or angle < bestAngle)
-			and (not settings.VisibilityCheck or isVisible(camera, point, model)) then
+			and isVisible(camera, point, model) then
 			bestPart, bestPoint, bestAngle = part, point, angle
 		end
 	end
@@ -422,7 +421,7 @@ local function underCrosshair(camera)
 			if distance
 				and distance <= settings.MaxDistance
 				and (not best or distance < best)
-				and (not settings.VisibilityCheck or isVisible(camera, eye + forward * distance, model)) then
+				and isVisible(camera, eye + forward * distance, model) then
 				nearest, struck, best = model, part, distance
 			end
 		end
@@ -566,7 +565,6 @@ function aim.start()
 			model, part, point, fov = findTarget(camera)
 		end
 		aim.target = part
-		esp.highlight = settings.TargetColor and model or nil
 
 		-- the FOV is an angle, so its radius on screen follows the camera's field of view
 		local viewport = camera.ViewportSize
@@ -595,7 +593,6 @@ function aim.start()
 		RunService:UnbindFromRenderStep(STEP_NAME)
 		circle:Remove()
 		aim.target = nil
-		esp.highlight = nil
 	end)
 end
 

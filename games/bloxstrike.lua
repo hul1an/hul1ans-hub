@@ -10,7 +10,6 @@ local Debris = cloneref(game:GetService("Debris"))
 
 local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
-aim.settings.TeamCheck = true
 -- adding this puts the Silent Aim toggle under the aim's Enabled; the shot hook reads it
 aim.settings.SilentAim = false
 -- dead or spectating, the camera is on someone else and there is nothing to shoot with
@@ -273,6 +272,7 @@ end, function(model)
 end)
 
 heardSource.toggle = "Dormant ESP"
+heardSource.aimToggle = "Dormant Aimbot"
 heardSource.opacityOf = function(model)
 	return 1 - (os.clock() - ghosts[model].at) / heard.memory
 end
@@ -823,7 +823,7 @@ local espSection = tabs.esp:CreateSection("BloxStrike", "LeftSide")
 espSection:CreateToggle("Team Colors", visuals.teamColors, function(value)
 	visuals.teamColors = value
 end)
-espSection:CreateSlider("Heard Memory", 1, 10, heard.memory, true, function(value)
+espSection:CreateSlider("Fade Out", 1, 10, heard.memory, true, function(value)
 	heard.memory = value
 end, "%.0f s")
 

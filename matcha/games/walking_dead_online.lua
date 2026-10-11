@@ -116,6 +116,9 @@ local function markerSection(title, group, rescan)
 	section:CreateColorpicker("Color", function(color)
 		group.color = color
 	end):UpdateColor(group.color)
+	section:CreateSlider("Max Distance", 0, 3000, group.maxDistance, true, function(value)
+		group.maxDistance = value
+	end)
 	if rescan then
 		section:CreateSlider("Rescan Delay", 5, 60, group.interval, true, function(value)
 			group.interval = value

@@ -64,7 +64,7 @@
   Hitchance and Min Damage, and Anti-Aim (Combat),
   Team Colors and the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
   (Bhop) and Eject.
-  It turns the aim assist's Team Check on by default and replaces the built-in players source's
+  It replaces the built-in players source's
   `models`, `health` and `colorOf` with the game's own rules below. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
   Auto Fire all work.
@@ -305,10 +305,10 @@
   `_PVS_CulledCharacters` where it had been, and the user's `IsSpectating` was still false. A stop sent in
   between changed nothing either. Not tried: a bot's key, and the other two packets.
 - Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `universal.lua` so it gets its
-  own section and a Target toggle. Its show toggle reads "Dormant ESP" (`toggle` on the source), renamed at the
-  user's request the same day; the section and the Target toggle still say Heard. A footstep or shot under `workspace.Debris` with no living shown character
+  own section and a Target toggle. Its toggles read "Dormant ESP" and "Dormant Aimbot" (`toggle` and `aimToggle` on the source) and
+  its memory slider "Fade Out", renamed at the user's request the same day; the section still says Heard. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
-  a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Heard Memory seconds (1-10,
+  a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Fade Out seconds (1-10,
   default 3) without a sound or once a shown enemy is within 15 studs. Only heard while ESP and the source
   are on. Asked for by the user the same day: it fades over that time (`opacityOf`), is dull grey by default,
   and shows a name in place of the word "Heard". A sound carries no name, so the name is a guess: of the living

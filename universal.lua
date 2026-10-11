@@ -82,16 +82,15 @@ local function addCombat(window)
 	accuracy:CreateToggle("Baim If Lethal (placeholder)", false, nothing)
 	accuracy:CreateToggle("Auto Scope (placeholder)", false, nothing)
 
-	local options = tab:CreateSection("Options", "RightSide")
-	toggle(options, "Team Check", "TeamCheck")
-	toggle(options, "Visibility Check", "VisibilityCheck")
-	toggle(options, "Target Color", "TargetColor")
 	-- players are always targeted, the other sources are opt-in
-	for index = 2, #esp.sources do
-		local source = esp.sources[index]
-		options:CreateToggle("Target " .. source.name, source.aim, function(value)
-			source.aim = value
-		end)
+	if #esp.sources > 1 then
+		local options = tab:CreateSection("Options", "RightSide")
+		for index = 2, #esp.sources do
+			local source = esp.sources[index]
+			options:CreateToggle(source.aimToggle or "Target " .. source.name, source.aim, function(value)
+				source.aim = value
+			end)
+		end
 	end
 
 	local trigger = tab:CreateSection("Triggerbot", "RightSide")
