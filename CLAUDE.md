@@ -31,6 +31,10 @@ in an executor in the target game and reported what they saw. Say "written, not 
 
 **4. Ask questions through the question tool**, not in plaintext.
 
+**5. Changes are for the game being worked on only**, unless the user says otherwise.
+A change asked for while working on one game must not alter what another game's window shows or does.
+Changes that aren't about any game, such as the menu's style, are exempt.
+
 ## Executor rules
 
 - Target is any executor at 100% sUNC. Only call functions sUNC covers. No executor-specific globals
