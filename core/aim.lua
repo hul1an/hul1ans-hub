@@ -101,6 +101,8 @@ local switchUntil = 0
 local seenSince = {}
 local frame = 0
 local acquired, served, reaction, visibleFor, burstUntil
+-- each target's health as eachTarget last saw it, for the trigger's lethal check
+local healthOf = setmetatable({}, { __mode = "k" })
 
 local function isVisible(camera, point, model)
 	-- the camera is excluded because first person viewmodels are parented to it
@@ -140,6 +142,7 @@ local function eachTarget(callback)
 				local health = esp.health(model, source)
 				local root = model:FindFirstChild("HumanoidRootPart")
 				if root and not (health and health <= 0) then
+					healthOf[model] = health
 					callback(model, root, health)
 				end
 			end
@@ -531,8 +534,9 @@ local function trigger(camera, now, aimed, aimedPart)
 		return
 	end
 
+	-- a shot that would kill passes whatever the setting
 	local damage = settings.TriggerMinDamage > 0 and aim.damage and aim.damage(part, distance)
-	if damage and damage < settings.TriggerMinDamage then
+	if damage and damage < math.min(settings.TriggerMinDamage, healthOf[model] or math.huge) then
 		return
 	end
 
