@@ -254,6 +254,10 @@
     for `AimingOptions == "SniperScope"`, steps `CurrentScopeIncrement` (a third call unscopes); for
     `"AutomaticScope"` it toggles. A sniper unscopes itself after a shot and scopes again if the player's Auto
     Re-Zoom setting is on.
+  - `Weapon:shoot` sets `IsShooting` and a `ShootDelayThread` clears it once the fire rate has run; it returns early
+    while `IsShooting`, while reloading and with no `Rounds` (it reloads instead). It also hangs the client on purpose
+    (`while true do end`) if the weapon's `Properties` table can be written to, or if its `FireRate`,
+    `BulletsPerShot`, `Range` or `Penetration` differ from a reference copy, so the hub must only ever read them.
   - `aim.scope` in `main.lua` (written, not run) runs it with `task.spawn(weapon.scope, weapon, true)` so the call has
     no hub function under it on the stack.
   - A command's `Move` is a Vector2, X to the right and Y forward, and becomes the simulation's `MoveVector`.

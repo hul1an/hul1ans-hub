@@ -90,6 +90,12 @@ aim.scope = function()
 	return true
 end
 
+-- whether the gun that is out could fire now: not between two shots, reloading or empty
+aim.ready = function()
+	local weapon = equipped and equipped.IsActive and equipped.Weapon
+	return weapon and not (weapon.IsShooting or weapon.IsReloading) and weapon.Rounds > 0
+end
+
 -- the game's numbers are CS2's, where damage falls by the gun's RangeModifier every 500 units; a unit is 0.075 studs here
 local FALLOFF = 37.5
 

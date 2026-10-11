@@ -38,15 +38,14 @@ local HITGROUPS = {
 local EVERY = { "head", "upper torso", "lower torso", "arms", "hands", "legs", "feet" }
 -- what force baim and baim if lethal aim at in place of the chosen hitgroups
 local BODY = { "upper torso", "lower torso" }
--- how long "between shots" keeps the auto stop on after a shot of the trigger's
-local STOP_HOLD = 0.25
 
 -- aim.target is the part currently aimed at, or nil; main.lua's shot hook reads it.
 -- main.lua sets aim.blocked, a function that returns true while the aim and the trigger must stay off;
 -- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out;
 -- aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise;
 -- aim.pierces, a function that returns whether a bullet would get from a position to a point on a model;
--- and aim.scope, a function that zooms an unscoped sniper and returns whether it had to.
+-- aim.scope, a function that zooms an unscoped sniper and returns whether it had to;
+-- and aim.ready, a function that returns whether the gun out could fire now.
 -- aim.stopping is true while the trigger's auto stop wants the character still; main.lua's movement hook reads it
 local aim = {
 	settings = {
@@ -595,11 +594,9 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	end
 
 	-- starline's auto stop is on with any of its options chosen: it holds the character still while a target is under
-	-- the crosshair, and each option adds to when
+	-- the crosshair and the gun could fire, or with between shots whether it could or not
 	local stops = settings.TriggerAutoStop
-	if table.find(stops, "between shots") and now - lastShot < STOP_HOLD then
-		aim.stopping = true
-	end
+	local stop = #stops > 0 and (table.find(stops, "between shots") or aim.ready())
 
 	-- after a shot it keeps firing for the burst time, target or not
 	if burstUntil then
@@ -622,12 +619,12 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	if not model then
 		acquired, served, reaction = nil, false, nil
 		-- early, the stop begins with a target beside the crosshair
-		if table.find(stops, "early") and nearCrosshair(camera) then
+		if stop and table.find(stops, "early") and nearCrosshair(camera) then
 			aim.stopping = true
 		end
 		return
 	end
-	if #stops > 0 then
+	if stop then
 		aim.stopping = true
 	end
 	-- an unscoped sniper is zoomed first and fired once it is

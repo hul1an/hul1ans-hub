@@ -158,8 +158,11 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   hitgroups. Auto scope calls `aim.scope()`, set by `main.lua`: the aim's whenever it has a target, the trigger's when
   a target is under the crosshair, holding fire until the sniper is zoomed. Auto stop is on with any of its options
   chosen (Claude's reading; starline has no plain option): `aim.stopping` is set while a target is under the
-  crosshair and `main.lua`'s movement hook counter-strafes. `early` also sets it with a target within the trigger's
-  6 studs of the view ray, `between shots` for 0.25 s after a trigger shot, and `in air` lets it act off the ground.
+  crosshair and the gun could fire (`aim.ready()`, set by `main.lua`: not `IsShooting`, not `IsReloading`, rounds
+  left), and `main.lua`'s movement hook counter-strafes. `between shots` drops the could-fire condition (asked for
+  by the user after running it: without the option it must not stay stopped between shots), `early` also sets it
+  with a target within the trigger's 6 studs of the view ray, and `in air` lets it act off the ground. Seen by the
+  user on 2026-10-11: auto stop does stop the character.
 - BloxStrike's hit and miss logs (asked for by the user on 2026-10-11, with the wording): the `logs` dropdown in misc ›
   general › others has the hub's `hits` and `misses` in place of starline's five, and `log output` is still a
   placeholder. A line is `Hit <name> for <n> damage in <part> with <n>% hitchance`, or with ` | expected <part>`
