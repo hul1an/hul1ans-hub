@@ -68,6 +68,12 @@
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
   Auto Fire all work.
 - One `_performRaycast` hook does silent aim, tracers and the hit effect, under a single pcall.
+- The aim and the triggerbot are off while the local Player's `Dead` or `IsSpectating` attribute is set
+  (`aim.blocked`, written 2026-10-11, not run), asked for because the triggerbot kept clicking while spectating.
+  Both attributes were read as `false` on the living local player through the bridge; their values while
+  dead or spectating haven't been seen. `Controllers.SpectateController` also counts its own spectate and
+  freecam instances as spectating (`IsSpectatingNow`), which the hub doesn't read. The local player's `Team`
+  can be `Spectators`, per that module.
 - Third person binds a render step two after the camera's (one after the aim assist), shows the local
   character and hides every Model under the camera through `LocalTransparencyModifier`, remembering the
   old values to restore. It does not touch zoom limits or `CameraMode`. Not known: whether shots still

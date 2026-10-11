@@ -39,7 +39,8 @@ local HITGROUPS = {
 -- what force baim aims at in place of the chosen hitgroups
 local BODY = { "Chest", "Stomach", "Pelvis" }
 
--- aim.target is the part currently aimed at, or nil; game files read it
+-- aim.target is the part currently aimed at, or nil; game files read it.
+-- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off
 local aim = {
 	settings = {
 		Enabled = false,
@@ -494,7 +495,8 @@ function aim.start()
 	RunService:BindToRenderStep(STEP_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local camera = workspace.CurrentCamera
 		local now = os.clock()
-		local blocked = table.find(settings.Disablers, "Jump") ~= nil and airborne(camera)
+		local blocked = aim.blocked and aim.blocked()
+			or table.find(settings.Disablers, "Jump") ~= nil and airborne(camera)
 
 		local model, part, point
 		local fov = settings.Fov

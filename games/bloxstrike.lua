@@ -12,6 +12,11 @@ local aim = hub.require("core/aim.lua")
 aim.settings.TeamCheck = true
 -- adding this puts the Silent Aim toggle under the aim's Enabled; the shot hook reads it
 aim.settings.SilentAim = false
+-- dead or spectating, the camera is on someone else and there is nothing to shoot with
+aim.blocked = function()
+	local player = Players.LocalPlayer
+	return player:GetAttribute("Dead") or player:GetAttribute("IsSpectating")
+end
 
 local THIRD_PERSON_STEP = "HubThirdPerson"
 local TEAM_COLORS = {
