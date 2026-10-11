@@ -127,6 +127,9 @@ hash, falling back to `main` if the API call fails (unauthenticated limit is 60 
 user's one-liner for `loader.lua` itself can't do that: after a push use the commit hash in its URL, or
 wait out the cache.
 
+Commit and push finished changes straight to `main` without asking (told by the user on 2026-10-11): the
+loadstring is how they run anything, so a change that isn't pushed can't be tested.
+
 ## Conventions
 
 Defaults until the first files set the pattern:
