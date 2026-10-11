@@ -106,8 +106,12 @@ local function addAimbot(window)
 	enabled.header:CreateKeybind("NONE")
 	local fov = toggle(enabled, "draw fov", settings, "DrawFov")
 	color(fov, settings, "FovColor")
-	-- the hub's own
+	-- the hub's own: silent aim, and a toggle for each source but the players, who are always targeted
 	toggle(general, "silent aim", settings, "SilentAim")
+	for index = 2, #esp.sources do
+		local source = esp.sources[index]
+		toggle(general, source.aimToggle or "target " .. source.name, source, "aim")
+	end
 	multi(general, "disablers", settings, "Disablers", { "flash (placeholder)", "smoke (placeholder)", "jump" })
 
 	local targeting = page:CreateSection("targeting", "LeftSide")
@@ -138,13 +142,6 @@ local function addAimbot(window)
 	toggle(accuracy, "force baim", settings, "ForceBaim")
 	off.toggle(accuracy, "baim if lethal")
 	off.toggle(accuracy, "auto scope")
-
-	-- the hub's own: players are always targeted, the other sources are opt-in
-	local options = page:CreateSection("options", "RightSide")
-	for index = 2, #esp.sources do
-		local source = esp.sources[index]
-		toggle(options, source.aimToggle or "target " .. source.name, source, "aim")
-	end
 
 	local assist = tab:CreateSubTab("assist")
 

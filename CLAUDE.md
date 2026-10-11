@@ -124,7 +124,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   grey out and label what the hub has no code for, keep the empty pages). Every name and option is lowercase as
   starline's are, so the option values in BloxStrike's `aim.lua` are lowercase too (`"head"`,
   `"static"`), and target selection's crosshair option is `fov`, starline's name for it. Where the hub's own
-  features went: `silent aim` and the `options` card on aimbot › aimbot, a card per ESP source on players › enemies, `night mode` in world ›
+  features went: `silent aim` with the sources' aim toggles (`dormant aimbot`) under it in aimbot › aimbot's general card (the
+  `options` card went on 2026-10-11, at the user's request), a card per ESP source on players › enemies, `night mode` in world ›
   general, `hit effect` in effects, `eject` in misc › general › main. Starline rows with hub code behind them: the esp
   card's enabled, bounding box, name, skeleton and health bar, the chams card's glow (the hub's Highlight chams),
   bullet tracers with size and time, third person with distance (in studs, not starline's 50 to 160), auto jump (Bhop).
