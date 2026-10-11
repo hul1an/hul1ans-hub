@@ -7,15 +7,15 @@ local Lighting = game:GetService("Lighting")
 
 local esp = hub.require("core/esp.lua")
 local aim = hub.require("core/aim.lua")
-aim.settings.TeamCheck = true
+-- dead or spectating, the camera is on someone else and there is nothing to shoot with
+aim.blocked = function()
+	local player = Players.LocalPlayer
+	return player:GetAttribute("Dead") or player:GetAttribute("IsSpectating")
+end
 
 -- third person's wall check needs a raycast that ignores the character, and Matcha documents no RaycastParams
 local hasParams = RaycastParams ~= nil
 
-local TEAM_COLORS = {
-	Terrorists = Color3.fromRGB(204, 170, 80),
-	["Counter-Terrorists"] = Color3.fromRGB(100, 149, 200),
-}
 local NIGHT = {
 	ClockTime = 0,
 	Brightness = 2,
@@ -26,7 +26,6 @@ local NIGHT = {
 }
 
 local visuals = {
-	teamColors = false,
 	thirdPersonDistance = 12,
 }
 
@@ -98,10 +97,6 @@ end
 
 players.health = function(character)
 	return character:GetAttribute("Health"), character:GetAttribute("MaxHealth")
-end
-
-players.colorOf = function(character)
-	return visuals.teamColors and TEAM_COLORS[teamOf(character)] or nil
 end
 
 local window = hub.ui.createWindow("BloxStrike")
@@ -337,11 +332,6 @@ antiAimSection:CreateSlider("Spin Speed", 1, 50, antiAim.spinSpeed, true, functi
 end)
 antiAimSection:CreateToggle("Disable On Fire", antiAim.disableOnFire, function(value)
 	antiAim.disableOnFire = value
-end)
-
-local espSection = tabs.esp:CreateSection("BloxStrike", "LeftSide")
-espSection:CreateToggle("Team Colors", visuals.teamColors, function(value)
-	visuals.teamColors = value
 end)
 
 local visualsTab = window:CreateTab("Visuals", "eye")

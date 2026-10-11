@@ -18,10 +18,11 @@ end
 local hub = {}
 local modules = {}
 
--- httpget answers a failed request with an empty body, not a status code
+-- httpget answers a failed request with the error page's body, not a status code, and a body like
+-- "404: Not Found" would otherwise surface as a parse error one loadstring later
 function hub.fetch(url)
 	local body = httpget(url)
-	assert(body ~= "", url .. " returned nothing")
+	assert(body ~= "" and not body:find("^%d%d%d: "), url .. " returned nothing usable")
 	return body
 end
 
@@ -29,14 +30,16 @@ function hub.read(path)
 	return hub.fetch(BASE_URL .. path)
 end
 
--- Matcha's loadstring drops the chunk's return, so each module is wrapped in a vararg function
--- and taken from the chunk's environment
+-- Matcha's loadstring drops the chunk's return and its setfenv refuses a loadstring'd function,
+-- so the module is wrapped in a call that runs it with hub and leaves the module in a named global
 function hub.load(path)
-	local env = setmetatable({}, { __index = _G })
-	local chunk = loadstring("module = (function(...)\n" .. hub.read(path) .. "\nend)", "=" .. path)
-	setfenv(chunk, env)
-	chunk()
-	return assert(env.module, path .. " did not compile")(hub)
+	local key = "__hub_" .. path:gsub("%W", "_")
+	local chunk = loadstring(key .. " = (function(...)\n" .. hub.read(path) .. "\nend)(...)", "=" .. path)
+	chunk(hub)
+	local env = getfenv(chunk)
+	local loaded = env[key]
+	env[key] = nil
+	return assert(loaded, path .. " did not compile")
 end
 
 function hub.require(path)

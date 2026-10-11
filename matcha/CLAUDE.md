@@ -4,7 +4,9 @@ The same hub for [Matcha](https://matcha-latte.win), an external LuaVM that emul
 instead of hooking the engine. Its docs are at `https://huoadf.github.io/matcha-docs/llms-full.txt`.
 Run with
 `loadstring(httpget("https://raw.githubusercontent.com/hul1an/hul1ans-hub/main/matcha/loader.lua"))()`.
-Nothing here has run in Matcha yet.
+The tree is synced with `main`'s executor state of 2026-10-11 (per-element ESP colours, team and
+visibility checks always on, the trigger's Min Damage gate and spread machinery) and nothing here has
+run in Matcha yet.
 
 ## What Matcha takes away
 
@@ -12,13 +14,17 @@ Nothing here has run in Matcha yet.
   Highlight chams. `core/ui.lua` is an adapter over Matcha's own `UI.AddTab` binding, whose tab
   callbacks are re-emitted every frame, and the ESP has no Chams toggle.
 - No hooks. `hookfunction`, `hookmetamethod`, `newcclosure` and `getnamecallmethod` don't exist, so
-  BloxStrike silent aim, bullet tracers, the hit effect and auto bunnyhop, and The Walking Dead
-  Online's auto loot and remote logger, are not ported. Matcha ships its own BloxStrike silent aim
-  and team check; those cover the shooting.
+  BloxStrike silent aim, bullet tracers, the hit effect and auto bunnyhop, the heard-enemies source
+  (its ghosts are `Instance.new` models, and it watches `DescendantAdded`), the game file's
+  `aim.spread` and `aim.damage` hooks, and The Walking Dead Online's auto loot and remote logger are
+  not ported. Matcha ships its own BloxStrike silent aim and team check; those cover the shooting,
+  and the trigger's Seeded, Hitchance and Min Damage controls stay hidden here because the hooks they
+  read can't exist.
 - `task.delay` and `task.defer` never run their callbacks and `task.spawn` drops extra arguments, so
   nothing here uses them. The triggerbot presses and releases its click from the render loop.
-- A chunk's `loadstring` return is dropped, so `hub.load` wraps each module in a function and takes
-  the module from the chunk's environment.
+- A chunk's `loadstring` return is dropped and its `setfenv` refuses a loadstring'd function (seen
+  on the first run), so `hub.load` wraps each module in a call that runs it with `hub` and reads the
+  module back out of the chunk's own environment under a named key.
 - No `WorldToViewportPoint`: the global `WorldToScreen` returns a Vector2 and an on-screen boolean.
 - `RaycastParams` isn't documented. The aim's visibility check branches on whether the class exists;
   without it a hit on the target model itself counts as visible, the jump disabler's ground ray
@@ -26,7 +32,8 @@ Nothing here has run in Matcha yet.
   because its wall check would only ever hit the local character.
 - No `cloneref`, `gethui`, `getcustomasset`, `getgenv`, `request` or `Random`. Services come from
   `game:GetService` directly, randomness from `math.random`, the single-instance guard lives in
-  `_G.Hub`, and HTTP goes through `httpget`, which answers a failure with an empty body.
+  `_G.Hub`, and HTTP goes through `httpget`, which answers a failure with the error page's body
+  (`404: Not Found`), so `hub.fetch` rejects bodies that start `<code>: `.
 - `Player.DisplayName`, `GetPlayerFromCharacter` and `GetPlayerByUserId` aren't documented; labels
   and owners come from scanning `GetPlayers` for `Name` and `UserId`.
 - `Color3:Lerp` and `GetPivot` aren't documented. `core/esp.lua` mixes the health bar colour by
