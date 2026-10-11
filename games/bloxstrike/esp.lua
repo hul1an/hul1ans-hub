@@ -86,7 +86,7 @@ function esp.addSource(name, color, models, label)
 	return source
 end
 
-local players = esp.addSource("Players", nil, function(skipTeammates)
+local players = esp.addSource("players", nil, function(skipTeammates)
 	local characters = {}
 	local team = skipTeammates and Players.LocalPlayer.Team
 	for _, player in Players:GetPlayers() do

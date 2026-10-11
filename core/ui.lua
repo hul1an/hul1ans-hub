@@ -546,6 +546,17 @@ function Control:AddToolTip(text)
 	end)
 end
 
+-- greys the row out and stops it taking clicks, for a control with nothing behind it; a group's chevron stays above it
+function Control:Disable()
+	button({
+		BackgroundColor3 = CARD,
+		BackgroundTransparency = 0.45,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 2,
+		Parent = self.row,
+	})
+end
+
 -- sections and groups: a stack of rows
 local Container = {}
 Container.__index = Container
@@ -677,7 +688,7 @@ function Container:CreateToggle(name, default, callback)
 	end)
 
 	local container = self
-	local toggle = setmetatable({ row = row }, Control)
+	local toggle = setmetatable({ row = row, label = text }, Control)
 
 	-- a colour swatch beside the box that opens the picker, white until UpdateColor like a picker of its own.
 	-- it is made before a keybind, whose chip goes to the left of it
@@ -1088,28 +1099,24 @@ function Container:CreateTextBox(name, placeholder, numbersOnly, callback)
 	return setmetatable({ row = row }, Control)
 end
 
--- a row that folds out its own indented rows; with a callback the row is also a toggle
+-- a row that folds out its own indented rows; with a callback the row is also a toggle.
+-- the container's header is that row's control, the toggle when there is one
 function Container:CreateGroup(name, default, callback)
-	local row
+	local header
 	if callback then
-		row = self:CreateToggle(name, default, callback).row
+		header = self:CreateToggle(name, default, callback)
 	else
-		row = self:row(22)
+		local row = self:row(22)
 		wash(row, 6.375)
-		label(LABEL, { Text = name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -17, 1, 0), Parent = row })
+		local text = label(LABEL, { Text = name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -17, 1, 0), Parent = row })
 		self:register(name, row)
+		header = setmetatable({ row = row, label = text }, Control)
 	end
-	local chip = button({
-		BackgroundColor3 = CHIP,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, callback and -17 or 0, 0, 4),
-		Size = UDim2.fromOffset(13, 13),
-		ZIndex = 2,
-		Parent = row,
-	})
+	local row, text = header.row, header.label
+	local chip = button({ BackgroundColor3 = CHIP, Size = UDim2.fromOffset(13, 13), ZIndex = 3, Parent = row })
 	corner(chip, 2)
 	local chevron = icon("expand-chev", {
-		ImageColor3 = MUTED,
+		ImageColor3 = GUIDE,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
 		Parent = chip,
@@ -1117,6 +1124,14 @@ function Container:CreateGroup(name, default, callback)
 	hover(chip, function(amount)
 		chip.BackgroundTransparency = 1 - amount
 	end)
+	-- the chevron follows the name, and sits on its end when the name is cut short
+	local function place()
+		local width = math.min(text.TextBounds.X, text.AbsoluteSize.X - 13 * zoom.Scale) / zoom.Scale
+		chip.Position = UDim2.fromOffset(math.round(width) + 3, 4)
+	end
+	text:GetPropertyChangedSignal("TextBounds"):Connect(place)
+	text:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	place()
 
 	self.rows += 1
 	local body = frame({
@@ -1162,6 +1177,7 @@ function Container:CreateGroup(name, default, callback)
 		path = self.path .. "/" .. name,
 		holder = holder,
 		rows = 0,
+		header = header,
 	}, Container)
 end
 

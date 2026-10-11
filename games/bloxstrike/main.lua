@@ -58,6 +58,7 @@ local visuals = {
 	thirdPersonDistance = 12,
 	tracers = false,
 	tracerColor = Color3.fromRGB(255, 41, 116),
+	tracerSize = 0.08,
 	tracerDuration = 1.2,
 	hitEffect = false,
 }
@@ -234,7 +235,7 @@ local function identify(ghost, position, weapon)
 	return nearest, #candidates == 1
 end
 
-local heardSource = esp.addSource("Heard", Color3.fromRGB(150, 150, 150), function()
+local heardSource = esp.addSource("heard", Color3.fromRGB(150, 150, 150), function()
 	local now = os.clock()
 	local models = {}
 	for model, ghost in ghosts do
@@ -260,10 +261,10 @@ end, function(model)
 	return players.label(ghost.character) .. (ghost.certain and "" or "?")
 end)
 
-heardSource.toggle = "Dormant ESP"
-heardSource.aimToggle = "Dormant Aimbot"
+heardSource.toggle = "dormant esp"
+heardSource.aimToggle = "dormant aimbot"
 heardSource.options = function(section)
-	section:CreateSlider("Fade Out", 1, 10, heard.memory, true, function(value)
+	section:CreateSlider("fade out", 1, 10, heard.memory, true, function(value)
 		heard.memory = value
 	end, "%.0f s")
 end
@@ -339,9 +340,6 @@ hub.cleanup.add(function()
 	table.clear(ghosts)
 end)
 
-local window = hub.ui.createWindow("BloxStrike")
-local tabs = hub.require("games/bloxstrike/tabs.lua")(window)
-
 -- tracers and hit effects live under the camera, where the aim assist's visibility ray ignores them
 local effects = hub.cleanup.add(Instance.new("Folder"))
 effects.Parent = workspace.CurrentCamera
@@ -370,7 +368,7 @@ local function tracer(from, to)
 	local part = effectPart()
 	part.Color = visuals.tracerColor
 	part.Transparency = 0.15
-	part.Size = Vector3.new(0.08, 0.08, length)
+	part.Size = Vector3.new(visuals.tracerSize, visuals.tracerSize, length)
 	part.CFrame = CFrame.lookAt(from, to) * CFrame.new(0, 0, -length / 2)
 	part.Parent = effects
 	fade(part, visuals.tracerDuration, { Transparency = 1 })
@@ -629,9 +627,9 @@ end)
 -- anti-aim turns the local character's back to the nearest enemy and bends its neck and waist joints
 local antiAim = {
 	enabled = false,
-	pitch = "Down",
+	pitch = "down",
 	customPitch = 0,
-	yaw = "AtTargets",
+	yaw = "at targets",
 	spinSpeed = 15,
 	disableOnFire = true,
 }
@@ -695,23 +693,23 @@ local function antiAimStep()
 	end
 
 	local pitch = math.rad(-89)
-	if antiAim.pitch == "Up" then
+	if antiAim.pitch == "up" then
 		pitch = math.rad(89)
-	elseif antiAim.pitch == "Jitter" then
+	elseif antiAim.pitch == "jitter" then
 		pitch = math.rad(math.random() > 0.5 and -89 or 89)
-	elseif antiAim.pitch == "Custom" then
+	elseif antiAim.pitch == "custom" then
 		pitch = math.rad(antiAim.customPitch)
 	end
 
 	local yaw = 0
-	if antiAim.yaw == "Spinbot" then
+	if antiAim.yaw == "spinbot" then
 		spin = (spin + antiAim.spinSpeed) % 360
 		yaw = math.rad(spin)
-	elseif antiAim.yaw == "Jitter" then
+	elseif antiAim.yaw == "jitter" then
 		yaw = math.rad(math.random() > 0.5 and 90 or -90)
-	elseif antiAim.yaw == "Sideways" then
+	elseif antiAim.yaw == "sideways" then
 		yaw = math.rad(90)
-	elseif antiAim.yaw == "Backwards" then
+	elseif antiAim.yaw == "backwards" then
 		yaw = math.pi
 	end
 
@@ -732,7 +730,7 @@ local function antiAimStep()
 		setJoint(waist, CFrame.Angles(pitch * 0.4, 0, 0))
 	end
 	if rootJoint then
-		setJoint(rootJoint, antiAim.yaw == "Spinbot" and CFrame.Angles(0, 0, yaw) or CFrame.identity)
+		setJoint(rootJoint, antiAim.yaw == "spinbot" and CFrame.Angles(0, 0, yaw) or CFrame.identity)
 	end
 end
 
@@ -793,57 +791,11 @@ else
 	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop", "error")
 end
 
-local antiAimSection = tabs.combat:CreateSection("Anti-Aim", "RightSide")
-antiAimSection:CreateToggle("Enabled", antiAim.enabled, function(value)
-	antiAim.enabled = value
-end)
-antiAimSection:CreateDropdown("Pitch", { "Down", "Up", "Jitter", "Custom" }, function(value)
-	antiAim.pitch = value
-end, antiAim.pitch)
-antiAimSection:CreateSlider("Custom Pitch", -89, 89, antiAim.customPitch, true, function(value)
-	antiAim.customPitch = value
-end)
-antiAimSection:CreateDropdown("Yaw", { "AtTargets", "Backwards", "Spinbot", "Jitter", "Sideways", "Off" }, function(value)
-	antiAim.yaw = value
-end, antiAim.yaw)
-antiAimSection:CreateSlider("Spin Speed", 1, 50, antiAim.spinSpeed, true, function(value)
-	antiAim.spinSpeed = value
-end)
-antiAimSection:CreateToggle("Disable On Fire", antiAim.disableOnFire, function(value)
-	antiAim.disableOnFire = value
-end)
-
-local visualsTab = window:CreateTab("Visuals", "eye")
-
-local cameraSection = visualsTab:CreateSection("Camera", "LeftSide")
-cameraSection:CreateToggle("Third Person", false, setThirdPerson):CreateKeybind("NONE")
-cameraSection:CreateSlider("Distance", 5, 30, visuals.thirdPersonDistance, true, function(value)
-	visuals.thirdPersonDistance = value
-end)
-
-visualsTab:CreateSection("World", "LeftSide"):CreateToggle("Night Mode", false, setNight)
-
-local shots = visualsTab:CreateSection("Shots", "RightSide")
-shots
-	:CreateToggle("Bullet Tracers", visuals.tracers, function(value)
-		visuals.tracers = value
-	end)
-	:CreateColorpicker(function(color)
-		visuals.tracerColor = color
-	end)
-	:UpdateColor(visuals.tracerColor)
-shots:CreateSlider("Tracer Duration", 0.5, 4, visuals.tracerDuration, false, function(value)
-	visuals.tracerDuration = value
-end)
-shots:CreateToggle("Hit Effect", visuals.hitEffect, function(value)
-	visuals.hitEffect = value
-end)
-
-local jumping = window:CreateTab("Movement", "layers"):CreateSection("Jumping", "LeftSide")
-if runtime then
-	jumping:CreateToggle("Bhop",movement.bunnyhop, function(value)
-		movement.bunnyhop = value
-	end)
-end
-
-window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
+local window = hub.ui.createWindow("BloxStrike")
+hub.require("games/bloxstrike/tabs.lua")(window, {
+	antiAim = antiAim,
+	visuals = visuals,
+	movement = movement,
+	setNight = setNight,
+	setThirdPerson = setThirdPerson,
+})

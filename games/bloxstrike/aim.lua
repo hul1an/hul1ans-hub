@@ -26,11 +26,11 @@ local CHANCE_SPOKES = 12
 local AXES = { "X", "Y", "Z" }
 -- the part names behind starline's hitgroups, R15 and R6
 local HITGROUPS = {
-	Head = { "Head" },
-	Chest = { "UpperTorso", "Torso" },
-	Stomach = { "HumanoidRootPart" },
-	Pelvis = { "LowerTorso" },
-	Arms = {
+	head = { "Head" },
+	chest = { "UpperTorso", "Torso" },
+	stomach = { "HumanoidRootPart" },
+	pelvis = { "LowerTorso" },
+	arms = {
 		"LeftUpperArm",
 		"LeftLowerArm",
 		"LeftHand",
@@ -40,11 +40,11 @@ local HITGROUPS = {
 		"Left Arm",
 		"Right Arm",
 	},
-	Legs = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg", "Left Leg", "Right Leg" },
-	Feet = { "LeftFoot", "RightFoot" },
+	legs = { "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg", "Left Leg", "Right Leg" },
+	feet = { "LeftFoot", "RightFoot" },
 }
 -- what force baim aims at in place of the chosen hitgroups
-local BODY = { "Chest", "Stomach", "Pelvis" }
+local BODY = { "chest", "stomach", "pelvis" }
 
 -- aim.target is the part currently aimed at, or nil; main.lua's shot hook reads it.
 -- main.lua sets aim.blocked, a function that returns true while the aim and the trigger must stay off;
@@ -57,10 +57,10 @@ local aim = {
 		DrawFov = false,
 		FovColor = Color3.new(1, 1, 1),
 		Disablers = {},
-		Selection = "Crosshair",
-		FovMode = "Static",
+		Selection = "crosshair",
+		FovMode = "static",
 		Fov = 10,
-		Hitgroups = { "Head" },
+		Hitgroups = { "head" },
 		Multipoint = false,
 		MultipointScale = 50,
 		Smoothing = false,
@@ -71,7 +71,7 @@ local aim = {
 		MouseOverride = 100,
 		ForceBaim = false,
 		Trigger = false,
-		TriggerHitgroups = { "Head", "Chest", "Stomach", "Pelvis", "Arms", "Legs", "Feet" },
+		TriggerHitgroups = { "head", "chest", "stomach", "pelvis", "arms", "legs", "feet" },
 		TriggerDelay = 0,
 		TriggerVisibleDelay = 0,
 		TriggerBurst = 0,
@@ -241,7 +241,7 @@ end
 local function findTarget(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
-	local dynamic = settings.FovMode == "Dynamic"
+	local dynamic = settings.FovMode == "dynamic"
 	-- a dynamic FOV keeps its size on screen when the view zooms
 	local base = dynamic and settings.Fov * camera.FieldOfView / DEFAULT_FOV or settings.Fov
 	local drawn, nearest = base, base * 1.5
@@ -264,9 +264,9 @@ local function findTarget(camera)
 		end
 
 		local score = distance
-		if settings.Selection == "Crosshair" then
+		if settings.Selection == "crosshair" then
 			score = angle
-		elseif settings.Selection == "Health" then
+		elseif settings.Selection == "health" then
 			score = health or math.huge
 		end
 		if not bestScore or score < bestScore then
@@ -558,7 +558,7 @@ function aim.start()
 		local camera = workspace.CurrentCamera
 		local now = os.clock()
 		local blocked = aim.blocked and aim.blocked()
-			or table.find(settings.Disablers, "Jump") ~= nil and airborne(camera)
+			or table.find(settings.Disablers, "jump") ~= nil and airborne(camera)
 
 		local model, part, point
 		local fov = settings.Fov

@@ -60,11 +60,9 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike/` is its own Combat and ESP tabs (`tabs.lua` over `esp.lua` and `aim.lua`) plus what `main.lua`
-  adds: Silent Aim, the trigger's Seeded,
-  Hitchance and Min Damage, and Anti-Aim (Combat),
-  the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
-  (Bhop) and Eject.
+- `games/bloxstrike/` is starline's whole menu tree (`tabs.lua` over `esp.lua` and `aim.lua`, see the root
+  `CLAUDE.md`) with what `main.lua` has behind it: Silent Aim, the trigger's Seeded, Hitchance and Min Damage,
+  Anti-Aim, the Heard source, Third Person, Night Mode, Bullet Tracers, Hit Effect, Bhop (`auto jump`) and Eject.
   It replaces the built-in players source's
   `models`, `label` and `health` with the game's own rules below. Team Colors was removed by the user on 2026-10-11. Confirmed by the user: ghost boxes
   are gone, Team Check works, silent aim works, and the Visuals tab, Team Colors, Skeleton, Chams and
