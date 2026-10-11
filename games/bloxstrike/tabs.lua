@@ -239,18 +239,14 @@ local function addPlayerPage(tab, name, live)
 	if not live then
 		return
 	end
-	-- the hub's own: a card for each of the esp's sources
-	for _, source in esp.sources do
+	-- the hub's own: a card for each of the esp's sources but the players, whose rows are the esp card's
+	for index = 2, #esp.sources do
+		local source = esp.sources[index]
 		local section = page:CreateSection(source.name, "RightSide")
-		local show = toggle(section, source.toggle or "show " .. source.name, source, "enabled")
-		-- the players have no colour of their own: theirs are the colours on the esp card's rows
-		if source.color then
-			color(show, source, "color")
-		end
+		color(toggle(section, source.toggle or "show " .. source.name, source, "enabled"), source, "color")
 		if source.options then
 			source.options(section)
 		end
-		color(toggle(section, "tracers", source, "tracers"), source, "tracerColor")
 	end
 end
 

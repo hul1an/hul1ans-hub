@@ -149,8 +149,6 @@ function esp.addSource(name, color, models, label)
 		enabled = true,
 		color = color,
 		maxDistance = 10000,
-		tracers = false,
-		tracerColor = color or WHITE,
 		aim = false,
 		models = models,
 		label = label,
@@ -185,7 +183,6 @@ local function createSet()
 	return {
 		boxOutline = draw("Square", { Thickness = 3, Color = BLACK }),
 		box = draw("Square", { Thickness = 1 }),
-		tracer = draw("Line", { Thickness = 1 }),
 		healthBack = draw("Square", { Filled = true, Color = BLACK }),
 		health = draw("Square", { Filled = true }),
 		name = draw("Text", { Size = 13, Center = true, Outline = true }),
@@ -426,11 +423,6 @@ local function update(model, source, camera, viewport)
 	set.box.Color = own or settings.BoxColor
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)
-
-	set.tracer.Visible = source.tracers
-	set.tracer.Color = source.tracerColor
-	set.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
-	set.tracer.To = Vector2.new(x + width / 2, y + height)
 
 	local showHealth = health ~= nil and settings.HealthBar
 	set.healthBack.Visible = showHealth
