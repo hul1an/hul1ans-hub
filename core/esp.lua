@@ -242,6 +242,12 @@ local function update(model, source, camera, viewport)
 		sets[model] = set
 	end
 
+	-- a source may fade its models: opacityOf(model) gives 0 to 1, which is what a drawing's Transparency holds
+	local opacity = source.opacityOf and source.opacityOf(model) or 1
+	for _, object in set do
+		object.Transparency = opacity
+	end
+
 	local color = model == esp.highlight and HIGHLIGHT or source.colorOf and source.colorOf(model) or source.color
 	local height = math.abs(bottom.Y - top.Y)
 	-- characters are about half as wide as they are tall

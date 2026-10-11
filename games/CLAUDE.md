@@ -237,7 +237,13 @@
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
   a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Heard Memory seconds (1-10,
   default 3) without a sound or once a shown enemy is within 15 studs. Only heard while ESP and the source
-  are on. Not known: why the Sound ESP of 2026-10-10 "didn't work" (it listened the same way and drew a 6 pixel
+  are on. Asked for by the user the same day: it fades over that time (`opacityOf`), is dull grey by default,
+  and shows a name in place of the word "Heard". A sound carries no name, so the name is a guess: of the living
+  enemies in `_PVS_CulledCharacters` that no other ghost has, and for a shot those holding that gun, the one
+  last known nearest (where its hidden model stands, or where it was heard since). It ends in `?` unless there
+  was only one candidate, is looked up again on each sound until then, and is dropped if that enemy turns up
+  shown elsewhere or dead. The gun comes from the sound's class, a player's from the `Name` in the Player's
+  `CurrentEquipped` JSON, a bot's from its character's `BotLoadout` JSON, which lists every gun it has. Not known: why the Sound ESP of 2026-10-10 "didn't work" (it listened the same way and drew a 6 pixel
   ring), and how far footsteps carry (the probe's one case suggested about 107 studs).
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.

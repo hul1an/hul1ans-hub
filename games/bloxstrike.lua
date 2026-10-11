@@ -108,7 +108,10 @@ local HEARD_OWNER_RANGE = 10
 -- a runner's footsteps are about 5 studs apart
 local HEARD_TRACK_RANGE = 15
 local heard = { memory = 3 }
+-- by model: root, at (when it was last heard), character (who it is taken to be) and certain
 local ghosts = {}
+-- by character: where it was last heard, and where its hidden model stood then
+local lastHeard = {}
 
 local function shownNear(position, range, skipTeammates)
 	for _, character in players.models(skipTeammates) do
@@ -119,25 +122,94 @@ local function shownNear(position, range, skipTeammates)
 	return false
 end
 
-local heardSource = esp.addSource("Heard", Color3.fromRGB(255, 170, 60), function()
+-- a hidden model stays where it was last shown, so a sound heard since then is the later word
+local function lastKnown(character)
+	local frozen = character.HumanoidRootPart.Position
+	local memory = lastHeard[character]
+	return memory and memory.frozen == frozen and memory.position or frozen
+end
+
+-- a player's equipped weapon and a bot's loadout are both JSON with the weapon under Name
+local function holds(character, weapon)
+	local owner = ownerOf(character)
+	local items = owner and owner:GetAttribute("CurrentEquipped") or character:GetAttribute("BotLoadout")
+	return items ~= nil and items:find('"Name":"' .. weapon .. '"', 1, true) ~= nil
+end
+
+-- a sound doesn't say who made it: of the hidden enemies no other ghost has, and for a shot those with that
+-- weapon, it is taken to be the one last known nearest. The second value is whether there was no one else
+local function identify(ghost, position, weapon)
+	local folder = ReplicatedStorage:FindFirstChild("_PVS_CulledCharacters")
+	if not folder then
+		return nil, false
+	end
+
+	local taken = {}
+	for _, other in ghosts do
+		if other ~= ghost and other.character then
+			taken[other.character] = true
+		end
+	end
+
+	local team = Players.LocalPlayer:GetAttribute("Team")
+	local candidates, holders = {}, {}
+	for _, character in folder:GetChildren() do
+		if not taken[character]
+			and character:FindFirstChild("HumanoidRootPart")
+			and not character:GetAttribute("Dead")
+			and not (team and teamOf(character) == team) then
+			table.insert(candidates, character)
+			if weapon and holds(character, weapon) then
+				table.insert(holders, character)
+			end
+		end
+	end
+	if #holders > 0 then
+		candidates = holders
+	end
+
+	local nearest, best
+	for _, character in candidates do
+		local distance = (lastKnown(character) - position).Magnitude
+		if not best or distance < best then
+			nearest, best = character, distance
+		end
+	end
+	return nearest, #candidates == 1
+end
+
+local heardSource = esp.addSource("Heard", Color3.fromRGB(150, 150, 150), function()
 	local now = os.clock()
 	local models = {}
-	for index = #ghosts, 1, -1 do
-		local ghost = ghosts[index]
+	for model, ghost in ghosts do
 		-- gone quiet, or shown again and drawn as itself
 		if now - ghost.at > heard.memory or shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
-			ghost.model:Destroy()
-			table.remove(ghosts, index)
+			ghosts[model] = nil
+			model:Destroy()
 		else
-			table.insert(models, ghost.model)
+			-- shown somewhere else or dead, it was someone else
+			local character = ghost.character
+			if character and (character:IsDescendantOf(workspace) or character:GetAttribute("Dead")) then
+				ghost.character, ghost.certain = nil, false
+			end
+			table.insert(models, model)
 		end
 	end
 	return models
-end, function()
-	return "Heard"
+end, function(model)
+	local ghost = ghosts[model]
+	if not ghost.character then
+		return ""
+	end
+	return players.label(ghost.character) .. (ghost.certain and "" or "?")
 end)
 
-local function hear(position)
+heardSource.opacityOf = function(model)
+	return 1 - (os.clock() - ghosts[model].at) / heard.memory
+end
+
+-- weapon is the gun's name for a shot, nil for a footstep
+local function hear(position, weapon)
 	local nearest, best
 	for _, ghost in ghosts do
 		local distance = (ghost.root.Position - position).Magnitude
@@ -151,21 +223,33 @@ local function hear(position)
 		root.Name = "HumanoidRootPart"
 		root.Size = Vector3.new(2, 2, 1)
 		root.Parent = model
-		nearest = { model = model, root = root }
-		table.insert(ghosts, nearest)
+		nearest = { root = root, certain = false }
+		ghosts[model] = nearest
 	end
 	nearest.root.Position = position
 	nearest.at = os.clock()
+
+	if not nearest.certain then
+		nearest.character, nearest.certain = identify(nearest, position, weapon)
+	end
+	local character = nearest.character
+	if character then
+		lastHeard[character] = { position = position, frozen = character.HumanoidRootPart.Position }
+	end
 end
 
 local soundBank = ReplicatedStorage:FindFirstChild("Sounds")
 local debris = workspace:FindFirstChild("Debris")
 if soundBank and debris then
-	-- Sounds.<class>.<name>.<variant>; what plays is a clone under another name, which keeps the id
+	-- Sounds.<class>.<name>.<variant>, a gun's class being its name; what plays is a clone under another name,
+	-- which keeps the id
 	local noisy = {}
 	for _, sound in soundBank:GetDescendants() do
-		if sound:IsA("Sound") and (sound.Parent.Parent.Name == "FloorSounds" or sound.Parent.Name == "Shoot") then
-			noisy[sound.SoundId] = true
+		if sound:IsA("Sound") then
+			local class = sound.Parent.Parent.Name
+			if class == "FloorSounds" or sound.Parent.Name == "Shoot" then
+				noisy[sound.SoundId] = class
+			end
 		end
 	end
 
@@ -175,7 +259,8 @@ if soundBank and debris then
 		end
 		local part = sound.Parent
 		if part:IsA("BasePart") and not shownNear(part.Position, HEARD_OWNER_RANGE, false) then
-			hear(part.Position)
+			local class = noisy[sound.SoundId]
+			hear(part.Position, class ~= "FloorSounds" and class or nil)
 		end
 	end))
 else
@@ -185,8 +270,8 @@ else
 end
 
 hub.cleanup.add(function()
-	for _, ghost in ghosts do
-		ghost.model:Destroy()
+	for model in ghosts do
+		model:Destroy()
 	end
 	table.clear(ghosts)
 end)
