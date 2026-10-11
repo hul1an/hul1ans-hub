@@ -60,7 +60,8 @@
 ## BloxStrike
 
 - Place id `114234929420007`, universe (`game.GameId`) `7633926880`, from Roblox's universes API.
-- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim and Anti-Aim (Combat),
+- `games/bloxstrike.lua` is the universal Combat and ESP tabs plus the game's own: Silent Aim, the trigger's Seeded,
+  Hitchance and Min Damage, and Anti-Aim (Combat),
   Team Colors and the Heard source (ESP), a Visuals tab (Third Person, Night Mode, Bullet Tracers, Hit Effect), a Movement tab
   (Bhop) and Eject.
   It turns the aim assist's Team Check on by default and replaces the built-in players source's
@@ -215,6 +216,22 @@
   the last active one it is called for. The `_performRaycast` hook multiplies the spread it is given by
   `aim.spreadScale()`. Not known: whether a gun that is out when the hub loads is being stepped (if not,
   Hitchance does nothing until it is switched to), and whether the server notices narrowed shots.
+- Damage, read through the bridge on 2026-10-11 for the trigger's Min Damage. No damage formula is on the
+  client; the server works it out. What the client has:
+  - Each gun's file (`Database.Custom.Weapons.<name>`, the bullet's `Properties`) has `DamagePerPart` (`Head`,
+    `Torso`, `Arms`, `Legs`), `RangeModifier`, `ArmorPenetration`, `WallbangMultiplier`, `Penetration`, `Range`
+    (1200 for most, 120 for shotguns, 13.584 for the Zeus) and `BulletsPerShot`. Knives and grenades have
+    `DamagePerPart` too. The figures are CS2's: AK-47 143 / 44 / 35 / 21, 0.98, 0.775; AWP 459 / 143 / 115 / 85.
+  - `MovementV2.SpeedProfile.HammerUnitToStud` is 0.075, so CS2's 500 units are 37.5 studs.
+  - A Player's `Armor` attribute is JSON, seen as `{"Health":100,"Type":"Kevlar + Helmet"}`. The other type is
+    taken to be `Kevlar` from `GameStats.Equipment`; what the attribute is with no armour wasn't seen, nor
+    whether a bot has any.
+  - `aim.damage` (written, not run) applies CS2's rule to those: the part's damage, times `RangeModifier` to
+    the power of distance / 37.5, times `ArmorPenetration` when the armour has health left and the part is the
+    torso or an arm, or the head under a helmet. Hands count as arms, feet as legs, everything else but the
+    head as torso. Behind the 37.5: the Zeus (500 a part, modifier 0.011416) comes to 99 at its 13.584 stud
+    range. Not known: whether the server uses that rule, its part to group map, and what a wall takes off
+    (`WallbangMultiplier` is not applied). A shotgun's figure is one pellet's.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,

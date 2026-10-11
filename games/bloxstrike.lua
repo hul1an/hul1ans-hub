@@ -86,6 +86,38 @@ local function teamOf(character)
 	return owner and owner:GetAttribute("Team")
 end
 
+-- the game's numbers are CS2's, where damage falls by the gun's RangeModifier every 500 units; a unit is 0.075 studs here
+local FALLOFF = 37.5
+
+-- setting this puts Min Damage on the trigger. The server works damage out, so this is CS2's rule on the gun's own
+-- figures: the part's damage, less for range, and less again where armour covers the part
+aim.damage = function(part, distance)
+	if not (equipped and equipped.IsActive) then
+		return nil
+	end
+	local properties = equipped.Properties
+	local name = part.Name
+	local group = "Torso"
+	if name == "Head" then
+		group = "Head"
+	elseif name:find("Arm") or name:find("Hand") then
+		group = "Arms"
+	elseif name:find("Leg") or name:find("Foot") then
+		group = "Legs"
+	end
+	local damage = properties.DamagePerPart[group] * properties.RangeModifier ^ (distance / FALLOFF)
+
+	-- a player's armour is JSON on the Player, its Health and a Type of "Kevlar" or "Kevlar + Helmet"
+	local owner = ownerOf(part.Parent)
+	local armor = owner and owner:GetAttribute("Armor")
+	if type(armor) == "string" and (tonumber(armor:match('"Health":(%d+)')) or 0) > 0 then
+		if group == "Head" and armor:find("Helmet", 1, true) or group == "Torso" or group == "Arms" then
+			damage *= properties.ArmorPenetration
+		end
+	end
+	return damage
+end
+
 -- the game moves characters it has culled out of workspace.Characters and leaves their last position on them,
 -- so only models still in that folder are real; it has no Humanoids or Roblox teams, only attributes.
 -- the folder is read directly because bots are in it but not in the Players list

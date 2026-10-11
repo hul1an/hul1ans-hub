@@ -45,8 +45,9 @@ local HITGROUPS = {
 local BODY = { "Chest", "Stomach", "Pelvis" }
 
 -- aim.target is the part currently aimed at, or nil; game files read it.
--- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off,
--- and aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out
+-- a game file may set aim.blocked, a function that returns true while the aim and the trigger must stay off;
+-- aim.spread, a function that returns how many degrees the next shot may leave the view ray by, or nil with no gun out,
+-- and aim.damage, a function that returns what the next shot would do to a part from a distance, or nil likewise
 local aim = {
 	settings = {
 		Enabled = false,
@@ -75,6 +76,7 @@ local aim = {
 		TriggerSeeded = false,
 		TriggerLegitimacy = 100,
 		TriggerHitchance = 0,
+		TriggerMinDamage = 0,
 		TeamCheck = false,
 		VisibilityCheck = true,
 		MaxDistance = 500,
@@ -400,11 +402,11 @@ local function fire(camera)
 	return true
 end
 
--- the target whose trigger hitgroups the view ray enters first with nothing in the way
+-- the target whose trigger hitgroups the view ray enters first with nothing in the way, the part it enters and how far off
 local function underCrosshair(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
-	local nearest, best
+	local nearest, struck, best
 
 	eachTarget(function(model, root)
 		local offset = root.Position - eye
@@ -418,12 +420,12 @@ local function underCrosshair(camera)
 				and distance <= settings.MaxDistance
 				and (not best or distance < best)
 				and (not settings.VisibilityCheck or isVisible(camera, eye + forward * distance, model)) then
-				nearest, best = model, distance
+				nearest, struck, best = model, part, distance
 			end
 		end
 	end)
 
-	return nearest
+	return nearest, struck, best
 end
 
 -- the share of its spread a shot of the trigger's keeps
@@ -476,8 +478,8 @@ local function roll(milliseconds)
 end
 
 -- starline's triggerbot: clicks while a target is under the crosshair, once its delays have run.
--- aimed is the model the aim has, or nil
-local function trigger(camera, now, aimed)
+-- aimed is the model the aim has and aimedPart its part, or nil
+local function trigger(camera, now, aimed, aimedPart)
 	-- the user is firing themselves
 	if UserInputService:IsMouseButtonPressed(FIRE_BUTTON) and not clicking then
 		return
@@ -498,7 +500,12 @@ local function trigger(camera, now, aimed)
 	end
 
 	-- a silent shot goes to the aim's target wherever the crosshair is, so that target counts as under it
-	local model = settings.SilentAim and aimed or underCrosshair(camera)
+	local model, part, distance = aimed, aimedPart, nil
+	if settings.SilentAim then
+		distance = part and (part.Position - camera.CFrame.Position).Magnitude
+	else
+		model, part, distance = underCrosshair(camera)
+	end
 	if not model then
 		acquired, served, reaction = nil, false, nil
 		return
@@ -521,6 +528,11 @@ local function trigger(camera, now, aimed)
 	-- a silent shot goes to its target whatever the spread. The chance is that of an untouched shot, Seeded or not
 	local angle = settings.TriggerHitchance > 0 and not settings.SilentAim and aim.spread and aim.spread()
 	if angle and hitChance(camera, model, angle) < settings.TriggerHitchance then
+		return
+	end
+
+	local damage = settings.TriggerMinDamage > 0 and aim.damage and aim.damage(part, distance)
+	if damage and damage < settings.TriggerMinDamage then
 		return
 	end
 
@@ -571,7 +583,7 @@ function aim.start()
 		end
 
 		if settings.Trigger and not blocked then
-			trigger(camera, now, model)
+			trigger(camera, now, model, part)
 		end
 	end)
 

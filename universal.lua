@@ -113,7 +113,12 @@ local function addCombat(window)
 	slider(trigger, "Visible Delay", "TriggerVisibleDelay", 0, 650, true, "%.0fms")
 	slider(trigger, "Burst", "TriggerBurst", 0, 250, true, "%.0fms")
 	toggle(trigger, "Randomize", "TriggerRandomize")
-	trigger:CreateSlider("Min Damage (placeholder)", 0, 100, 0, true, nothing)
+	-- only a game file that knows its guns' damage has this: it sets aim.damage before it calls this file
+	if aim.damage then
+		slider(trigger, "Min Damage", "TriggerMinDamage", 0, 100, true)
+	else
+		trigger:CreateSlider("Min Damage (placeholder)", 0, 100, 0, true, nothing)
+	end
 	if aim.spread then
 		slider(trigger, "Hitchance", "TriggerHitchance", 0, 100, true, "%.0f%%")
 	else
