@@ -21,6 +21,9 @@ local ARROW_SHADOW = Vector2.new(2, 2)
 local SIGHT_TIME = 0.1
 -- how much bigger than the body an overlay or an on hit copy is, so that it wraps it
 local SHELL = 1.05
+-- and an invisible chams copy: where two Highlights cover the same pixel only one is drawn, and the copy's has to be
+-- the nearer of it and the one on the body, the glow row's or the game's own on a spectated player
+local COVER = 1.03
 -- the game's tick, which backtrack chams draw one copy for
 local TICK = 1 / 60
 -- where a backtrack copy waits while it has no record to stand at
@@ -602,7 +605,7 @@ end
 local function shade(model, camera)
 	local set = shades[model]
 	if not set then
-		set = copyParts(model, bodyParts(model), world, 1, true)
+		set = copyParts(model, bodyParts(model), world, COVER, true)
 		shades[model] = set
 	end
 	local color, opacity = settings.InvisibleChamsColor, settings.InvisibleChamsOpacity
@@ -617,7 +620,8 @@ local function shade(model, camera)
 		end
 	end
 	if settings.InvisibleChamsMaterial == "solid" then
-		light(set.model, color, opacity, nil, nil, true)
+		-- these pixels are this Highlight's and not the model's, so the glow row's outline has to be drawn by it too
+		light(set.model, color, opacity, settings.Chams and settings.ChamsColor, settings.ChamsOpacity, true)
 	else
 		light(set.model, nil, nil, color, opacity)
 	end

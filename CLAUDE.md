@@ -184,7 +184,13 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     model so that a part the camera has a line to can be left out (its copy fully transparent, which a Highlight
     skips), leaving the model and the visible chams to show there. A copy out of sight is opaque in the row's
     colour, with the wall in front of it; it was 0.99 transparent at first, changed after the user reported nothing
-    drawing, in case a Highlight leaves such a part out. That is a ray a part, every 0.1 s (`SIGHT_TIME`).
+    drawing, in case a Highlight leaves such a part out. That is a ray a part, every 0.1 s (`SIGHT_TIME`). A screenshot from
+    the user on 2026-10-12 showed six enemies behind walls with the glow row's outline and no invisible fill, and the
+    next round two of the lobby had it; the bridge showed every enemy with its copies in place and a Highlight on
+    them. Taken to be two Highlights on one silhouette, the copy's and the body's (the glow row's, or the game's own
+    on spectated players), of which Roblox draws one a pixel: the copies are now 1.03 times the size (`COVER`) so
+    theirs is the nearer, and it draws the glow row's outline itself. That only one is drawn, and that the nearer
+    wins, is from memory of how Roblox composites them and not seen here; not run.
   - `overlay` (flat, glow, ghost, glass): copies 1.05 times the size, each welded to its part so it has no lag.
   - `ragdoll` (all five): the enemies' ragdolls from `esp.ragdolls` (set by `main.lua`), painted as visible chams
     paint, or a Highlight fill for solid.
@@ -366,8 +372,11 @@ was only tried while spectating, on hit was never tried with a hit landed, and t
 (visible chams stay on the enemy's own parts). So invisible, backtrack and on hit still need a run while alive. On 2026-10-12 the user reported invisible working
 "but only for some enemies sometimes". Read through the bridge while they played: every enemy in
 `workspace.Characters` had its invisible and overlay copies, at exactly the body's position in the same read, and the
-invisible copy had its Highlight; with no enemy shown there were no copies. So no hub fault was found, and the fog of
-war (an enemy the server hides has no model to draw on) is the likely reason; not confirmed by the user. Open: whether a Highlight draws on a part at 0.99
+invisible copy had its Highlight; with no enemy shown there were no copies. So no hub fault was found then, and the fog of
+war was taken for the reason. That was wrong: the user's screenshot the same day showed enemies with names, health
+bars and the glow outline through walls and no invisible fill (see the invisible row above). Roblox also draws at
+most 31 Highlights; with glow and invisible both on that is two an enemy, and the game adds one a character while
+the user spectates, so a full lobby while spectating is over it. Open: whether a Highlight draws on a part at 0.99
 transparency and skips one at 1; whether a weld to a body part upsets the game; whether a ragdoll carries its owner's
 id for the team check; whether a killed enemy's parts are still there to copy when the hit is confirmed.
 
