@@ -193,7 +193,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     Walls hide it. Seen working by the user on 2026-10-11, with per tick a massive performance hit: every copy was
     moved every frame, and the set of records drawn changed every frame, since it was counted from the oldest. Now
     a record is taken once a tick and its copy put down once and left, so the cost is a tick's fifteen moves, plus a
-    recolour of every copy a tick with the gradient on; not run since. Through walls it
+    recolour of every copy a tick with the gradient on. Run again by the user, it still halved the frame rate: the
+    copies were out for every enemy on the list (everyone, while spectating). At the user's request they are now only
+    out for an enemy whose head is on screen and in the camera's sight; the rest keep their records and have their
+    copies unparented. Not run since. Through walls it
     would be one Highlight a tick, past the 31 Roblox draws, or one for the whole trail in one colour, which the
     gradient rules out. The oldest record only; with `per tick` (asked for by the user) one for every 1/60 s on
     record but the present; with its `gradient` (also asked for) the colours run from `oldest` to `newest`, two

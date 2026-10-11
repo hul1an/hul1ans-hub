@@ -635,14 +635,14 @@ end
 
 -- backtrack chams: copies standing in the world where the aim's backtrack has the model's parts on record. The
 -- oldest place only, or with per tick one for every game tick on record, in a gradient from oldest to newest if set
-local function trail(model)
+local function trail(model, camera)
 	local records = esp.past[model]
 	if not records then
 		return
 	end
 	local state = trails[model]
 	if not state then
-		state = { picked = {}, drawn = {}, spare = {} }
+		state = { picked = {}, drawn = {}, spare = {}, folder = Instance.new("Folder") }
 		trails[model] = state
 	end
 	local picked, drawn, spare = state.picked, state.drawn, state.spare
@@ -656,6 +656,15 @@ local function trail(model)
 	while picked[1] and picked[1].at < records[1].at do
 		table.remove(picked, 1)
 	end
+	-- the copies are what costs, so they are only out for a model that is on screen and in plain sight
+	local head = model:FindFirstChild("Head") or model.HumanoidRootPart
+	local _, onScreen = camera:WorldToViewportPoint(head.Position)
+	if not (onScreen and esp.visible(camera, head.Position, model)) then
+		state.folder.Parent = nil
+		return
+	end
+	state.folder.Parent = world
+
 	-- the newest one taken is still where the model is, so it isn't drawn
 	local last = settings.BacktrackChamsPerTick and #picked - 1 or math.min(#picked - 1, 1)
 	local wanted = {}
@@ -681,7 +690,7 @@ local function trail(model)
 				for part in record.frames do
 					table.insert(parts, part)
 				end
-				set = copyParts(model, parts, world, 1)
+				set = copyParts(model, parts, state.folder, 1)
 			end
 			for part, copy in set.copies do
 				copy.CFrame = record.frames[part]
@@ -710,13 +719,7 @@ local function trail(model)
 end
 
 local function endTrail(model)
-	local state = trails[model]
-	for _, set in state.drawn do
-		set.model:Destroy()
-	end
-	for _, set in state.spare do
-		set.model:Destroy()
-	end
+	trails[model].folder:Destroy()
 	trails[model] = nil
 end
 
@@ -1036,7 +1039,7 @@ local function render()
 						shell(model)
 					end
 					if settings.BacktrackChams then
-						trail(model)
+						trail(model, camera)
 					end
 				end
 				if not update(model, source, camera, viewport) and sets[model] then
