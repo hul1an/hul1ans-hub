@@ -69,9 +69,9 @@
   Auto Fire all work.
 - One `_performRaycast` hook does silent aim, tracers and the hit effect, under a single pcall.
 - The aim and the triggerbot are off while the local Player's `Dead` or `IsSpectating` attribute is set
-  (`aim.blocked`, written 2026-10-11, not run), asked for because the triggerbot kept clicking while spectating.
-  Both attributes were read as `false` on the living local player through the bridge; their values while
-  dead or spectating haven't been seen. `Controllers.SpectateController` also counts its own spectate and
+  (`aim.blocked`, confirmed working by the user on 2026-10-11), asked for because the triggerbot kept clicking
+  while spectating. Both attributes read `false` on the living local player through the bridge.
+  `Controllers.SpectateController` also counts its own spectate and
   freecam instances as spectating (`IsSpectatingNow`), which the hub doesn't read. The local player's `Team`
   can be `Spectators`, per that module.
 - Third person binds a render step two after the camera's (one after the aim assist), shows the local
@@ -184,11 +184,11 @@
   - Commands are built in `MovementV2.Client.Runtime._stepPrediction`: `_options.SampleInput` gives the input
     (`Move`, `LookYaw`, `VerticalLook`, `Buttons`), `_buildCommandInput(input, state, ...)` finishes it with the
     predicted state the command will run on, and the result is both simulated locally and sent.
-- Bhop, the auto bunnyhop toggle (written 2026-10-11, not run), hooks `Runtime._buildCommandInput`, the class being found through
+- Bhop, the auto bunnyhop toggle (confirmed working by the user on 2026-10-11), hooks `Runtime._buildCommandInput`, the class being found through
   `getgc(true)`. While walking it takes the Jump button out of a command unless the state is on the ground and
   the command before had no Jump, so a held key becomes a fresh press on the first ground command. Ladders and
-  everything else about the input are left alone. Not known: whether the hook takes on a method of a frozen
-  class table, and how much speed stamina and the casual landing cut leave over a run of hops.
+  everything else about the input are left alone. The hook takes on the class's method. Not known: how much
+  speed stamina and the casual landing cut leave over a run of hops.
 - `ReplicatedStorage.MovementV2` in Dex (screenshot from the user, 2026-10-11), all ModuleScripts:
   - Top level: `ActionLockTimeline`, `BotCombatCodec`, `Buttons`, `CommandCodec`, `Config`, `ControlCodec`,
     `DamageTag`, `DiagnosticProtocol`, `DoorSwing`, `Enums`, `JumpInputSampler`, `Mapping`,
@@ -261,7 +261,7 @@
   enemy player while the user was alive. Eleven seconds after the last one that enemy was still in
   `_PVS_CulledCharacters` where it had been, and the user's `IsSpectating` was still false. A stop sent in
   between changed nothing either. Not tried: a bot's key, and the other two packets.
-- Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
+- Heard enemies (confirmed working by the user on 2026-10-11): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
   a `HumanoidRootPart`, which is all the ESP needs for a box, and goes after Heard Memory seconds (1-10,
