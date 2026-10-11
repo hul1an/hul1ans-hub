@@ -752,49 +752,6 @@ espSection:CreateSlider("Heard Memory", 1, 10, heard.memory, true, function(valu
 	heard.memory = value
 end, "%.0f s")
 
--- temporary test of whether the server gives a living player the view of someone it asks to spectate: the
--- buttons send the game's own spectate request, for the hidden enemy player last known nearest, and its stop.
--- the packets are the game's Remotes.Spectate table
-local spectatePackets
-for _, object in getgc(true) do
-	if type(object) == "table" then
-		local packet = rawget(object, "SpectatePlayer")
-		if type(packet) == "table" and type(rawget(packet, "Send")) == "function" then
-			spectatePackets = object
-			break
-		end
-	end
-end
-
-if spectatePackets then
-	espSection:CreateButton("Spectate Request (test)", function()
-		local eye = workspace.CurrentCamera.CFrame.Position
-		local target, best
-		for _, character in hiddenEnemies() do
-			-- a bot is asked for by a key the hub doesn't know
-			local owner = ownerOf(character)
-			local distance = (lastKnown(character) - eye).Magnitude
-			if owner and (not best or distance < best) then
-				target, best = owner, distance
-			end
-		end
-		if not target then
-			hub.ui.notify("No hidden enemy player to ask for", "error")
-			return
-		end
-		spectatePackets.SpectatePlayer.Send(target.Name)
-		print("[hub] spectate request sent for " .. target.Name)
-		hub.ui.notify("Asked to spectate " .. target.Name)
-	end)
-	espSection:CreateButton("Stop Spectate Request (test)", function()
-		spectatePackets.StopSpectating.Send()
-		print("[hub] stop spectating sent")
-	end)
-else
-	warn("[hub] BloxStrike packets Remotes.Spectate not found: spectate request test unavailable")
-	hub.ui.notify("Remotes.Spectate not found, no spectate request test", "error")
-end
-
 local visualsTab = window:CreateTab("Visuals", "eye")
 
 local cameraSection = visualsTab:CreateSection("Camera", "LeftSide")

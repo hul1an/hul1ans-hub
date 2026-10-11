@@ -253,15 +253,14 @@
   `First-Person`: a living enemy was in `workspace.Characters` with a live position and a living teammate was
   culled, the opposite of what an alive player gets. Read as the server sending the view of whoever is being
   spectated (the game spectates `LastKiller` first), not confirmed: who was being spectated wasn't read.
-- Temporary: the spectate request test, two buttons in the ESP tab's BloxStrike section, asked for by the user on
-  2026-10-11 (written, not run). From `SpectateController`: the client asks with
+- The spectate request test (2026-10-11, run by the user, removed again; its code is in commit `00995e1`): the
+  server ignores a spectate request from a living player. From `SpectateController`, the client asks with
   `Remotes.Spectate.SpectatePlayer.Send(name)`, the Player's `Name` or for a bot `tostring(Participants.Key(bot))`,
   and ends with `Remotes.Spectate.StopSpectating.Send()`; `StartSpectating` and `SetSpectatePerspective` are in
-  the same namespace and `SpectateController` sends neither. The first button sends the request for the hidden
-  enemy player last known nearest (bots are skipped, their key isn't known), the second sends the stop, and
-  each prints to the console. It works if hidden enemies leave `_PVS_CulledCharacters` while the user is alive.
-  Not known: whether the server then sets `IsSpectating` on a living player, which would switch the hub's aim
-  off and may make the game's camera code take over. Remove it once answered either way.
+  the same namespace and `SpectateController` sends neither. The test sent the request three times for a hidden
+  enemy player while the user was alive. Eleven seconds after the last one that enemy was still in
+  `_PVS_CulledCharacters` where it had been, and the user's `IsSpectating` was still false. A stop sent in
+  between changed nothing either. Not tried: a bot's key, and the other two packets.
 - Heard enemies (written 2026-10-11, not run): an ESP source "Heard", added before `universal.lua` so it gets its
   own section and a Target toggle. A footstep or shot under `workspace.Debris` with no living shown character
   within 10 studs moves the ghost within 15 studs of it, or makes one. A ghost is an unparented Model holding
