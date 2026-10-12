@@ -356,8 +356,11 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     ground a fire's plates or a smoke's blocks cover, with the row's colour fading out over 2 studs inside the line (asked for by the user on 2026-10-12 in place of a ring round the volume:
     the actual spread, on the ground, with a fade that has no options). The ground is cut into half stud cells, each
     with the plate over it; the outline is the cell sides with nothing beyond them, at the height of the plate's own
-    plane, and the fade five filled Drawing quads a side, 40% solid at the line. It is worked out again whenever the
-    game remakes the parts. The user named inferno and molotov spread; smoke spread goes through the same code, which
+    plane, and the fade four filled Drawing quads a side, 40% solid at the line. It is worked out again whenever the
+    game remakes the parts. Seen by the user the same day: the fade smeared across the screen, and the outline was to
+    be very well rounded. The smear was quads with a corner just in front of the camera, which lands far off screen;
+    a shape is now cut off 0.3 studs in front of the camera and drawn as triangles there. The outline is now up to 48
+    points 0.75 studs apart, each moved towards its neighbours six times over. Not run since. The user named inferno and molotov spread; smoke spread goes through the same code, which
     is Claude's reading. Not run.
   - dropped weapons: `max distance` is in CS2 units. bomb: `screen info` is a line near the top of the screen, red
     under 10 s; `world info` the chosen words at the bomb.

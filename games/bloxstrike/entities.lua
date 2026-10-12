@@ -27,7 +27,13 @@ local CIRCLE_SIDES = 24
 local CELL = 0.5
 -- the fade inside such an outline: how far in from the line it reaches in studs, in how many steps, and how solid it is
 -- at the line
-local EDGE_REACH, EDGE_STEPS, EDGE_OPACITY = 2, 5, 0.4
+local EDGE_REACH, EDGE_STEPS, EDGE_OPACITY = 2, 4, 0.4
+-- an outline is made round: points this many studs apart along it, no more than this many, each then moved towards the
+-- two beside it this many times over
+local ROUND_SPACING, ROUND_POINTS, ROUND_PASSES = 0.75, 48, 6
+-- nothing nearer the camera than this many studs is drawn: a place that close lands far off the screen, and one behind
+-- the camera on the wrong side of it
+local NEAR = 0.3
 -- the game destroys a smoke's folder this long after the smoke itself has gone (VFXLibary.CreateVoxelSmoke)
 local FADE = { Smoke = 6, Fire = 0 }
 -- the game's tags for a thrown grenade, a weapon on the ground and the planted bomb
@@ -111,8 +117,8 @@ local weaponModels = assets and assets:FindFirstChild("Weapons")
 -- everything here is drawn anew each frame. A drawing asked for is the one that was handed out at the same place in
 -- the frame before, and those not asked for this frame are hidden when it ends. The same goes for the image labels
 -- the icons are, since a Drawing image can't show a Roblox asset, and the Highlights the glows are
-local pools = { Line = {}, Text = {}, Square = {}, Quad = {}, Image = {}, Glow = {} }
-local used = { Line = 0, Text = 0, Square = 0, Quad = 0, Image = 0, Glow = 0 }
+local pools = { Line = {}, Text = {}, Square = {}, Quad = {}, Triangle = {}, Image = {}, Glow = {} }
+local used = { Line = 0, Text = 0, Square = 0, Quad = 0, Triangle = 0, Image = 0, Glow = 0 }
 
 local function take(class)
 	used[class] += 1
@@ -137,8 +143,8 @@ local function take(class)
 				object.Outline = true
 			else
 				object.Thickness = 1
-				-- the quads are the fades inside the spreads' outlines
-				if class == "Quad" then
+				-- the quads and triangles are the fades inside the spreads' outlines
+				if class == "Quad" or class == "Triangle" then
 					object.Filled = true
 				end
 			end
@@ -217,10 +223,41 @@ local function cellKey(i, j)
 	return i * 65536 + j
 end
 
+-- a loop of corners along the ground, as x and z, made round: points every so far along it, each then moved towards
+-- the two beside it a few times over
+local function rounded(corners)
+	local length = 0
+	for index, corner in corners do
+		length += (corners[index % #corners + 1] - corner).Magnitude
+	end
+	local gap = length / math.clamp(math.round(length / ROUND_SPACING), 8, ROUND_POINTS)
+	local points = {}
+	-- how far along the side it is on the next point goes
+	local along = 0
+	for index, corner in corners do
+		local after = corners[index % #corners + 1]
+		local side = (after - corner).Magnitude
+		while along < side do
+			table.insert(points, corner:Lerp(after, along / side))
+			along += gap
+		end
+		along -= side
+	end
+	for _ = 1, ROUND_PASSES do
+		local moved = {}
+		for index, point in points do
+			moved[index] = (points[(index - 2) % #points + 1] + point * 2 + points[index % #points + 1]) / 4
+		end
+		points = moved
+	end
+	return points
+end
+
 -- the outline of the ground a fire's plates or a smoke's blocks cover. The game lays a fire's plates flat on whatever
--- they landed on, sides along x and z, so the ground is cut into cells, each with the plate over it, and the outline
--- is the cell sides with nothing beyond them. It comes as loops of corners, the ground to the left of the way round:
--- each corner is its place on that ground at every step of the fade, the line first, and room for the same on screen
+-- they landed on, sides along x and z, so the ground is cut into cells, each with the plate over it; the cell sides
+-- with nothing beyond them are followed round, the covered ground to the left, and that loop is made round. It comes
+-- as loops of points, each with its place on the ground at every step of the fade (world, the line first) and room for
+-- how far in front of the camera and where on screen those are (depth, screen)
 local function outline(parts)
 	local cells = {}
 	local lowI, highI, lowJ, highJ = math.huge, -math.huge, math.huge, -math.huge
@@ -249,28 +286,44 @@ local function outline(parts)
 		end
 	end
 
+	-- how high the ground is at a place. The round outline leaves the covered cells at their corners, and there the
+	-- surface of a covered cell close by is carried on
+	local function ground(x, z)
+		local i, j = math.floor(x / CELL), math.floor(z / CELL)
+		for reach = 0, 4 do
+			for di = -reach, reach do
+				for dj = -reach, reach do
+					local plate = cells[cellKey(i + di, j + dj)]
+					if plate then
+						return heightAt(plate, x, z)
+					end
+				end
+			end
+		end
+		return nil
+	end
+
 	-- the sides, by the corner each starts from
 	local sides = {}
-	local function side(i, j, toI, toJ, plate)
+	local function side(i, j, toI, toJ)
 		local key = cellKey(i, j)
 		sides[key] = sides[key] or {}
-		table.insert(sides[key], { i = i, j = j, toI = toI, toJ = toJ, plate = plate })
+		table.insert(sides[key], { i = i, j = j, toI = toI, toJ = toJ })
 	end
 	for i = lowI, highI do
 		for j = lowJ, highJ do
-			local plate = cells[cellKey(i, j)]
-			if plate then
+			if cells[cellKey(i, j)] then
 				if not cells[cellKey(i, j - 1)] then
-					side(i, j, i + 1, j, plate)
+					side(i, j, i + 1, j)
 				end
 				if not cells[cellKey(i + 1, j)] then
-					side(i + 1, j, i + 1, j + 1, plate)
+					side(i + 1, j, i + 1, j + 1)
 				end
 				if not cells[cellKey(i, j + 1)] then
-					side(i + 1, j + 1, i, j + 1, plate)
+					side(i + 1, j + 1, i, j + 1)
 				end
 				if not cells[cellKey(i - 1, j)] then
-					side(i, j + 1, i, j, plate)
+					side(i, j + 1, i, j)
 				end
 			end
 		end
@@ -281,11 +334,11 @@ local function outline(parts)
 		for _, first in list do
 			if not first.used then
 				-- round from one side to the next that starts where it ends, until none is left there
-				local round = {}
+				local corners = {}
 				local at = first
 				while at do
 					at.used = true
-					table.insert(round, at)
+					table.insert(corners, Vector2.new(at.i, at.j) * CELL)
 					local following = sides[cellKey(at.toI, at.toJ)]
 					at = nil
 					for _, candidate in following do
@@ -296,32 +349,61 @@ local function outline(parts)
 					end
 				end
 
+				local points = rounded(corners)
 				local loop = {}
-				for index, here in round do
-					local before = round[index == 1 and #round or index - 1]
-					local wayX, wayZ = here.toI - here.i, here.toJ - here.j
-					local wasX, wasZ = before.toI - before.i, before.toJ - before.j
-					-- a corner is where the way round turns
-					if wayX ~= wasX or wayZ ~= wasZ then
-						local x, z = here.i * CELL, here.j * CELL
-						-- the way in from a side is to its left, and from a corner between the ways in of its two sides
-						local inX, inZ = -wayZ - wasZ, wayX + wasX
-						local corner = { [0] = Vector3.new(x, heightAt(here.plate, x, z), z), screen = {} }
+				for index, point in points do
+					local way = points[index % #points + 1] - points[(index - 2) % #points + 1]
+					local y = ground(point.X, point.Y)
+					-- a loop too small to have a way round after the rounding is left out
+					if way.Magnitude > 0 and y then
+						-- the way in is to the left of the way round
+						local inward = Vector2.new(-way.Y, way.X).Unit
+						local world = { [0] = Vector3.new(point.X, y, point.Y) }
 						for step = 1, EDGE_STEPS do
-							local depth = step / EDGE_STEPS * EDGE_REACH
-							local stepX, stepZ = x + inX * depth, z + inZ * depth
-							local under = cells[cellKey(math.floor(stepX / CELL), math.floor(stepZ / CELL))]
+							local inner = point + inward * (step / EDGE_STEPS * EDGE_REACH)
+							local under = cells[cellKey(math.floor(inner.X / CELL), math.floor(inner.Y / CELL))]
 							-- where the covered ground is narrower than the fade, the fade ends at its far side
-							corner[step] = under and Vector3.new(stepX, heightAt(under, stepX, stepZ), stepZ) or corner[step - 1]
+							world[step] = under and Vector3.new(inner.X, heightAt(under, inner.X, inner.Y), inner.Y)
+								or world[step - 1]
 						end
-						table.insert(loop, corner)
+						table.insert(loop, { world = world, depth = {}, screen = {} })
 					end
 				end
-				table.insert(loops, loop)
+				if #loop > 2 then
+					table.insert(loops, loop)
+				end
 			end
 		end
 	end
 	return loops
+end
+
+local function onScreen(camera, place)
+	local point = camera:WorldToViewportPoint(place)
+	return Vector2.new(point.X, point.Y)
+end
+
+-- a filled shape with corners in the world, given with how far in front of the camera each is, cut off where it comes
+-- nearer than NEAR
+local function cut(camera, places, depths, color, opacity)
+	local kept = {}
+	for index, place in places do
+		local after = index % #places + 1
+		local depth, beyond = depths[index], depths[after]
+		if depth > NEAR then
+			table.insert(kept, onScreen(camera, place))
+		end
+		if (depth > NEAR) ~= (beyond > NEAR) then
+			table.insert(kept, onScreen(camera, place:Lerp(places[after], (NEAR - depth) / (beyond - depth))))
+		end
+	end
+	for index = 2, #kept - 1 do
+		local triangle = take("Triangle")
+		triangle.PointA, triangle.PointB, triangle.PointC = kept[1], kept[index], kept[index + 1]
+		triangle.Color = color
+		triangle.Transparency = opacity
+		triangle.Visible = true
+	end
 end
 
 -- an outline's lines, and inside them its colour fading out over the steps
@@ -329,23 +411,41 @@ local function spread(camera, loops, color)
 	for _, loop in loops do
 		for _, corner in loop do
 			for step = 0, EDGE_STEPS do
-				local point = camera:WorldToViewportPoint(corner[step])
-				-- left out behind the camera
-				corner.screen[step] = point.Z > 0 and Vector2.new(point.X, point.Y)
+				local point = camera:WorldToViewportPoint(corner.world[step])
+				corner.depth[step] = point.Z
+				corner.screen[step] = Vector2.new(point.X, point.Y)
 			end
 		end
-		for index, corner in loop do
-			local a, b = corner.screen, loop[index % #loop + 1].screen
-			if a[0] and b[0] then
-				line(a[0], b[0], color)
+		for index, a in loop do
+			local b = loop[index % #loop + 1]
+			local near, far = a.depth[0], b.depth[0]
+			if near > NEAR and far > NEAR then
+				line(a.screen[0], b.screen[0], color)
+			elseif near > NEAR then
+				line(a.screen[0], onScreen(camera, a.world[0]:Lerp(b.world[0], (NEAR - near) / (far - near))), color)
+			elseif far > NEAR then
+				line(onScreen(camera, a.world[0]:Lerp(b.world[0], (NEAR - near) / (far - near))), b.screen[0], color)
 			end
+
 			for step = 1, EDGE_STEPS do
-				if a[step - 1] and b[step - 1] and a[step] and b[step] then
+				local before = step - 1
+				local opacity = EDGE_OPACITY * (1 - (step - 0.5) / EDGE_STEPS)
+				local depths = { a.depth[before], b.depth[before], b.depth[step], a.depth[step] }
+				local ahead = 0
+				for _, depth in depths do
+					if depth > NEAR then
+						ahead += 1
+					end
+				end
+				if ahead == 4 then
 					local quad = take("Quad")
-					quad.PointA, quad.PointB, quad.PointC, quad.PointD = a[step - 1], b[step - 1], b[step], a[step]
+					quad.PointA, quad.PointB = a.screen[before], b.screen[before]
+					quad.PointC, quad.PointD = b.screen[step], a.screen[step]
 					quad.Color = color
-					quad.Transparency = EDGE_OPACITY * (1 - (step - 0.5) / EDGE_STEPS)
+					quad.Transparency = opacity
 					quad.Visible = true
+				elseif ahead > 0 then
+					cut(camera, { a.world[before], b.world[before], b.world[step], a.world[step] }, depths, color, opacity)
 				end
 			end
 		end
@@ -661,7 +761,7 @@ function entities.start()
 	screen.Parent = gethui()
 
 	hub.cleanup.add(function()
-		for _, class in { "Line", "Text", "Square", "Quad" } do
+		for _, class in { "Line", "Text", "Square", "Quad", "Triangle" } do
 			for _, object in pools[class] do
 				object:Remove()
 			end
