@@ -19,7 +19,8 @@ local FLASH_SCREENS = { "FlashbangEffect", "FlashScreenshot" }
 local FLASH_EFFECT = "FlashbangColorCorrection"
 local AXES = { Vector2.xAxis, -Vector2.xAxis, Vector2.yAxis, -Vector2.yAxis }
 
--- main.lua sets view.sniper, a function that returns whether the gun out is one with a sniper's scope
+-- main.lua sets view.sniper, a function that returns whether the gun out is one with a sniper's scope, and
+-- view.scoped, one that returns whether the gun out is zoomed in and whether that is through a sniper's scope
 local view = {
 	settings = {
 		World = false,
@@ -39,14 +40,16 @@ local view = {
 		Zoom1 = 100,
 		Zoom2 = 100,
 		AspectRatio = 0,
+		-- starline's own figures for these two rows
 		ScopedAlpha = false,
-		ScopedAlphaValue = 50,
-		Scope = false,
+		ScopedAlphaValue = 35,
+		Scope = "default",
 		ScopeColor = Color3.new(0, 0, 0),
+		ScopeOpacity = 1,
 		ScopeViewmodel = false,
 		ScopeLength = 100,
-		ScopeDynamic = false,
-		ScopeGap = 4,
+		ScopeDynamic = true,
+		ScopeGap = 0,
 		Removals = {},
 		Crosshair = false,
 		CrosshairScoped = false,
@@ -187,16 +190,28 @@ local function pixels(camera, degrees)
 	return math.tan(math.rad(degrees)) / math.tan(math.rad(camera.FieldOfView / 2)) * camera.ViewportSize.Y / 2
 end
 
--- four strokes out from the middle of the screen, each from gap to gap and length
-local function strokes(lines, camera, gap, length, color)
+-- four strokes out from the middle of the screen, each from gap to gap and its length: reach.X for the two across,
+-- reach.Y for the two upright
+local function strokes(lines, camera, gap, reach, color, opacity)
 	local center = camera.ViewportSize / 2
 	for index, way in AXES do
 		local line = lines[index]
 		line.Visible = true
 		line.Color = color
+		line.Transparency = opacity
 		line.From = center + way * gap
-		line.To = center + way * (gap + length)
+		line.To = center + way * (gap + math.abs(way.X) * reach.X + math.abs(way.Y) * reach.Y)
 	end
+end
+
+-- how long starline draws its scope lines (its draw at 0x3CC860 in the dump): up to half length all four are that
+-- share of the way to the nearer edge of the screen, and from there to full each grows to reach its own edge
+local function scopeReach(camera)
+	local center = camera.ViewportSize / 2
+	local share = math.clamp(settings.ScopeLength, 5, 100) / 100
+	local least = math.min(center.X, center.Y)
+	local even = math.clamp(2 * (1 - share), 0, 1)
+	return Vector2.new(center.X + (least - center.X) * even, center.Y + (least - center.Y) * even) * share
 end
 
 local function hide(lines)
@@ -319,9 +334,11 @@ local function step()
 		end
 	end
 
-	local scoped = Players.LocalPlayer:GetAttribute("IsSniperScoped")
-	local frame = settings.Scope and scopeGui()
-	if settings.Scope and scoped then
+	-- starline's three: the game's own scope picture, lines in its place, or neither
+	local _, scoped = view.scoped()
+	local replaced = settings.Scope ~= "default"
+	local frame = replaced and scopeGui()
+	if replaced and scoped then
 		-- the game shows its two scope images again whenever it opens the scope
 		for _, name in { "Sharp", "Blur" } do
 			local image = frame and frame:FindFirstChild(name)
@@ -329,35 +346,38 @@ local function step()
 				scopeHide(image, false)
 			end
 		end
-		local gap = settings.ScopeGap
+	elseif not replaced then
+		scopeShow()
+	end
+	if settings.Scope == "custom lines" and scoped then
+		local gap = math.clamp(settings.ScopeGap, 0, 100)
+		-- starline adds the gun's inaccuracy by a rule for CS2's field of view; here it is how far out on the screen
+		-- the spread reaches
 		local spread = settings.ScopeDynamic and aim.spread and aim.spread()
 		if spread then
-			gap += pixels(camera, spread)
+			gap += math.round(pixels(camera, spread))
 		end
-		strokes(scopeLines, camera, gap, settings.ScopeLength / 100 * camera.ViewportSize.Y / 2, settings.ScopeColor)
-		-- the game hides a scoped sniper's viewmodel by its parts' Transparency and keeps what they had in an attribute
-		if settings.ScopeViewmodel then
-			for _, model in camera:GetChildren() do
-				if model:IsA("Model") then
-					for _, part in model:GetDescendants() do
-						local kept = part:IsA("BasePart") and part:GetAttribute("HiddenTransparency")
-						if kept and part.Transparency == 1 then
-							part.Transparency = kept
-						end
+		strokes(scopeLines, camera, gap, scopeReach(camera), settings.ScopeColor, settings.ScopeOpacity)
+	else
+		hide(scopeLines)
+	end
+	-- the game hides a scoped sniper's viewmodel by its parts' Transparency and keeps what they had in an attribute
+	if settings.ScopeViewmodel and scoped then
+		for _, model in camera:GetChildren() do
+			if model:IsA("Model") then
+				for _, part in model:GetDescendants() do
+					local kept = part:IsA("BasePart") and part:GetAttribute("HiddenTransparency")
+					if kept and part.Transparency == 1 then
+						part.Transparency = kept
 					end
 				end
 			end
-		end
-	else
-		hide(scopeLines)
-		if not settings.Scope then
-			scopeShow()
 		end
 	end
 
 	-- the game draws no crosshair for a sniper
 	if settings.Crosshair and view.sniper and view.sniper() and (settings.CrosshairScoped or not scoped) then
-		strokes(crossLines, camera, 3, 6, WHITE)
+		strokes(crossLines, camera, 3, Vector2.new(6, 6), WHITE, 1)
 	else
 		hide(crossLines)
 	end
@@ -393,7 +413,7 @@ end
 
 -- for main.lua's third person: how far the user's own body is hidden, which scoped transparency raises while scoped
 function view.body()
-	if settings.ScopedAlpha and Players.LocalPlayer:GetAttribute("IsSniperScoped") then
+	if settings.ScopedAlpha and view.scoped() then
 		return 1 - settings.ScopedAlphaValue / 100
 	end
 	return 0

@@ -325,10 +325,20 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     takes its own 70, a diagonal one. `zoom x1` and `zoom x2` are how much of each scope level's zoom is kept.
   - `aspect ratio` is the game's own stretched resolution trick, a squeezed camera matrix and a narrower field of view.
     0 is off.
-  - `scoped transparency` is how solid the user's own body is in third person while scoped.
-  - `scope overlay` got a box of its own, which the dump's fold doesn't have. Scoped, it hides the game's scope picture
-    and draws four lines from `gap` pixels out, `length` percent of half the screen's height long; `dynamic gap` adds
-    the gun's spread. `show viewmodel` puts back the parts the game hides for the scope.
+  - `scoped transparency` is how solid the user's own body is in third person while the gun out is zoomed in, any
+    gun with a scope; in the dump it is the local player's alpha times the slider while scoped.
+  - `scope overlay` was reworked on 2026-10-12 (asked for by the user: fix it and scoped transparency, with the
+    overlay's styling from the dump). Both rows went by the Player's `IsSniperScoped` attribute, which the game only
+    sets for the AWP, so with any other scope they did nothing; `main.lua` now sets `view.scoped()` from the gun's own
+    `IsAiming`. From the dump's draw at 0x3CC860 and its settings: three modes, `default` (the game's scope picture),
+    `custom lines` and `full removal` (the picture hidden, nothing in its place); four 1 px lines in the row's colour
+    and opacity from `gap` pixels out; up to half `length` all four are that share of the way to the nearer screen
+    edge, and from there to full each grows to reach its own edge; and the defaults, black, length 100, gap 0, dynamic
+    gap on, and 35 for scoped transparency's alpha. Claude's: starline's row is the dropdown itself with the swatch
+    on it, here `mode` and `color` are the fold's first rows; `dynamic gap` adds how far out on the screen the gun's
+    spread reaches, where starline has a rule for CS2's field of view (inaccuracy times 320 over tan 50°, times the
+    screen's width over 480); `show viewmodel` puts back the parts the game hides for the scope in every mode. Not
+    run.
   - removals: `2d skybox` is a sky with no textures, sun, moon or stars; `shadows` Lighting's `GlobalShadows`;
     `lights` the map's lights; `smoke` the smoke's particles made invisible; `flash` the flashbang's two screens and
     its ColorCorrection switched off (its sound stays); `ragdoll` ragdolls hidden through `LocalTransparencyModifier`;

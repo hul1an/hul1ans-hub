@@ -503,7 +503,12 @@
   - The sniper scope is the frame `PlayerGui.MainGui.Gameplay.Middle.SniperScope`, with two ImageLabels, `Sharp` and
     `Blur`, each holding four black bars and a vignette. The game shows the frame while the gun out `IsAiming` with
     `AimingOptions` `SniperScope`, sets `Blur.Visible` when it opens it, and fades between the two images each frame.
-    `Weapon:scope` calls `Viewmodel:hide()` for a sniper and `Viewmodel:aim()` for the others.
+    `Weapon:scope` calls `Viewmodel:hide()` for a sniper and `Viewmodel:aim()` for the others. Read again on
+    2026-10-12: the frame holds nothing but those two images and an aspect ratio constraint, and the module sways the
+    frame's Position while the character moves. `Weapon:scope` sets `IsAiming` for every gun with a scope, the gun's
+    own `IsSniperScoped` for the SSG 08 and the AWP, and the Player's `IsSniperScoped` attribute for the AWP alone, so
+    that attribute says nothing of any other gun; `ScopeIncrement` comes back from the server after
+    `Remotes.Inventory.UpdateScopeIncrement`, the gun's own being `CurrentScopeIncrement`.
   - The viewmodel (`Viewmodel.render`) is put at the camera's CFrame times `Bobble:getNextCFrame(dt)` times the
     model's `Stats` rotation and offset times the player's own X, Y and Z Offset settings in hundredths of a stud,
     anew every frame. `getNextCFrame` is the sway and bob, with a turn of 5 degrees while aiming; the class is

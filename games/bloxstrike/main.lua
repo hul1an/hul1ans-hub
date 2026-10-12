@@ -126,6 +126,17 @@ view.sniper = function()
 	return equipped and equipped.IsActive and equipped.Properties.AimingOptions == "SniperScope"
 end
 
+-- for its scope overlay and scoped transparency: whether the gun that is out is zoomed in, and whether through a
+-- sniper's scope, which is when the game draws its scope picture. The gun says; the Player's IsSniperScoped attribute
+-- is only set for the AWP
+view.scoped = function()
+	local weapon = equipped and equipped.IsActive and equipped.Weapon
+	if not (weapon and weapon.IsAiming) then
+		return false, false
+	end
+	return true, equipped.Properties.AimingOptions == "SniperScope"
+end
+
 -- whether the gun that is out could fire now: not between two shots, reloading or empty
 aim.ready = function()
 	local weapon = equipped and equipped.IsActive and equipped.Weapon

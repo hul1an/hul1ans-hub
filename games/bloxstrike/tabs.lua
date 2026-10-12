@@ -431,9 +431,13 @@ local function addVisuals(window, features)
 	slider(third, "distance", visuals, "thirdPersonDistance", 5, 30, true)
 	local alpha = group(view, "scoped transparency", options, "ScopedAlpha")
 	slider(alpha, "alpha", options, "ScopedAlphaValue", 0, 100, true, "%.0f%%")
-	-- the dump's fold has no box of its own; the hub's has one, to switch it by
-	local scope = group(view, "scope overlay", options, "Scope")
-	color(scope.header, options, "ScopeColor")
+	-- starline's row is the dropdown of the three itself, with the swatch on it and the rest folded under it; the hub's
+	-- dropdown and swatch are the fold's first two rows
+	local scope = view:CreateGroup("scope overlay")
+	dropdown(scope, "mode", options, "Scope", { "default", "custom lines", "full removal" })
+	scope:CreateColorpicker("color", function(value, amount)
+		options.ScopeColor, options.ScopeOpacity = value, amount
+	end, true):UpdateColor(options.ScopeColor, options.ScopeOpacity)
 	toggle(scope, "show viewmodel", options, "ScopeViewmodel")
 	slider(scope, "length", options, "ScopeLength", 5, 100, true, "%.0f%%")
 	toggle(scope, "dynamic gap", options, "ScopeDynamic")
