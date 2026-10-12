@@ -91,9 +91,13 @@ end
 -- which way the last strafe went while the view was along the flight
 local side = 1
 
+-- a move input is Roblox's: x to the right and y backwards, so the forward key alone is this
+local FORWARD = Vector2.new(0, -1)
+
 -- auto strafe: in the air the game adds speed along the move input up to AirSpeedCap, 30 units, whatever the speed
--- already is across it. So the input is turned square to the velocity, towards the side the view is on, which adds that
--- much every command and bends the flight to where the user looks
+-- already is across it. So the input is turned square to the velocity, towards the side the keys point to, which adds
+-- that much every command and bends the flight that way: forward of the view with W or no key, back with S, to a side
+-- with A or D
 local function strafe(input, state)
 	local velocity = state.Velocity
 	local speed = math.sqrt(velocity.X ^ 2 + velocity.Z ^ 2)
@@ -101,8 +105,12 @@ local function strafe(input, state)
 	if speed < 2 then
 		return
 	end
+	local held = input.Move == Vector2.zero and FORWARD or input.Move
+	local sin, cos = math.sin(input.LookYaw), math.cos(input.LookYaw)
+	-- where the keys point in the world, by the game's ProvenMath.moveVectorToWorld
+	local wishX, wishZ = cos * held.X + sin * held.Y, -sin * held.X + cos * held.Y
 	local x, z = -velocity.Z / speed, velocity.X / speed
-	local toward = x * math.sin(input.LookYaw) + z * math.cos(input.LookYaw)
+	local toward = x * wishX + z * wishZ
 	if math.abs(toward) < 0.02 then
 		side = -side
 		toward = side

@@ -274,7 +274,9 @@
     `BulletsPerShot`, `Range` or `Penetration` differ from a reference copy, so the hub must only ever read them.
   - `aim.scope` in `main.lua` (written, not run) runs it with `task.spawn(weapon.scope, weapon, true)` so the call has
     no hub function under it on the stack.
-  - A command's `Move` is a Vector2, X to the right and Y forward, and becomes the simulation's `MoveVector`.
+  - A command's `Move` is a Vector2, X to the right and Y backwards (Roblox's Z: the forward key is -1; first taken to
+    be forward here, which had the auto strafe of 2026-10-12 steer to the back of the view), and becomes the
+    simulation's `MoveVector`.
     `ProvenMath.moveVectorToWorld(move, yaw)` gives the world direction `(cos * X + sin * Y, 0, -sin * X + cos * Y)`,
     the yaw being the command's `LookYaw` in radians. Ground movement is Source's: friction, then acceleration
     towards that direction (`ProvenSimulator.GroundMove.walkMove`).

@@ -375,8 +375,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   - `edge jump` jumps on the last command with ground under the hull, found with two box casts against the map's
     parts, not the game's own collision; `long jump` holds duck from there to the landing. `null binds`: with both
     strafe keys down the one pressed last wins, in the air only without `on ground`. `auto strafe`: in the air the move
-    input is turned square to the velocity, on the side the view is, which is where the game's air acceleration adds
-    the most; it takes the keys' place in the air. `quick stop`: on the ground with no move key down the input goes
+    input is turned square to the velocity, on the side the held keys point to (forward of the view with no key),
+    which is where the game's air acceleration adds the most. Seen by the user on 2026-10-12: it worked, but only
+    backwards, since a move input's Y is backwards and was taken as forward; it now goes by WASD, at the user's
+    request, not run since. `quick stop`: on the ground with no move key down the input goes
     against the velocity, sized to take off just the speed there is. `block bot`: walks to 34 units in front of the
     nearest teammate within 250 and stays; starline's following of a teammate stood on is left out.
   - `velocity graph`: the speed along the ground in units over the last few seconds, at the bottom middle of the
