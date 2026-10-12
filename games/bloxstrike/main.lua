@@ -11,6 +11,9 @@ local esp = hub.require("games/bloxstrike/esp.lua")
 local aim = hub.require("games/bloxstrike/aim.lua")
 local view = hub.require("games/bloxstrike/view.lua")
 local entities = hub.require("games/bloxstrike/entities.lua")
+local movement = hub.require("games/bloxstrike/movement.lua")
+local misc = hub.require("games/bloxstrike/misc.lua")
+local hud = hub.require("games/bloxstrike/hud.lua")
 -- dead or spectating, the camera is on someone else and there is nothing to shoot with
 aim.blocked = function()
 	local player = Players.LocalPlayer
@@ -942,12 +945,6 @@ local REGISTER_TIME = 1
 -- the hub's own on the next Heartbeat
 local written = {}
 
--- a line goes on screen and to the console, where Potassium's read_console gets at it
-local function log(text)
-	hub.ui.log(text)
-	print("[hub] " .. text)
-end
-
 -- how a log names the part of the body a part is
 local function limb(part)
 	local name = part.Name
@@ -1023,7 +1020,7 @@ end
 
 hub.cleanup.add(RunService.Heartbeat:Connect(function()
 	for _, line in written do
-		log(line)
+		misc.log(line)
 	end
 	table.clear(written)
 
@@ -1038,9 +1035,10 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 				esp.flash(victim, shot.pose)
 			end
 			hitEffects(shot.position, shot.health - health, dead)
+			misc.hit()
 			if table.find(logs.kinds, "hits") then
 				local damage = string.format(" for %.0f damage in ", shot.health - health)
-				log("Hit " .. players.label(victim) .. damage .. shot.struck .. expectation(shot, shot.struck))
+				misc.log("Hit " .. players.label(victim) .. damage .. shot.struck .. expectation(shot, shot.struck))
 			end
 			table.remove(queue, 1)
 			-- the shots after it are measured from what this one left
@@ -1049,7 +1047,7 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 			end
 		elseif now - shot.at > REGISTER_TIME then
 			if table.find(logs.kinds, "misses") then
-				log("Missed " .. players.label(victim) .. " due to no registration" .. expectation(shot))
+				misc.log("Missed " .. players.label(victim) .. " due to no registration" .. expectation(shot))
 			end
 			table.remove(queue, 1)
 		end
@@ -1069,8 +1067,9 @@ local function onShot(result, spread)
 		target = nil
 	end
 	local turned = target and (point or target.Position)
-	-- the logs, the on hit chams and the hit effects all go by which shots got to an enemy
+	-- the logs, the on hit chams, the hit effects and the hitsound all go by which shots got to an enemy
 	if #logs.kinds > 0
+		or misc.settings.hitsound
 		or esp.settings.HitChams
 		or #visuals.hitMarkers > 0
 		or visuals.damageMarker
@@ -1550,19 +1549,9 @@ esp.gear = function()
 	return gear
 end
 
--- the game sends the jump button for as long as the key is held and its simulation only jumps on a fresh press,
--- so bunnyhop drops the button from every command but the first one on the ground
-local JUMP = 1
-local movement = { bunnyhop = false }
-
-local function hop(input, state)
-	if bit32.band(input.Buttons, JUMP) == 0 or state.MovementMode ~= "Walking" then
-		return
-	end
-	-- on the ground with the button already down the jump was refused, so it is released to be pressed again
-	if not state.OnGround or bit32.band(state.PreviousButtons, JUMP) ~= 0 then
-		input.Buttons -= JUMP
-	end
+-- for the misc page's automatic pistol: the gun that is out
+misc.weapon = function()
+	return equipped and equipped.IsActive and equipped.Weapon
 end
 
 -- under this speed the game counts the character as standing still for spread
@@ -1617,12 +1606,11 @@ aim.stopTime = function()
 	return seconds
 end
 
--- what the hub does to a movement command before the game builds and sends it
+-- what the hub does to a movement command before the game builds and sends it: the movement page's features, then the
+-- trigger's auto stop over them
 local function command(input, state)
 	velocity = state.Velocity
-	if movement.bunnyhop then
-		hop(input, state)
-	end
+	movement.command(input, state)
 	if aim.stopping then
 		stop(input, state)
 	end
@@ -1654,8 +1642,8 @@ if runtime then
 		hookfunction(runtime._buildCommandInput, original)
 	end)
 else
-	warn("[hub] BloxStrike movement runtime (_buildCommandInput) not found: bunnyhop and auto stop unavailable")
-	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop or auto stop", "error")
+	warn("[hub] BloxStrike movement runtime (_buildCommandInput) not found: the movement page and auto stop unavailable")
+	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no movement page or auto stop", "error")
 end
 
 -- the two sides of a match, as the Team attribute has them
@@ -1711,11 +1699,16 @@ end
 
 view.start()
 entities.start()
+movement.start()
+misc.start()
+hud.start()
 
 local window = hub.ui.createWindow("BloxStrike")
 hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
-	movement = movement,
+	movement = movement.settings,
+	misc = misc,
+	hud = hud.settings,
 	logs = logs,
 	roster = roster,
 	skies = skies,

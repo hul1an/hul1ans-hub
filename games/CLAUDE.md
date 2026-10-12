@@ -547,6 +547,43 @@
     `Spectators` (how many are watching them), `LastKiller`, `PinVerified`, `CanUseVIPMenu`. Nothing like a rank.
   - A character is named by the Player's `Name`, which can differ from the `DisplayName` the hub shows. A bot's name
     looks like a player's (`RealLestro`); it had `Bot`, `Team`, `ActorId` and `CombatantId`.
+- Read through the bridge on 2026-10-12 for the misc tab:
+  - The kill feed (`Interface.Screens.Gameplay.Middle.KillFeed`) clones `Assets.UI.KillFeed.Kill`, a CanvasGroup with a
+    `UIStroke` and `Contents` (`Player`, `Assistor`, `Enemy` labels, `Weapon` and the icons), into
+    `PlayerGui.MainGui.Gameplay.Middle.KillFeed` on `Remotes.UI.UIPlayerKilled` (`Killer`, `Victim`, `Assistor` as
+    keys, `Weapon`, `Headshot`, ...). The stroke is red when the user is the killer, the victim or the assistor. After
+    5 s it fades over 1 s and is destroyed. In deathmatch a streak row is made the same way with no weapon shown.
+  - The radar (`...Middle.Radar`) is a class whose object is made anew for every spawn and spectate target.
+    `UpdatePlayerIcons` draws an enemy only while `GetEnemyVisibility` says a teammate has a line to their head
+    (`IsVisibleToTeam`, a raycast a teammate, two checks a frame), and reads `self.EnemyVisibilityCache[key]`
+    (`Visible`, `UpdatedAt`, good for 0.1 s) first. An enemy with no character in the workspace has no icon either way.
+  - The chat screen (`...Middle.Chat`) has `ProcessSystemMessage(text)`, which puts a line in the game's own chat
+    locally, and `ProcessChatData`, `ProcessKillMessage` and more for what the server sends.
+  - The C4's viewmodel has `Weapon.Interactive.SurfaceGui.TextLabel`, `*******` at rest (the third person model has
+    one under `Weapon.Screen`). `Components.C4.cancel` writes the stars back; what types the code wasn't found, but
+    `Database.Audio.Weapons.C4` has sounds named `7`, `73`, `735` up to `7355608`. Planting is `Remotes.C4.Start`,
+    then `Planted` when the `Use` animation ends.
+  - The fire key (`InputController.Actions.Fire`) sets the gun's `IsFireHeld` and queues one `shoot` for the render
+    step two after the camera's. `Weapon:shoot` sets `IsShooting` and `NextShotDue`, and its delay thread shoots again
+    only for a gun whose `Properties.Automatic` is set while `IsFireHeld`. A pistol's file has `Type` `Pistol` and
+    `Slot` `Secondary`; the Glock-18's `ShootingOptions` is `Burst`, its mode in `AlternativeShootingOption`
+    (`Default` or `Burst`), and a revolver's is `Revolver`.
+  - Movement keys write `leftValue`, `rightValue` and so on of Roblox's own keyboard controller
+    (`PlayerModule:GetControls().activeController`) and call its `UpdateMovement`; `Classes.Character.MoveFunction`
+    turns that into `LatestMoveVector`, each axis clamped to 1, and `SampleInput` into a command's `Move`. For touch
+    and gamepad the game has an air strafe of its own there: in the air a turn of the view sets `Move.X` to 1 when the
+    yaw falls and -1 when it rises.
+  - `Simulation.Config.Default` also has `AirSpeedCap` 30 units, `MaxStepHeight` 18, `PlayerSizeStanding` 32 by 72 by
+    32 and ducking 32 by 54. `ProvenSimulator` jumps at `JumpSpeed` times a stamina share and nothing else, so duck
+    changes no jump's height. A state also has `Position`, `Stance`, `IsDucking`, `DuckAmount` and
+    `WeaponMoveSpeed`.
+  - A Player's `SpectatingUserId` and `IsSpectating` say who they watch. `SpectateController` only offers the user's
+    own side to watch unless the user is on `Spectators`.
+  - Also there and not used: `Interface.Screens.Gameplay.Middle.Votekick`, the `SwitchViewmodelHand` action, and
+    `Screens.Menu.Gamemodes`, a server browser with five regions (`Remotes.Modes.FetchServers`, `SelectGamemode`).
+  - `ReplicatedStorage.Sounds` holds a folder a sound name, each with its variants as Sounds named `1`, `2`...:
+    `Bullet` (`Bell1` to `Bell6`, `Headshot`, `Helmet Headshot`, the materials), `Interface`, `Other`, `Character`,
+    `Round`, `Deathmatch` and one a weapon.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.

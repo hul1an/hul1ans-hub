@@ -495,45 +495,56 @@ local function addVisuals(window, features)
 	multi(group(bomb, "world info", things, "BombWorld"), "show", things, "BombShow", { "name", "timer", "distance" })
 end
 
-local function addMisc(window, movement, logs)
+local function addMisc(window, features)
+	local misc, hud, movement, logs = features.misc.settings, features.hud, features.movement, features.logs
 	local tab = window:CreateTab("misc", "settings")
 	local general = tab:CreateSubTab("general")
 
 	local main = general:CreateSection("main")
+	-- the game has no match to accept, and the five after it are of CS2's own client
 	local accept = off.group(main, "auto accept")
 	off.toggle(accept, "notification")
 	off.slider(accept, "delay", 0, 15, "%.2f seconds")
-	for _, label in {
-		"panorama extensions",
-		"unlock inventory",
-		"unlock spectators",
-		"reveal ranks",
-		"console filter",
-		"engine radar",
-		"preserve killfeed",
-	} do
+	for _, label in { "panorama extensions", "unlock inventory", "unlock spectators", "reveal ranks", "console filter" } do
 		off.toggle(main, label)
 	end
-	local hitsound = off.group(main, "hitsound")
-	off.dropdown(hitsound, "sound", { "default" })
-	off.slider(hitsound, "volume", 20, 125, "%.0f%%")
+	toggle(main, "engine radar", misc, "radar")
+	toggle(main, "preserve killfeed", misc, "killfeed")
+	local hitsound = group(main, "hitsound", misc, "hitsound")
+	dropdown(hitsound, "sound", misc, "hitsoundName", features.misc.sounds)
+	slider(hitsound, "volume", misc, "hitsoundVolume", 20, 125, true, "%.0f%%")
 	-- the hub's own
 	main:CreateButton("eject", hub.unload)
 
-	local hud = general:CreateSection("hud")
-	for _, label in { "watermark", "media player", "keybind list", "spectator list", "team damage list", "movement indicators" } do
-		off.toggle(hud, label)
-	end
+	-- starline's team damage list was taken out at the user's request
+	local overlays = general:CreateSection("hud")
+	-- starline keeps the watermark's parts on the widget itself
+	multi(group(overlays, "watermark", hud, "watermark"), "show", hud, "watermarkShow", {
+		"username",
+		"time",
+		"ping",
+		"k/d",
+		"fps",
+		"hs%",
+	})
+	-- nothing in Roblox says what the user is listening to
+	off.toggle(overlays, "media player")
+	toggle(overlays, "keybind list", hud, "keybinds")
+	toggle(overlays, "spectator list", hud, "spectators")
+	toggle(overlays, "movement indicators", hud, "indicators")
 
+	-- starline's opposite hand knife, instant hand switch and fake 0ms were taken out at the user's request
 	local others = general:CreateSection("others")
-	for _, label in { "opposite hand knife", "instant hand switch", "fake 0ms", "automatic pistol" } do
-		off.toggle(others, label)
-	end
+	toggle(others, "automatic pistol", misc, "pistol")
 	-- the hub's own two in place of starline's hurt, harm, votes, edgebug and pixelsurf
 	multi(others, "logs", logs, "kinds", { "hits", "misses" })
-	off.multi(others, "log output", { "chat", "console", "screen" })
-	off.group(others, "custom bomb code"):CreateTextBox("text (placeholder)", "", false, nothing):Disable()
+	multi(others, "log output", misc, "output", { "chat", "console", "screen" })
+	group(others, "custom bomb code", misc, "bombCode"):CreateTextBox("text", "7355608", false, function(value)
+		misc.bombText = value
+	end)
+	-- a Roblox client is put on a server by Roblox
 	off.multi(off.group(others, "region changer"), "allowed regions")
+	-- left as a placeholder on purpose: the hub doesn't flood the game's server
 	local lagger = off.group(others, "server lagger")
 	off.slider(lagger, "frequency", 1, 20)
 	off.slider(lagger, "strength", 10, 6000)
@@ -543,12 +554,14 @@ local function addMisc(window, movement, logs)
 	local card = page:CreateSection("movement")
 	-- starline's auto jump is the hub's bunnyhop
 	toggle(card, "auto jump", movement, "bunnyhop")
-	off.toggle(off.group(card, "edge jump"), "long jump")
+	toggle(group(card, "edge jump", movement, "edgeJump"), "long jump", movement, "longJump")
+	-- the placeholders on this card are tricks of CS2's own movement code or of its subticks, which the game's
+	-- simulation has neither of
 	off.toggle(card, "jump bug")
 	off.toggle(card, "mini jump")
 	off.toggle(off.group(card, "fireman"), "auto detach")
-	off.toggle(off.group(card, "null binds"), "on ground")
-	off.toggle(off.group(card, "auto strafe"), "subtick strafe")
+	toggle(group(card, "null binds", movement, "nullBinds"), "on ground", movement, "nullGround")
+	off.toggle(group(card, "auto strafe", movement, "autoStrafe"), "subtick strafe")
 	off.toggle(card, "slide walk")
 	local surf = off.group(card, "pixel surf")
 	off.toggle(surf, "advanced")
@@ -561,33 +574,27 @@ local function addMisc(window, movement, logs)
 	off.toggle(edge, "indicator", true)
 	off.dropdown(edge, "hitsound", { "off" })
 	off.slider(edge, "volume", 20, 125, "%.0f%%")
-	off.toggle(card, "quick stop")
-	off.toggle(card, "block bot")
+	toggle(card, "quick stop", movement, "quickStop")
+	toggle(card, "block bot", movement, "blockBot")
 
 	local graph = page:CreateSection("velocity graph")
-	off.toggle(graph, "enabled", true)
-	off.multi(graph, "log events", {
-		"landing speed",
-		"edgebug",
-		"jumpbug",
-		"long jump",
-		"mini jump",
-		"jump length",
-		"pixelsurf",
-	})
-	off.slider(graph, "width", 200, 700)
-	off.slider(graph, "height", 70, 260)
-	off.slider(graph, "bg opacity", 0, 1, "%.2f")
+	color(toggle(graph, "enabled", hud, "graph"), hud, "graphColor", "graphOpacity")
+	-- the three of starline's seven that the hub's movement has
+	multi(graph, "log events", hud, "graphEvents", { "landing speed", "long jump", "jump length" })
+	slider(graph, "width", hud, "graphWidth", 200, 700, true)
+	slider(graph, "height", hud, "graphHeight", 70, 260, true)
+	slider(graph, "bg opacity", hud, "graphBack", 0, 1, false)
 end
 
--- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals, movement
--- and logs settings, the roster, the skybox choices, view.lua and entities.lua, setNight and setThirdPerson
+-- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals and logs
+-- settings, the movement page's and the hud's, misc.lua, the roster, the skybox choices, view.lua and entities.lua,
+-- setNight and setThirdPerson
 return function(window, features)
 	addAimbot(window)
 	addPlayers(window, features.roster)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
-	addMisc(window, features.movement, features.logs)
+	addMisc(window, features)
 	window:CreateTab("scripts", "code"):CreateSubTab("list")
 end

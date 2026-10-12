@@ -471,6 +471,95 @@ function ui.log(text)
 	end)
 end
 
+-- a panel on the screen for a game's hud, in the look of the player list's rows: a title over lines of text, each a
+-- string or a left and a right one, or with no title lines as wide as their text. The text is rich text. The mouse
+-- drags it while the menu is showing
+function ui.createWidget(position, title, width)
+	local root = frame({
+		BackgroundColor3 = STRIP,
+		BackgroundTransparency = 0.04,
+		Active = true,
+		AnchorPoint = Vector2.new(position.X.Scale, 0),
+		Position = position,
+		Size = UDim2.fromOffset(width or 0, 0),
+		AutomaticSize = width and Enum.AutomaticSize.Y or Enum.AutomaticSize.XY,
+		Visible = false,
+		Parent = screen,
+	})
+	corner(root, 3)
+	make("UIStroke", { Color = BORDER, Parent = root })
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = root })
+	root.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and visible then
+			-- from here on it is placed by its top left corner, wherever on the screen it was anchored
+			local place = root.AbsolutePosition
+			root.AnchorPoint = Vector2.zero
+			root.Position = UDim2.fromOffset(place.X, place.Y)
+			local offset = mouse() - place
+			dragging = function(at)
+				root.Position = UDim2.fromOffset(at.X - offset.X, at.Y - offset.Y)
+			end
+		end
+	end)
+
+	if title then
+		local head = frame({ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 22), Parent = root })
+		label(TITLE, { Text = title, TextColor3 = MUTED, Position = UDim2.fromOffset(9, 0), Size = UDim2.new(1, -18, 1, 0), Parent = head })
+		frame({ BackgroundColor3 = BORDER, Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1), Parent = head })
+	end
+
+	local rows = {}
+	local widget = {}
+
+	function widget:Show(shown)
+		root.Visible = shown
+	end
+
+	function widget:SetLines(lines)
+		for index, line in lines do
+			local row = rows[index]
+			if not row then
+				row = {}
+				row.frame = frame({
+					BackgroundTransparency = 1,
+					Size = width and UDim2.new(1, 0, 0, 20) or UDim2.fromOffset(0, 22),
+					AutomaticSize = width and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
+					LayoutOrder = index,
+					Parent = root,
+				})
+				make("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9), Parent = row.frame })
+				row.left = label(VALUE, {
+					RichText = true,
+					TextColor3 = MUTED,
+					Size = UDim2.fromScale(0, 1),
+					AutomaticSize = Enum.AutomaticSize.X,
+					Parent = row.frame,
+				})
+				row.right = label(VALUE, {
+					RichText = true,
+					TextColor3 = MUTED,
+					AnchorPoint = Vector2.new(1, 0),
+					Position = UDim2.fromScale(1, 0),
+					Size = UDim2.fromScale(0, 1),
+					AutomaticSize = Enum.AutomaticSize.X,
+					Parent = row.frame,
+				})
+				rows[index] = row
+			end
+			local pair = type(line) == "table"
+			row.left.Text = pair and line[1] or line
+			row.right.Text = pair and line[2] or ""
+			row.right.Visible = pair
+			row.frame.Visible = true
+		end
+		for index = #lines + 1, #rows do
+			rows[index].frame.Visible = false
+		end
+	end
+
+	return widget
+end
+
 -- one colour picker shared by every swatch: hue, saturation and value of the colour being edited, and its opacity
 local picker = panel(PANEL, 3)
 local hue, saturation, brightness, opacity, picked = 0, 0, 1, 1, nil
@@ -598,9 +687,10 @@ local function pickColor(anchor, color, changed, alpha)
 	openPopup(picker, anchor.AbsolutePosition.X + 20, anchor.AbsolutePosition.Y)
 end
 
--- binds. Every toggle has one: its key (a KeyCode name, a mouse button's UserInputType name or "NONE"), its mode
--- ("toggle" flips the toggle on a press, "hold" keeps it on while the key is down), get and set for the toggle's
--- state, and changed, which redraws the row's chip. A right click on a toggle's row opens the bind popup on it
+-- binds. Every toggle has one: its toggle's name, its key (a KeyCode name, a mouse button's UserInputType name or
+-- "NONE"), its mode ("toggle" flips the toggle on a press, "hold" keeps it on while the key is down), get and set for
+-- the toggle's state, and changed, which redraws the row's chip. A right click on a toggle's row opens the bind popup
+-- on it
 local binds = {}
 -- the bind the popup is open on, whether the popup is waiting for the key, and whether the click that gave it a mouse
 -- button is still to come up on the key chip
@@ -730,6 +820,18 @@ hub.cleanup.add(UserInputService.InputEnded:Connect(function(input)
 		end
 	end
 end))
+
+-- for a game's keybind list: the binds that have a key and whose toggle is on, each the toggle's name, the key as its
+-- chip shows it and the mode
+function ui.binds()
+	local active = {}
+	for _, bind in binds do
+		if bind.key ~= "NONE" and bind.get() then
+			table.insert(active, { name = bind.name, key = keyText(bind.key), mode = bind.mode })
+		end
+	end
+	return active
+end
 
 local Control = {}
 Control.__index = Control
@@ -909,6 +1011,7 @@ function Container:CreateToggle(name, default, callback)
 	-- the toggle's bind, and the chip that shows it on the row once it has a key, left of any swatch
 	local chip
 	local bind = {
+		name = name,
 		key = "NONE",
 		mode = "toggle",
 		get = function()
