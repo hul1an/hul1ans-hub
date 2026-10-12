@@ -1090,7 +1090,8 @@ local function update(model, source, camera, viewport)
 	end
 
 	set.name.Visible = settings.Name
-	set.name.Color = own or settings.NameColor
+	-- a player the list page has as high priority has a red name, whatever colour is set
+	set.name.Color = esp.override(model).priority and RED or own or settings.NameColor
 	if settings.Name then
 		set.name.Text = source.label(model)
 		set.name.Position = Vector2.new(x + width / 2, y - 16)

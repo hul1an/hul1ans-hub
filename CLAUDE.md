@@ -270,7 +270,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     `available ingame only` until there has been one. The avatar is the Roblox headshot, steamid is `userid` (`bot`
     for a bot), and premier rating a placeholder that says `unranked`: the game has no rank on a Player.
   - `whitelist`: never a target of the aim, the trigger or backtrack. `high priority`: taken before any other target,
-    whatever target selection says. The two `auto wall`s switch it on for that player while the setting is off. `fov
+    whatever target selection says, and their esp name is drawn red whatever its colour is set to (asked for by the
+    user on 2026-10-12; the red is the health bar's, not the list's pure red). The two `auto wall`s switch it on for that player while the setting is off. `fov
     amount` is that player's own max fov. `trigger reaction` is taken to be that player's own visible delay, whose
     range it has; the dump can't say. `disable visuals`: nothing of the esp or the chams is drawn of them.
   - `steal name`, `reset name` and `vote kick yourself` are placeholders: a client can't change a Roblox name, and
