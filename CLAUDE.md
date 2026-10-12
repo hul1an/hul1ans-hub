@@ -254,6 +254,22 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     Atmosphere switches that fog off, so it is held out of Lighting while the row is on, which also takes its haze away.
   - `wetness` was removed from the card by the user on 2026-10-12 as not possible: most of a map is MeshParts under a
     `SurfaceAppearance`, which a script can't make shinier, so raising `Reflectance` would only wet the plain parts.
+- The effects card of visuals › world (asked for by the user on 2026-10-12: start adding effects) is real but for
+  bloom's `threshold knee`, which Roblox's bloom has nothing for. All of it is in `main.lua`. What Claude chose:
+  - A hit is what the hit logs call one: a shot of the user's after which the enemy's `Health` dropped. `hitEffects`
+    runs then, from the Heartbeat that writes the logs, with where the shot got to.
+  - `hit markers`: four white strokes for 0.4 s at the middle of the screen (`screen`), and for 1 s at the place hit
+    (`world`). `damage marker`: the damage as a number in the row's colour, drifting up from the place hit for 1 s.
+  - `bloom` changes the game's own BloomEffect while it is on: `bloom scale` is its Intensity (100 is Roblox's most, 1),
+    `threshold` starline's 0 to 2 over Roblox's 0.8 to 4, `blur strength` its Size up to 56. The defaults are the
+    game's own figures, so switching the row on changes nothing until a slider moves.
+  - `motion blur`: Roblox has none, so a BlurEffect under the camera whose size follows how fast the view turns.
+  - `kill effects`: the six names are starline's and the looks are the hub's own, played where the killing shot got to.
+    Explosion and shockwave are a growing ball and disc, lightning and taser jagged lines of neon parts (one from 80
+    studs up, five short ones round the body), sparks and dissolve bursts of the dot texture. `screen shake` turns the
+    shown view at random for 0.4 s, `shake strength` times 0.05 degrees, in a render step three after the camera's so
+    that shots aren't moved by it.
+  - `impact sparks`: a burst of that many sparks where each of the user's shots ends.
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
@@ -441,6 +457,10 @@ a ParticleEmitter does take a `getcustomasset` texture, with its streaks lying s
 that and not run since. Nothing was said of the rest. Open: how the other four types look, whether Roblox's fog shows
 once the Atmosphere is out of Lighting, and whether the Atmosphere comes back right when the row goes off after a map
 change.
+
+The world page's effects card was written on 2026-10-12 and has not been run. Open: whether `Emit` on an emitter that
+has just been moved throws its particles at the new place, whether a BlurEffect under the camera draws, whether the
+viewmodel follows the screen shake, and how any of it looks.
 
 The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
 

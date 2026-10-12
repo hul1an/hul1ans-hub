@@ -69,7 +69,24 @@ local visuals = {
 	fogDensity = 50,
 	fogStart = 0,
 	fogEnd = 4000,
+	hitMarkers = {},
+	damageMarker = false,
+	damageColor = Color3.new(1, 1, 1),
+	-- the three that leave the game's bloom as it is
+	bloom = false,
+	bloomScale = 100,
+	bloomThreshold = 0.75,
+	bloomBlur = 43,
+	motionBlur = false,
+	motionBlurAmount = 0.5,
+	killEffects = false,
+	killKinds = {},
+	killShake = false,
+	killShakeStrength = 10,
+	sparks = false,
+	sparkCount = 32,
 }
+local random = Random.new()
 
 -- a player's character names its owner; a bot's has no owner and no Player object at all
 local function ownerOf(character)
@@ -627,6 +644,217 @@ local function hitEffect(position)
 	fade(part, 0.4, { Size = Vector3.new(7, 7, 7), Transparency = 1 })
 end
 
+-- an emitter of the hub's dot texture that is put at a place and made to throw particles there. size is the box they
+-- start in
+local function burster(size, properties)
+	local part = effectPart()
+	part.Transparency = 1
+	part.Size = size
+	part.Parent = effects
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Enabled = false
+	emitter.Texture = hub.ui.asset("weather-dot.png")
+	emitter.LightInfluence = 0
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	for name, value in properties do
+		emitter[name] = value
+	end
+	emitter.Parent = part
+	return function(position, count)
+		part.CFrame = CFrame.new(position)
+		emitter:Emit(count)
+	end
+end
+
+-- impact sparks, and the kill effect of the name
+local spark = burster(Vector3.one * 0.2, {
+	Color = ColorSequence.new(Color3.fromRGB(255, 200, 90)),
+	LightEmission = 1,
+	Size = NumberSequence.new(0.12, 0),
+	Lifetime = NumberRange.new(0.2, 0.5),
+	Speed = NumberRange.new(15, 35),
+	Acceleration = Vector3.new(0, -60, 0),
+	Drag = 2,
+})
+-- motes that leave a body's height of air and drift up
+local dissolve = burster(Vector3.new(2, 5, 2), {
+	Color = ColorSequence.new(Color3.new(1, 1, 1)),
+	Size = NumberSequence.new(0.25, 0),
+	Transparency = NumberSequence.new(0.2, 1),
+	Lifetime = NumberRange.new(1, 2),
+	Speed = NumberRange.new(1, 4),
+	Acceleration = Vector3.new(0, 6, 0),
+})
+
+-- a jagged line of thin glowing parts from one point to another, gone in a moment
+local function bolt(from, to, color, width, seconds)
+	local pieces = 8
+	local stray = (to - from).Magnitude / pieces * 0.4
+	local last = from
+	for piece = 1, pieces do
+		local point = from:Lerp(to, piece / pieces)
+		if piece < pieces then
+			point += random:NextUnitVector() * stray
+		end
+		local length = (point - last).Magnitude
+		local part = effectPart()
+		part.Color = color
+		part.Size = Vector3.new(width, width, length)
+		part.CFrame = CFrame.lookAt(last, point) * CFrame.new(0, 0, -length / 2)
+		part.Parent = effects
+		fade(part, seconds, { Transparency = 1 })
+		last = point
+	end
+end
+
+-- starline's kill effects by name, each played where the shot that killed got to. What they look like is the hub's own
+local KILL = {
+	explosion = function(position)
+		local part = effectPart()
+		part.Shape = Enum.PartType.Ball
+		part.Color = Color3.fromRGB(255, 150, 50)
+		part.Size = Vector3.one
+		part.CFrame = CFrame.new(position)
+		part.Parent = effects
+		fade(part, 0.6, { Size = Vector3.one * 14, Transparency = 1 })
+	end,
+	taser = function(position)
+		for _ = 1, 5 do
+			local from = position + random:NextUnitVector() * 2.5
+			bolt(from, position + random:NextUnitVector() * 2.5, Color3.fromRGB(90, 170, 255), 0.08, 0.5)
+		end
+	end,
+	lightning = function(position)
+		bolt(position + Vector3.new(0, 80, 0), position, Color3.fromRGB(200, 220, 255), 0.35, 0.5)
+	end,
+	sparks = function(position)
+		spark(position, 60)
+	end,
+	dissolve = function(position)
+		dissolve(position, 80)
+	end,
+	shockwave = function(position)
+		local part = effectPart()
+		part.Shape = Enum.PartType.Cylinder
+		part.Color = Color3.new(1, 1, 1)
+		part.Transparency = 0.3
+		part.Size = Vector3.new(0.2, 2, 2)
+		-- a cylinder's length is its X, stood upright here so the disc lies flat
+		part.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.pi / 2)
+		part.Parent = effects
+		fade(part, 0.7, { Size = Vector3.new(0.2, 36, 36), Transparency = 1 })
+	end,
+}
+
+-- the kill effects' screen shake: for a moment after a kill the view is turned a little at random, less and less. It
+-- is done after the game's camera step and the hub's third person, so only what is shown moves and not where shots go
+local SHAKE_STEP = "HubShake"
+local SHAKE_TIME = 0.4
+-- starline's strength runs 2 to 40; this many degrees for each
+local SHAKE_DEGREES = 0.05
+local shaken = 0
+
+RunService:BindToRenderStep(SHAKE_STEP, Enum.RenderPriority.Camera.Value + 3, function()
+	local left = 1 - (os.clock() - shaken) / SHAKE_TIME
+	if left > 0 then
+		local most = math.rad(visuals.killShakeStrength * SHAKE_DEGREES) * left
+		local camera = workspace.CurrentCamera
+		camera.CFrame *= CFrame.Angles(random:NextNumber(-most, most), random:NextNumber(-most, most), 0)
+	end
+end)
+hub.cleanup.add(function()
+	RunService:UnbindFromRenderStep(SHAKE_STEP)
+end)
+
+-- hit markers and damage numbers: drawings that are up for a moment. A mark is its drawings, when it began, how long it
+-- lasts and where in the world it is, the middle of the screen without. A number drifts up; a hit marker is four
+-- strokes out towards the corners
+local marks = {}
+
+local function mark(drawings, seconds, at)
+	table.insert(marks, { drawings = drawings, began = os.clock(), seconds = seconds, at = at })
+end
+
+local function strokes()
+	local lines = {}
+	for index = 1, 4 do
+		local line = Drawing.new("Line")
+		line.Thickness = 1
+		line.Color = Color3.new(1, 1, 1)
+		lines[index] = line
+	end
+	return lines
+end
+
+local function marksStep()
+	local camera = workspace.CurrentCamera
+	local now = os.clock()
+	for index = #marks, 1, -1 do
+		local entry = marks[index]
+		local age = (now - entry.began) / entry.seconds
+		if age >= 1 then
+			for _, drawing in entry.drawings do
+				drawing:Remove()
+			end
+			table.remove(marks, index)
+		else
+			local center, shown = camera.ViewportSize / 2, true
+			if entry.at then
+				local point = camera:WorldToViewportPoint(entry.at)
+				center, shown = Vector2.new(point.X, point.Y), point.Z > 0
+			end
+			for corner, drawing in entry.drawings do
+				drawing.Visible = shown
+				drawing.Transparency = 1 - age
+				if #entry.drawings == 1 then
+					drawing.Position = center - Vector2.new(0, 20 + 30 * age)
+				else
+					local way = Vector2.new(corner % 2 == 0 and 1 or -1, corner > 2 and 1 or -1)
+					drawing.From = center + way * 4
+					drawing.To = center + way * 10
+				end
+			end
+		end
+	end
+end
+
+hub.cleanup.add(function()
+	for _, entry in marks do
+		for _, drawing in entry.drawings do
+			drawing:Remove()
+		end
+	end
+	table.clear(marks)
+end)
+
+-- what a shot that hurt an enemy sets off besides the logs and the on hit chams. position is where it got to, killed
+-- whether that was the end of them
+local function hitEffects(position, damage, killed)
+	if table.find(visuals.hitMarkers, "screen") then
+		mark(strokes(), 0.4)
+	end
+	if table.find(visuals.hitMarkers, "world") then
+		mark(strokes(), 1, position)
+	end
+	if visuals.damageMarker then
+		local text = Drawing.new("Text")
+		text.Size = 14
+		text.Center = true
+		text.Outline = true
+		text.Color = visuals.damageColor
+		text.Text = string.format("%.0f", damage)
+		mark({ text }, 1, position)
+	end
+	if killed and visuals.killEffects then
+		for _, kind in visuals.killKinds do
+			KILL[kind](position)
+		end
+		if visuals.killShake then
+			shaken = os.clock()
+		end
+	end
+end
+
 -- rewrites a finished bullet raycast so its last hit is the target; returns whether it did
 local function redirect(result, target, point)
 	local position = point or target.Position
@@ -744,7 +972,8 @@ local function expectation(shot, got)
 end
 
 -- angle is how far off the view ray the shot's spread could take it, target the part the shot was turned to if it was
-local function logShot(result, angle, target)
+-- and point the place on it
+local function logShot(result, angle, target, point)
 	local camera = workspace.CurrentCamera
 	local model, part, chance = aim.expected(camera, angle)
 	local shot = { at = os.clock(), expected = part and limb(part), chance = chance }
@@ -753,7 +982,7 @@ local function logShot(result, angle, target)
 	if not struck then
 		for _, hit in rawget(result, "Hits") do
 			if enemyOf(hit.Instance) then
-				struck = hit.Instance
+				struck, point = hit.Instance, hit.Position
 				break
 			end
 		end
@@ -765,6 +994,7 @@ local function logShot(result, angle, target)
 		-- a shotgun's pellets are one shot
 		if not (queue[#queue] and shot.at - queue[#queue].at < 0.02) then
 			shot.struck = limb(struck)
+			shot.position = point
 			shot.health = victim:GetAttribute("Health")
 			-- where the on hit chams will stand, if the shot turns out to have hurt
 			shot.pose = esp.settings.HitChams and esp.pose(victim)
@@ -797,6 +1027,7 @@ hub.cleanup.add(RunService.Heartbeat:Connect(function()
 			if shot.pose then
 				esp.flash(victim, shot.pose)
 			end
+			hitEffects(shot.position, shot.health - health, dead)
 			if table.find(logs.kinds, "hits") then
 				local damage = string.format(" for %.0f damage in ", shot.health - health)
 				log("Hit " .. players.label(victim) .. damage .. shot.struck .. expectation(shot, shot.struck))
@@ -827,20 +1058,28 @@ local function onShot(result, spread)
 	if not (target and target.Parent and redirect(result, target, point)) then
 		target = nil
 	end
-	-- the logs and the on hit chams both go by which shots got to an enemy
-	if #logs.kinds > 0 or esp.settings.HitChams then
-		logShot(result, math.min(spread, MAX_SPREAD) / 2, target)
+	local turned = target and (point or target.Position)
+	-- the logs, the on hit chams and the hit effects all go by which shots got to an enemy
+	if #logs.kinds > 0
+		or esp.settings.HitChams
+		or #visuals.hitMarkers > 0
+		or visuals.damageMarker
+		or visuals.killEffects then
+		logShot(result, math.min(spread, MAX_SPREAD) / 2, target, turned)
 	end
 
-	if visuals.tracers or visuals.hitEffect then
+	if visuals.tracers or visuals.hitEffect or visuals.sparks then
 		local origin = rawget(result, "Origin") or workspace.CurrentCamera.CFrame.Position
-		local finish = typeof(origin) == "Vector3" and shotEnd(result, origin, target and (point or target.Position))
+		local finish = typeof(origin) == "Vector3" and shotEnd(result, origin, turned)
 		if finish then
 			if visuals.tracers then
 				tracer(origin, finish)
 			end
 			if visuals.hitEffect then
 				hitEffect(finish)
+			end
+			if visuals.sparks then
+				spark(finish, visuals.sparkCount)
 			end
 		end
 	end
@@ -1092,16 +1331,69 @@ local function weatherStep()
 	end
 end
 
--- every frame, since the game makes Lighting's Sky and Atmosphere anew for each map
-hub.cleanup.add(RunService.RenderStepped:Connect(function()
+-- the bloom row: the game's own BloomEffect, made anew for every map, is given the row's figures while it is on. Roblox
+-- takes an intensity up to 1, a threshold from 0.8 to 4 and a size up to 56, and has no knee on the threshold
+local BLOOM = { "Enabled", "Intensity", "Threshold", "Size" }
+local bloom, bloomWas
+
+local function bloomStep()
+	local current = visuals.bloom and Lighting:FindFirstChildOfClass("BloomEffect") or nil
+	if current ~= bloom then
+		if bloom then
+			for property, value in bloomWas do
+				bloom[property] = value
+			end
+		end
+		bloom, bloomWas = current, {}
+		if current then
+			for _, property in BLOOM do
+				bloomWas[property] = current[property]
+			end
+		end
+	end
+	if bloom then
+		bloom.Enabled = true
+		bloom.Intensity = visuals.bloomScale / 100
+		bloom.Threshold = 0.8 + visuals.bloomThreshold * 1.6
+		bloom.Size = visuals.bloomBlur / 100 * 56
+	end
+end
+
+-- the motion blur row. Roblox has no motion blur, so this is a BlurEffect whose size follows how fast the view is
+-- turning: amount times this for each degree a second, up to a limit. It is under the camera, where it works as it
+-- would in Lighting and the game doesn't destroy it
+local BLUR_PER_DEGREE = 0.05
+local BLUR_LIMIT = 24
+local blur = hub.cleanup.add(Instance.new("BlurEffect"))
+blur.Enabled = false
+blur.Size = 0
+blur.Parent = workspace.CurrentCamera
+local lastLook
+
+local function blurStep(dt)
+	local look = workspace.CurrentCamera.CFrame.LookVector
+	local turn = lastLook and math.deg(look:Angle(lastLook)) / dt or 0
+	lastLook = look
+	blur.Enabled = visuals.motionBlur
+	-- eased, so that it doesn't flicker with every frame's turn
+	local wanted = math.min(turn * visuals.motionBlurAmount * BLUR_PER_DEGREE, BLUR_LIMIT)
+	blur.Size += (wanted - blur.Size) * math.min(dt * 15, 1)
+end
+
+-- every frame, since the game makes what is in Lighting anew for each map
+hub.cleanup.add(RunService.RenderStepped:Connect(function(dt)
 	skyStep()
 	fogStep()
 	weatherStep()
+	bloomStep()
+	blurStep(dt)
+	marksStep()
 end))
 hub.cleanup.add(function()
-	visuals.sky, visuals.fog = "none", false
+	visuals.sky, visuals.fog, visuals.bloom = "none", false, false
 	skyStep()
 	fogStep()
+	bloomStep()
 end)
 
 -- third person shows the local character, hides the gun viewmodel held under the camera, and pulls the camera back
