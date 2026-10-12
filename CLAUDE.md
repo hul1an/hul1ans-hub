@@ -380,8 +380,12 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     which is where the game's air acceleration adds the most. Seen by the user on 2026-10-12: it worked, but only
     backwards, since a move input's Y is backwards and was taken as forward; it now goes by WASD, at the user's
     request, not run since. `quick stop`: on the ground with no move key down the input goes
-    against the velocity, sized to take off just the speed there is. `block bot`: walks to 34 units in front of the
-    nearest teammate within 250 and stays; starline's following of a teammate stood on is left out.
+    against the velocity while the speed is over 2.5 studs a second, and the game's friction ends the rest. At first the
+    input was sized to take off just the speed there was; the user reported on 2026-10-12 that after A and D were
+    spammed the character drifted with no key down. The game ignores an input's size (see `games/CLAUDE.md`), so the
+    last counter always overshot and was countered again. Not run since. `block bot`: walks to 34 units in front of the
+    nearest teammate within 250 and stays, letting go of the input a little short of the place for the friction to
+    stop it; starline's following of a teammate stood on is left out.
   - `velocity graph`: the speed along the ground in units over the last few seconds, at the bottom middle of the
     screen, with the speed under it. `log events` has the three of starline's seven the hub can tell: landing speed,
     long jump and jump length, written over the graph for 3 s.

@@ -579,6 +579,11 @@
     32 and ducking 32 by 54. `ProvenSimulator` jumps at `JumpSpeed` times a stamina share and nothing else, so duck
     changes no jump's height. A state also has `Position`, `Stance`, `IsDucking`, `DuckAmount` and
     `WeaponMoveSpeed`.
+  - Only the direction of a `Move` counts. `ProvenSimulator.resolveWish` takes its unit vector, and the wish speed is
+    the base move speed times the walk, crouch and stamina modifiers whatever the input's size. On the ground
+    `ProvenMath.applyFriction` first takes `max(speed, StopSpeed) * Friction * dt` (0.52 studs a second a command under
+    6), then `accelerate` adds `GroundAccelerate * dt * max(DefaultBaseSpeed, wish speed)` along it, about 1.7 studs a
+    second a command, 1.85 with the knife. `CommandCodec` sends each axis of `Move` as one signed byte.
   - A Player's `SpectatingUserId` and `IsSpectating` say who they watch. `SpectateController` only offers the user's
     own side to watch unless the user is on `Spectators`.
   - Also there and not used: `Interface.Screens.Gameplay.Middle.Votekick`, the `SwitchViewmodelHand` action, and

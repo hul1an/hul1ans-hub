@@ -30,8 +30,10 @@ local JUMP, DUCK = 1, 2
 local TICK = 1 / 60
 -- a Hammer unit in studs (MovementV2.SpeedProfile), which the game's movement figures are given in
 local UNIT = 0.075
--- the game's ground accelerate: a move input adds this many times the wish speed a second
-local ACCELERATE = 5.5
+-- the game only takes a move input's direction: on the ground any input adds the full 5.5 times the wish speed a second,
+-- up to 1.85 studs a second a command with the knife out, after friction has taken 0.52. Under this speed a counter
+-- input would send the character back the other way, so the rest of a stop is left to the friction
+local COAST = 2.5
 
 -- the game sends the jump button for as long as the key is held and its simulation only jumps on a fresh press,
 -- so bunnyhop drops the button from every command but the first one on the ground
@@ -159,17 +161,14 @@ local function edge(input, state)
 	end
 end
 
--- quick stop: on the ground with no move key down, the move input goes against the way the character is going, at the
--- size that takes off just the speed there is
+-- quick stop: on the ground with no move key down, the move input goes against the way the character is going
 local function quickStop(input, state)
 	local velocity = state.Velocity
 	local speed = math.sqrt(velocity.X ^ 2 + velocity.Z ^ 2)
-	-- the game's friction ends what is left under this
-	if speed < 0.5 then
+	if speed < COAST then
 		return
 	end
-	local size = math.min(speed / (ACCELERATE * TICK * state.WeaponMoveSpeed), 1)
-	input.Move = toMove(-velocity.X / speed, -velocity.Z / speed, input.LookYaw) * size
+	input.Move = toMove(-velocity.X / speed, -velocity.Z / speed, input.LookYaw)
 	acted.qs = os.clock()
 end
 
@@ -182,11 +181,12 @@ local BLOCK_RANGE, BLOCK_AHEAD = 250 * UNIT, 34 * UNIT
 local function block(input, state)
 	local x, z = blockAt.X - state.Position.X, blockAt.Z - state.Position.Z
 	local distance = math.sqrt(x ^ 2 + z ^ 2)
-	if distance < 0.2 then
+	local speed = math.sqrt(state.Velocity.X ^ 2 + state.Velocity.Z ^ 2)
+	-- let go about as far out as the friction takes to stop the character, so as not to run past
+	if distance < 0.5 + speed * 0.2 then
 		input.Move = Vector2.zero
 	else
-		-- slower over the last two studs, so as not to run past
-		input.Move = toMove(x / distance, z / distance, input.LookYaw) * math.min(distance / 2, 1)
+		input.Move = toMove(x / distance, z / distance, input.LookYaw)
 	end
 	acted.bb = os.clock()
 end
