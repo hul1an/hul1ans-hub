@@ -598,6 +598,135 @@ local function pickColor(anchor, color, changed, alpha)
 	openPopup(picker, anchor.AbsolutePosition.X + 20, anchor.AbsolutePosition.Y)
 end
 
+-- binds. Every toggle has one: its key (a KeyCode name, a mouse button's UserInputType name or "NONE"), its mode
+-- ("toggle" flips the toggle on a press, "hold" keeps it on while the key is down), get and set for the toggle's
+-- state, and changed, which redraws the row's chip. A right click on a toggle's row opens the bind popup on it
+local binds = {}
+-- the bind the popup is open on, whether the popup is waiting for the key, and whether the click that gave it a mouse
+-- button is still to come up on the key chip
+local binding, listening, swallowed = nil, false, false
+
+local function keyText(key)
+	return (key:gsub("MouseButton", "Mouse"):lower())
+end
+
+local binder = panel(LIST, 2)
+binder.Size = UDim2.fromOffset(132, 60)
+label(ROW, {
+	Text = "bind",
+	TextColor3 = MUTED,
+	Position = UDim2.fromOffset(7, 3),
+	Size = UDim2.new(1, -14, 0, 20),
+	Parent = binder,
+})
+local binderKey = button({
+	BackgroundColor3 = CHIP,
+	BackgroundTransparency = 0,
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -7, 0, 6),
+	Size = UDim2.fromOffset(0, 14),
+	AutomaticSize = Enum.AutomaticSize.X,
+	FontFace = FONT,
+	TextSize = KEY,
+	Parent = binder,
+})
+corner(binderKey, 2)
+make("UIPadding", { PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5), Parent = binderKey })
+
+local binderModes = {}
+
+local function showBinder()
+	binderKey.Text = listening and "..." or keyText(binding.key)
+	binderKey.TextColor3 = listening and ACCENT or MUTED
+	for mode, item in binderModes do
+		local on = binding.mode == mode
+		item.mark.Visible = on
+		item.caption.TextColor3 = on and TEXT or MUTED
+	end
+end
+
+for index, mode in { "toggle", "hold" } do
+	local item = button({
+		BackgroundColor3 = WHITE,
+		Position = UDim2.fromOffset(1, 6 + 17 * index),
+		Size = UDim2.new(1, -2, 0, 17),
+		Parent = binder,
+	})
+	local mark = frame({ BackgroundColor3 = ACCENT, BackgroundTransparency = 0.875, Size = UDim2.fromScale(1, 1), Parent = item })
+	corner(mark, 2)
+	outline(mark, ACCENT_DIM, 2).Transparency = 0.67
+	local caption = label(ROW, { Text = mode, Position = UDim2.fromOffset(6, 0), Size = UDim2.new(1, -12, 1, 0), Parent = item })
+	item.MouseEnter:Connect(function()
+		item.BackgroundTransparency = 0.92
+	end)
+	item.MouseLeave:Connect(function()
+		item.BackgroundTransparency = 1
+	end)
+	item.MouseButton1Click:Connect(function()
+		binding.mode = mode
+		binding.changed()
+		showBinder()
+	end)
+	binderModes[mode] = { mark = mark, caption = caption }
+end
+
+binderKey.MouseButton1Click:Connect(function()
+	if swallowed then
+		swallowed = false
+		return
+	end
+	listening = true
+	showBinder()
+end)
+
+local function openBinder(bind)
+	binding, listening, swallowed = bind, false, false
+	showBinder()
+	local at = mouse()
+	openPopup(binder, at.X, at.Y, function()
+		listening = false
+	end)
+end
+
+-- the name a bind keeps a key or a mouse button by; left, right and middle are the only mouse buttons Roblox reports
+local function inputName(input)
+	return input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name
+		or input.UserInputType.Name:match("^MouseButton%d$")
+end
+
+hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
+	local name = inputName(input)
+	if not name then
+		return
+	end
+	if listening then
+		listening = false
+		swallowed = name == "MouseButton1"
+		-- escape and backspace clear the bind
+		binding.key = (name == "Escape" or name == "Backspace") and "NONE" or name
+		binding.changed()
+		showBinder()
+	elseif not processed then
+		for _, bind in binds do
+			if bind.key == name then
+				bind.held = bind.mode == "hold"
+				bind.set(bind.held or not bind.get())
+			end
+		end
+	end
+end))
+
+hub.cleanup.add(UserInputService.InputEnded:Connect(function(input)
+	local name = inputName(input)
+	for _, bind in binds do
+		-- only a hold that this key began is ended by it
+		if bind.key == name and bind.held then
+			bind.held = false
+			bind.set(false)
+		end
+	end
+end))
+
 local Control = {}
 Control.__index = Control
 
@@ -768,9 +897,51 @@ function Container:CreateToggle(name, default, callback)
 	local container = self
 	local toggle = setmetatable({ row = row, label = text }, Control)
 
-	-- a colour swatch beside the box that opens the picker, white until UpdateColor like a picker of its own.
-	-- it is made before a keybind, whose chip goes to the left of it. With alpha its picker has the opacity bar, picked
-	-- gets the opacity, 0 to 1, after the colour, and a config keeps it as two more hex digits
+	-- the toggle's bind, and the chip that shows it on the row once it has a key, left of any swatch
+	local chip
+	local bind = {
+		key = "NONE",
+		mode = "toggle",
+		get = function()
+			return state
+		end,
+		set = function(value)
+			if value ~= state then
+				set(value)
+			end
+		end,
+	}
+	function bind.changed()
+		if not chip then
+			chip = button({
+				BackgroundColor3 = CHIP,
+				BackgroundTransparency = 0,
+				AnchorPoint = Vector2.new(1, 0),
+				Size = UDim2.fromOffset(0, 13),
+				AutomaticSize = Enum.AutomaticSize.X,
+				FontFace = FONT,
+				TextSize = KEY,
+				TextColor3 = MUTED,
+				Parent = row,
+			})
+			corner(chip, 2)
+			make("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), Parent = chip })
+			chip.MouseButton1Click:Connect(function()
+				openBinder(bind)
+			end)
+		end
+		chip.Visible = bind.key ~= "NONE"
+		chip.Text = keyText(bind.key) .. (bind.mode == "hold" and " hold" or "")
+		chip.Position = UDim2.new(1, -inset, 0, 4)
+	end
+	table.insert(binds, bind)
+	row.MouseButton2Click:Connect(function()
+		openBinder(bind)
+	end)
+
+	-- a colour swatch beside the box that opens the picker, white until UpdateColor like a picker of its own. With
+	-- alpha its picker has the opacity bar, picked gets the opacity, 0 to 1, after the colour, and a config keeps it as
+	-- two more hex digits
 	function toggle:CreateColorpicker(picked, alpha)
 		local swatch = button({
 			BackgroundColor3 = WHITE,
@@ -784,6 +955,9 @@ function Container:CreateToggle(name, default, callback)
 		outline(swatch, BORDER, 2)
 		inset += 17
 		text.Size = UDim2.new(1, -inset, 1, 0)
+		if chip then
+			bind.changed()
+		end
 
 		local color, opacity = WHITE, 1
 		local function apply(value, amount)
@@ -811,65 +985,25 @@ function Container:CreateToggle(name, default, callback)
 		return picker
 	end
 
-	-- bind is a KeyCode name, a mouse button's UserInputType name or "NONE"; pressed, if given, is called with it
-	-- after the toggle flips
-	function toggle:CreateKeybind(bind, pressed)
-		local key = bind
-		local waiting = false
-		local chip = button({
-			BackgroundColor3 = CHIP,
-			BackgroundTransparency = 0,
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -inset, 0, 4),
-			Size = UDim2.fromOffset(0, 13),
-			AutomaticSize = Enum.AutomaticSize.X,
-			FontFace = FONT,
-			TextSize = KEY,
-			Parent = row,
-		})
-		corner(chip, 2)
-		make("UIPadding", { PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4), Parent = chip })
-
-		local function show()
-			chip.Text = waiting and "..." or key:gsub("MouseButton", "Mouse"):lower()
-			chip.TextColor3 = waiting and ACCENT or MUTED
-		end
-		show()
-		chip.MouseButton1Click:Connect(function()
-			waiting = true
-			show()
-		end)
-		hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
-			-- left, right and middle are the only mouse buttons Roblox reports
-			local name = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name
-				or input.UserInputType.Name:match("^MouseButton%d$")
-			if not name then
-				return
-			end
-			if waiting then
-				waiting = false
-				-- escape and backspace clear the bind
-				key = (name == "Escape" or name == "Backspace") and "NONE" or name
-				show()
-			elseif not processed and name == key then
-				set(not state)
-				if pressed then
-					pressed(key)
-				end
-			end
-		end))
-
-		table.insert(container.window.controls, {
-			key = container.path .. "/" .. name .. " bind",
-			get = function()
-				return key
-			end,
-			set = function(value)
-				key = value
-				show()
-			end,
-		})
+	-- gives the toggle a bind to start on; any toggle can be bound from its row without this. key is as a bind's key
+	-- is, mode "hold" or nothing for toggle
+	function toggle:CreateKeybind(key, mode)
+		bind.key, bind.mode = key, mode or "toggle"
+		bind.changed()
 	end
+
+	-- a config keeps a bind as its key, with " hold" after it for that mode
+	table.insert(self.window.controls, {
+		key = self.path .. "/" .. name .. " bind",
+		get = function()
+			return bind.key .. (bind.mode == "hold" and " hold" or "")
+		end,
+		set = function(value)
+			local key, mode = value:match("^(%S+)(.*)$")
+			bind.key, bind.mode = key, mode == " hold" and "hold" or "toggle"
+			bind.changed()
+		end,
+	})
 
 	self:register(name, row, function()
 		return state
