@@ -2294,6 +2294,11 @@ function ui.createWindow(title)
 			saveConfig(name)
 		end
 	end)
+	-- a config that comes with a game's script: put among the saved ones under a name, over one of that name
+	function window:AddConfig(name, data)
+		config.save(prefix .. name, data)
+	end
+
 	saveButton.MouseButton1Click:Connect(function()
 		listConfigs()
 		lightSave(true)

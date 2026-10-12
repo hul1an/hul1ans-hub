@@ -6,8 +6,9 @@ local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Lighting = cloneref(game:GetService("Lighting"))
 local TweenService = cloneref(game:GetService("TweenService"))
 local Debris = cloneref(game:GetService("Debris"))
+local HttpService = cloneref(game:GetService("HttpService"))
 
-local esp = hub.require("games/bloxstrike/esp.lua")
+local esp =hub.require("games/bloxstrike/esp.lua")
 local aim = hub.require("games/bloxstrike/aim.lua")
 local view = hub.require("games/bloxstrike/view.lua")
 local entities = hub.require("games/bloxstrike/entities.lua")
@@ -1777,3 +1778,5 @@ hub.require("games/bloxstrike/tabs.lua")(window, {
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })
+-- the config that comes with the script, listed with the saved ones and not loaded until it is picked
+window:AddConfig("default", HttpService:JSONDecode(hub.read("games/bloxstrike/default.json")))
