@@ -500,14 +500,10 @@ local function addMisc(window, features)
 	local tab = window:CreateTab("misc", "settings")
 	local general = tab:CreateSubTab("general")
 
+	-- every starline row of this page the hub has nothing for was taken out at the user's request: auto accept,
+	-- panorama extensions, unlock inventory, unlock spectators, reveal ranks, console filter, media player, team damage
+	-- list, opposite hand knife, instant hand switch, fake 0ms, region changer and server lagger
 	local main = general:CreateSection("main")
-	-- the game has no match to accept, and the five after it are of CS2's own client
-	local accept = off.group(main, "auto accept")
-	off.toggle(accept, "notification")
-	off.slider(accept, "delay", 0, 15, "%.2f seconds")
-	for _, label in { "panorama extensions", "unlock inventory", "unlock spectators", "reveal ranks", "console filter" } do
-		off.toggle(main, label)
-	end
 	toggle(main, "engine radar", misc, "radar")
 	toggle(main, "preserve killfeed", misc, "killfeed")
 	local hitsound = group(main, "hitsound", misc, "hitsound")
@@ -516,7 +512,6 @@ local function addMisc(window, features)
 	-- the hub's own
 	main:CreateButton("eject", hub.unload)
 
-	-- starline's team damage list was taken out at the user's request
 	local overlays = general:CreateSection("hud")
 	-- starline keeps the watermark's parts on the widget itself
 	multi(group(overlays, "watermark", hud, "watermark"), "show", hud, "watermarkShow", {
@@ -527,13 +522,10 @@ local function addMisc(window, features)
 		"fps",
 		"hs%",
 	})
-	-- nothing in Roblox says what the user is listening to
-	off.toggle(overlays, "media player")
 	toggle(overlays, "keybind list", hud, "keybinds")
 	toggle(overlays, "spectator list", hud, "spectators")
 	toggle(overlays, "movement indicators", hud, "indicators")
 
-	-- starline's opposite hand knife, instant hand switch and fake 0ms were taken out at the user's request
 	local others = general:CreateSection("others")
 	toggle(others, "automatic pistol", misc, "pistol")
 	-- the hub's own two in place of starline's hurt, harm, votes, edgebug and pixelsurf
@@ -542,12 +534,6 @@ local function addMisc(window, features)
 	group(others, "custom bomb code", misc, "bombCode"):CreateTextBox("text", "7355608", false, function(value)
 		misc.bombText = value
 	end)
-	-- a Roblox client is put on a server by Roblox
-	off.multi(off.group(others, "region changer"), "allowed regions")
-	-- left as a placeholder on purpose: the hub doesn't flood the game's server
-	local lagger = off.group(others, "server lagger")
-	off.slider(lagger, "frequency", 1, 20)
-	off.slider(lagger, "strength", 10, 6000)
 
 	local page = tab:CreateSubTab("movement")
 
@@ -578,8 +564,8 @@ return function(window, features)
 	addAimbot(window)
 	addPlayers(window, features.roster)
 	addVisuals(window, features)
-	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
+	-- the dump has no cards for the inventory changer; its page is kept so the tab row matches. starline's scripts tab,
+	-- as empty, was taken out at the user's request
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
 	addMisc(window, features)
-	window:CreateTab("scripts", "code"):CreateSubTab("list")
 end
