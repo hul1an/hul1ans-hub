@@ -477,10 +477,11 @@ local heardSource = esp.addSource("heard", Color3.fromRGB(150, 150, 150), functi
 	for model, ghost in ghosts do
 		local character = ghost.character
 		local elsewhere = character and (character:IsDescendantOf(workspace) or character:GetAttribute("Dead"))
-		-- gone quiet, or shown again and drawn as itself, or known to be someone who is now shown elsewhere or dead
+		-- gone quiet; or known to be someone who is now shown or dead; or a guess with a shown enemy where it stands,
+		-- who is taken to be the one heard. A ghost known to be someone stays beside another enemy who is still shown
 		if now - ghost.at > heard.memory
 			or elsewhere and ghost.certain
-			or shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
+			or not ghost.certain and shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
 			ghosts[model] = nil
 			model:Destroy()
 		else
@@ -553,8 +554,21 @@ end
 -- so it gets a ghost there, named for certain: the one it had, or one heard where it stands, or a new one
 local shownFolder = workspace:FindFirstChild("Characters")
 if shownFolder then
+	-- the characters that were left in the folder since they were last hidden. The game makes a character there and
+	-- hides it in the same breath, which is no sighting; its signals are deferred, so these run once it is done
+	local sighted = setmetatable({}, { __mode = "k" })
+	for _, character in shownFolder:GetChildren() do
+		sighted[character] = true
+	end
+	hub.cleanup.add(shownFolder.ChildAdded:Connect(function(character)
+		if character.Parent == shownFolder then
+			sighted[character] = true
+		end
+	end))
 	hub.cleanup.add(shownFolder.ChildRemoved:Connect(function(character)
-		if not (esp.settings.Enabled and heardSource.enabled and table.find(hiddenEnemies(), character)) then
+		local seen = sighted[character]
+		sighted[character] = nil
+		if not (seen and esp.settings.Enabled and heardSource.enabled and table.find(hiddenEnemies(), character)) then
 			return
 		end
 		local position = character.HumanoidRootPart.Position

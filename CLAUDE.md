@@ -640,9 +640,9 @@ ParticleEmitter's Transparency and Color reach particles already out. The aim's 
 field of view, so it is off while `override fov` is on.
 
 Dormant esp keeping an enemy the fog of war showed for a moment, and its box drawing with the bounding box row off,
-were written on 2026-10-12 and have not been run (see the Heard bullet in `games/CLAUDE.md`). Open: whether a
-character's `Parent` is already the culled folder when `ChildRemoved` fires, and whether every round start leaves a
-ghost at the enemies' spawn.
+were written on 2026-10-12 and have not been run (see the flickers bullet in `games/CLAUDE.md`). Checked against
+the game's decompiled culling code the same day: the model is reparented and not moved, and signals are deferred.
+Open: whether a ghost ever shows at a stale place when a round ends.
 
 The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
 

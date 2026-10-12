@@ -403,7 +403,27 @@
   just landed in `_PVS_CulledCharacters` gets a ghost where its model was left, with its name for certain. It takes
   the ghost that character had, else one within 15 studs, else a new one. A ghost that is certain now goes as soon as
   its character is shown anywhere or dead; a guessed one still only loses its name. A ghost's box is drawn whatever
-  the enemies' bounding box row says (`box` on the source); its name still follows the name row.
+  the enemies' bounding box row says (`box` on the source); its name still follows the name row. Only a guessed ghost
+  goes for a shown enemy within 15 studs of it; before, a certain one did too, so an enemy hidden beside one still
+  shown got no ghost.
+- How the game hides a character, from `CharacterController.RemoteCharacters` and `.BotCharacters` decompiled through
+  the bridge on 2026-10-12 to check the above:
+  - A player's is hidden by `setEntryVisible(entry, false)` and a bot's by `hide(entry)`: both set
+    `ClientCharacterPresentationVisible` to false, stop the animations and then put the model in the culled folder.
+    Neither moves it, so its root stays where it was last shown. Showing puts the root on the pose first and the model
+    back in `workspace.Characters` after.
+  - `RemoteCharacters.Present` runs every frame: a player with a pose is shown, one tracked with none this frame is
+    hidden, or retired if `Dead`. A bot is shown, hidden or destroyed by `BotPresentationState.decide`; a dead one has
+    `Dead` set first and is hidden 1.5 s later.
+  - A player's character is made by `ClientCharacterPresentation.Create`, in `workspace.Characters` at the Player's
+    `PresentationSpawnPosition` (or at 0, -1000, 0 without one), and `tryBind` hides it at once. So a character
+    leaving the folder isn't always one that was seen; the hub only counts one that was still in the folder when its
+    own `ChildAdded` handler ran (`sighted`).
+  - The workspace's `SignalBehavior` is `Deferred`, so a handler of the hub's on the game's instances runs after the
+    game's code has finished with them: in `ChildRemoved` the character's `Parent` is already the culled folder.
+  - `Untrack` and a rebind call `setEntryVisible(entry, true)`, which puts a hidden model back in
+    `workspace.Characters` where it was left. Not known: whether that is ever on screen, which would be a box at a
+    stale place.
 - What an enemy holds, read through the bridge on 2026-10-11 for the esp card's weapon rows:
   - A Player's `CurrentEquipped` attribute is JSON with `Name` (`Desert Eagle`), `Rounds` (left in the magazine),
     `Capacity` (the reserve), `Identifier`, `_id`, `Skin`, `IsSuppressed` and more. Seen on teammates and enemies
