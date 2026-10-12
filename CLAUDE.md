@@ -601,13 +601,26 @@ no gap in the card, whether a headshot draws in a row, how the trigger behaves n
 every third frame whatever the visible delay is, and whether a bot keeps its name from round to round.
 
 The misc tab (`movement.lua`, `misc.lua`, `hud.lua`, `ui.createWidget`, `ui.binds`) was written on 2026-10-12 from
-the game's decompiled code and has not been run. Guessed and most likely to be wrong: that the keyboard controller is
-found through `getgc` by its `leftValue` and `rightValue`, that a box cast against the map's parts agrees with the
-game's own collision about where a ledge ends, that the server takes move inputs of any direction and size in the air
-as it does auto stop's on the ground, what the game writes on the bomb's screen as the code is typed, that a kill feed
-row's red outline and victim name are enough to tell the user's kills, and that a second `shoot` call from outside the
-fire key isn't noticed. Open besides: where the widgets stand against the game's own hud, and whether a Frame with
-`AutomaticSize` and a `UIStroke` draws as a widget should.
+the game's decompiled code. Where it stood at the end of that day:
+- Seen by the user: the hub loads with it, auto strafe gains speed (it steered backwards, since fixed) and quick stop
+  stops the character (it drifted after A and D were spammed, since fixed). So the movement hook runs
+  `movement.command`, and the server takes a move input of any direction in the air.
+- Not run since their fixes: auto strafe by WASD, quick stop ending at 2.5 studs a second, block bot letting go early.
+- Nothing said of, so still open: edge jump and long jump (a box cast against the map's parts may not agree with the
+  game's own collision about where a ledge ends), null binds (the keyboard controller is found through `getgc` by its
+  `leftValue` and `rightValue`), block bot, engine radar, preserve killfeed (a row's red outline and victim name are
+  taken to tell the user's kills), hitsound, automatic pistol (a second `shoot` call from outside the fire key may be
+  noticed), log output's chat, custom bomb code (what the game writes on the bomb's screen as the code is typed
+  wasn't found), the four hud widgets (where they stand against the game's own hud, and whether a Frame with
+  `AutomaticSize` and a `UIStroke` draws as one should) and the velocity graph.
+
+The view card's scope overlay and scoped transparency were reworked on 2026-10-12 and have not been run. Open: whether
+the game's scope picture stays hidden from the frame the scope opens, and how the lines look at lengths under 50%.
+
+The spreads' outlines (`entities.lua`) were written on 2026-10-12. Seen by the user that day: they draw, with the fade
+smeared over the screen from close by; the cut at the camera and the rounding came after and have not been run. Open:
+whether Potassium's Drawing has a filled `Triangle`, how the four steps of the fade look, and the frame rate with
+several fires and smokes out.
 
 The world page's skybox, precipitation and fog were written on 2026-10-12. Seen by the user that day: rain falls, so
 a ParticleEmitter does take a `getcustomasset` texture, with its streaks lying sideways; the texture was redrawn for
