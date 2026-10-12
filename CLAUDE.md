@@ -241,7 +241,7 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   - The known fault of visible chams, the game's ragdolls being cloned in the paint, now goes for teammates too, and
     for the user in third person.
 - The general card of visuals › world (asked for by the user on 2026-10-12: start work on it) has skybox,
-  precipitation and fog real; wetness is still a placeholder. All three are in `main.lua`, read from its `visuals` table
+  precipitation and fog real, and no wetness row. All three are in `main.lua`, read from its `visuals` table
   every frame and undone on unload. What Claude chose:
   - `skybox`: the dump has no list, so the choices are the skies of the game's own maps, by map name. The Sky in
     Lighting gets the chosen one's textures, sun, moon and stars; the rest of the map's lighting is left alone.
@@ -252,8 +252,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   - `fog`: Roblox's own fog, in the game's fog colour. `start` and `end` are CS2 units as in starline; `density` is how
     much is hidden at `end`, the fog going on thickening past it since Roblox's can't stop short. The game's
     Atmosphere switches that fog off, so it is held out of Lighting while the row is on, which also takes its haze away.
-  - `wetness` wasn't done: most of a map is MeshParts under a `SurfaceAppearance`, which a script can't make shinier,
-    so raising `Reflectance` would only wet the plain parts. Offered to the user, not asked for.
+  - `wetness` was removed from the card by the user on 2026-10-12 as not possible: most of a map is MeshParts under a
+    `SurfaceAppearance`, which a script can't make shinier, so raising `Reflectance` would only wet the plain parts.
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
