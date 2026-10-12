@@ -354,9 +354,10 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     `unlock inventory`, `console filter`: CS2's own client. `unlock spectators`: who can be watched is decided in many
     places of the game's spectate code and the server ignored the one spectate request tried. `reveal ranks`: no rank
     is on a Player. `media player`: Roblox has nothing saying what plays. `region changer`: Roblox places the client.
-    `jump bug`, `mini jump`, `fireman`, `slide walk`, `pixel surf`, `edge bug assist`, `subtick strafe`: tricks of
-    CS2's movement code or its subticks; the game's simulation jumps at one fixed speed whatever duck does and has no
-    subticks. `server lagger` is left a placeholder on purpose: Claude won't write something that floods the server.
+    `jump bug`, `mini jump`, `fireman`, `slide walk`, `pixel surf`, `edge bug assist` and `subtick strafe` were
+    placeholders too (tricks of CS2's movement code or its subticks; the game's simulation jumps at one fixed speed
+    whatever duck does and has no subticks) until the user had them removed from the movement card the same day, which
+    left `auto strafe` a plain row. `server lagger` is left a placeholder on purpose: Claude won't write something that floods the server.
   - `engine radar`: every enemy whose character the client has is drawn on the game's radar, not only those a teammate
     has a line to. An enemy the fog of war hides still isn't there. `preserve killfeed`: the rows of the user's kills
     and assists stay until `CurrentRound` changes. `hitsound`: five of the game's own sounds (`bell`, `headshot`,

@@ -555,25 +555,10 @@ local function addMisc(window, features)
 	-- starline's auto jump is the hub's bunnyhop
 	toggle(card, "auto jump", movement, "bunnyhop")
 	toggle(group(card, "edge jump", movement, "edgeJump"), "long jump", movement, "longJump")
-	-- the placeholders on this card are tricks of CS2's own movement code or of its subticks, which the game's
-	-- simulation has neither of
-	off.toggle(card, "jump bug")
-	off.toggle(card, "mini jump")
-	off.toggle(off.group(card, "fireman"), "auto detach")
+	-- starline's jump bug, mini jump, fireman, subtick strafe, slide walk, pixel surf and edge bug assist were taken out
+	-- at the user's request: tricks of CS2's own movement code, which the game's simulation has none of
 	toggle(group(card, "null binds", movement, "nullBinds"), "on ground", movement, "nullGround")
-	off.toggle(group(card, "auto strafe", movement, "autoStrafe"), "subtick strafe")
-	off.toggle(card, "slide walk")
-	local surf = off.group(card, "pixel surf")
-	off.toggle(surf, "advanced")
-	off.slider(surf, "fov", 1, 90)
-	off.dropdown(surf, "hitsound", { "off" })
-	off.slider(surf, "volume", 20, 125, "%.0f%%")
-	local edge = off.group(card, "edge bug assist")
-	off.toggle(edge, "advanced")
-	off.slider(edge, "sim ticks", 2, 64, "%.0f ticks")
-	off.toggle(edge, "indicator", true)
-	off.dropdown(edge, "hitsound", { "off" })
-	off.slider(edge, "volume", 20, 125, "%.0f%%")
+	toggle(card, "auto strafe", movement, "autoStrafe")
 	toggle(card, "quick stop", movement, "quickStop")
 	toggle(card, "block bot", movement, "blockBot")
 
