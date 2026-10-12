@@ -77,6 +77,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
 | `games/bloxstrike/aim.lua` | BloxStrike's aim assist and triggerbot, a port of the starline dump's native legit unit (`starline-src/features/combat/legit/` there, `docs/P18_combat_native.md` is its write-up). One step bound with `BindToRenderStep` at the camera's own priority (see `games/CLAUDE.md` for why not after it). Targets come from `esp.sources` whose `aim` flag is set: players always, other sources opt-in. Each frame it takes the target with the best key (crosshair angle, health or distance) that has a visible point inside Max FOV, which is an angle in degrees, not pixels. The points are the centres of the chosen hitgroups' parts (`HITGROUPS` maps the hub's seven groups to R15 part names: head, upper torso, lower torso, arms, hands, legs, feet), plus points towards the parts' edges with Multipoint; a model with none of those parts is aimed at by its root. While Enabled is on `pull` turns the camera to the point, with no key to hold: a snap by default, with Smoothing starline's per-frame share, humanization and sticky. While `aim.settings.SilentAim` is on the camera is left alone and `main.lua`'s shot hook redirects shots to `aim.target`. The triggerbot left clicks through `VirtualInputManager` while the view ray passes through a target's part (or, with Silent Aim on, while the aim has a target at all), after its delay, visible delay and burst. `main.lua` sets `aim.spread`, a function returning how many degrees the next shot may leave the view ray by (nil with no gun out), for the trigger's Hitchance, which holds fire until that percentage of 96 sample shots over the spread would enter the target's trigger hitgroups, and Seeded with its Legitimacy slider, the share of its spread every shot keeps. The shot hook applies it by multiplying every shot's spread by `aim.spreadScale()`. `main.lua` sets `aim.damage(part, distance)` the same way, returning what the next shot would do, for the trigger's Min Damage, which holds fire while the part under the crosshair (with Silent Aim, the aim's target part) would take less than the setting and less than the target's health. The aim always skips teammates (it asks every source for `models(true)`) and checks visibility unless Auto Wall is on (a raycast from the camera that looks through fully invisible parts, since maps have invisible barrier walls); `aim.settings.MaxDistance` is fixed at 10000 studs. `aim.target` is the current target part. `main.lua` sets `aim.blocked`, a function that returns true while the aim and the triggerbot must stay off (dead or spectating) |
 | `games/walking_dead_online/markers.lua` | Text-only world markers on the Drawing API, for things that aren't characters (corpses, loot). `markers.add(color, instances, label)` returns a group with `enabled`, `color`, `maxDistance` and `interval` (seconds between scans, default 1). `instances()` and `label(instance)` only run on a scan; `label` returns a heading and the text under it, or nil to skip. Between scans it re-checks distance 4 times a second from cached positions and only moves the labels per frame. `markers.start()` begins the loop. `main.lua` starts it and builds the controls itself |
 | `games/bloxstrike/tabs.lua` | Was the shared `universal.lua`. Starts BloxStrike's ESP and aim assist and returns `function(window, features)`, which builds the whole window as starline's tree: aimbot › aimbot (general, targeting, behavior, accuracy), assist (triggerbot, rcs) · players › enemies, teammates, local, list · visuals › world, entities · changer › inventory · misc › general, movement · scripts › list, with the cards and widgets of the dump's `pages.json`. `features` is what `main.lua` has behind the pages: its `visuals` and `movement` tables, `setNight` and `setThirdPerson`. The `off` helpers draw a starline control the hub has no code for: named `(placeholder)`, greyed out with `:Disable()`, callback `nothing`. `main.lua` calls it last, once everything in `features` exists |
+| `games/bloxstrike/view.lua` | The modulation and view cards of visuals › world. `view.settings` holds their options, `view.start()` begins a RenderStepped step and a render step four after the camera's (field of view and aspect ratio) and hooks the game's viewmodel sway. `view.held` is the Lighting properties it is holding at a value, which `main.lua`'s night mode skips; `view.body()` is how far third person hides the user's own body; `main.lua` sets `view.sniper()` |
+| `games/bloxstrike/entities.lua` | The visuals › entities page: thrown grenades, dropped weapons and the planted bomb, all drawn anew each frame from pools of Drawing objects, ImageLabels and Highlights. `entities.settings` holds the options, `entities.start()` begins the loop; `main.lua` sets `entities.files` (the weapon files, for icons) and `entities.velocity()` |
 | `games/walking_dead_online/esp.lua`, `aim.lua`, `tabs.lua` | The Walking Dead Online's own ESP, aim and tabs: the shared `core/esp.lua`, `core/aim.lua` and `universal.lua` exactly as they stood at commit `8734ac2` (2026-10-11 16:40, before that day's BloxStrike work), put back at the user's request with only the require paths changed. So that game still has what BloxStrike's copies lost or changed since: the aim's Team Check, Visibility Check, Max Distance and Target Color, each ESP source's Color row and Max Distance slider, the ESP's Team Check and Distance toggles and the distance text, one colour per source, and placeholders for the trigger's Seeded, Min Damage and Min Accuracy. The rows above describe BloxStrike's copies, not these |
 | `assets/` | Files `core/ui.lua` fetches once and then reads from `hul1ans-hub/assets` in the executor workspace through `getcustomasset`, so a changed asset needs a new file name. `GeistMono-Medium.ttf` is the menu font (SIL OFL 1.1, licence in `OFL.txt`). `icons.png` is a sheet of the dump's 21 `sl-*` SVG icons drawn at twice their shown size, made with a throwaway script because Roblox can't render SVG. `weather-streak.png`, `weather-dot.png` and `weather-leaf.png` are BloxStrike's precipitation textures, white shapes a ParticleEmitter tints, made the same way. The streak runs left to right: a `VelocityParallel` particle has its texture's horizontal along the way it moves (the first one, drawn top to bottom, fell as sideways dashes, seen by the user on 2026-10-12) |
 | `tools/bridge.lua` | Dev tool, not part of the hub and Potassium only: lets Claude Code read the running game. It is started with `dofile("claude-bridge/bridge.lua")`, by the user or through Potassium's MCP server; it polls `claude-bridge/request.json` in the executor workspace, writes the answer to `response.txt` as plain text, then deletes the request. Ops are read-only: `ping`, `children` (`depth`), `inspect` (properties, attributes, tags), `find` (`name`, `class`, `show` for a property to print), `watch` (what is added under a path over `seconds`, optionally one `class`, with a Sound's id, its position and the nearest part named `nearName` under `near`), `decompile`, `module` (what a ModuleScript returns from `require`, a table's fields one level down). A `path` is a JSON list from `game` down, a child's name or its `GetChildren` index where the name isn't unique. Running it again, or deleting `claude-bridge/session`, stops the older loop. The workspace copy is made by hand, so copy it again after an edit |
@@ -270,6 +272,40 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     shown view at random for 0.4 s, `shake strength` times 0.05 degrees, in a render step three after the camera's so
     that shots aren't moved by it.
   - `impact sparks`: a burst of that many sparks where each of the user's shots ends.
+- The rest of the visuals tab is real (asked for by the user on 2026-10-12: complete the entire visuals tab, to be bug
+  tested later). It is in `view.lua` and `entities.lua`, kept out of `main.lua` because a Luau chunk takes 200 locals
+  and `main.lua` has 131. Still placeholders, each because the game or Roblox has nothing for it: modulation's `sky`,
+  bloom's `threshold knee`, third person's `animation`, the viewmodel changer's `fov`, grenade prediction's `auto
+  release`, dropped weapons' `ammo`, and the removals `3d skybox`, `torso`, the two `overhead name`s and `bullet
+  decals`. What Claude chose:
+  - modulation: `world` is a ColorCorrection tint under the camera, `sun` Lighting's `ColorShift_Top`, `ambience` its
+    `Ambient` and `OutdoorAmbient`, `light` the colour of the map's lights, `molotov` and `smoke` the colour of the
+    fire's and smoke's particles.
+  - `override fov` writes the camera's field of view after the game has set its own; the value is taken as the game
+    takes its own 70, a diagonal one. `zoom x1` and `zoom x2` are how much of each scope level's zoom is kept.
+  - `aspect ratio` is the game's own stretched resolution trick, a squeezed camera matrix and a narrower field of view.
+    0 is off.
+  - `scoped transparency` is how solid the user's own body is in third person while scoped.
+  - `scope overlay` got a box of its own, which the dump's fold doesn't have. Scoped, it hides the game's scope picture
+    and draws four lines from `gap` pixels out, `length` percent of half the screen's height long; `dynamic gap` adds
+    the gun's spread. `show viewmodel` puts back the parts the game hides for the scope.
+  - removals: `2d skybox` is a sky with no textures, sun, moon or stars; `shadows` Lighting's `GlobalShadows`;
+    `lights` the map's lights; `smoke` the smoke's particles made invisible; `flash` the flashbang's two screens and
+    its ColorCorrection switched off (its sound stays); `ragdoll` ragdolls hidden through `LocalTransparencyModifier`;
+    `post process` every effect in Lighting but the menu's blur; `fog` the Atmosphere's `Density` at 0; `viewmodel
+    bob` the sway taken out in the viewmodel hook.
+  - `force crosshair` is the hub's own four white strokes while a sniper is out, since the game draws none.
+  - `viewmodel changer`: x right, y forward, z up in hundredths of a stud, as the game's own viewmodel offsets are, and
+    the three angles in degrees.
+  - projectiles: `glow` is a Highlight a grenade, and the same for dropped weapons, so each is one of Roblox's 31.
+    `trajectory` runs the game's own grenade simulator on from where a grenade is, at the speed it is seen moving, for
+    up to 3 s; its `proximity warning` turns that red, with a line of text, when it ends within 15 studs of the camera.
+    `grenade prediction` is the same from a throw worked out as the game does: far with the left button, near with the
+    right alone, drawn always or with `pin pulled` only while a button is held. `timers` count up on a smoke or fire
+    until one has been seen out, then down from how long that one stayed. The two spreads are a ring round the
+    volume at ground level.
+  - dropped weapons: `max distance` is in CS2 units. bomb: `screen info` is a line near the top of the screen, red
+    under 10 s; `world info` the chosen words at the bomb.
 - Auto Wall (asked for by the user on 2026-10-11) is real in BloxStrike, for the aim (`AutoWall`) and the trigger
   (`TriggerAutoWall`): a point out of sight still counts when `aim.pierces(origin, point, model)` says the gun out
   would shoot through to it. `main.lua` sets that from the game's own bullet ray (see `games/CLAUDE.md`). A shot
@@ -461,6 +497,13 @@ change.
 The world page's effects card was written on 2026-10-12 and has not been run. Open: whether `Emit` on an emitter that
 has just been moved throws its particles at the new place, whether a BlurEffect under the camera draws, whether the
 viewmodel follows the screen shake, and how any of it looks.
+
+The rest of the visuals tab (`view.lua`, `entities.lua`) was written on 2026-10-12 from the game's decompiled code and
+has not been run; the user means to bug test all of it. Guessed and most likely to be wrong: that a grenade is thrown
+from the character's root part with a range scale of 1, the radius the simulator is given (half the thrown model's
+size), that the left and right buttons are the far and near throws, what an empty skybox texture draws as, and that a
+ParticleEmitter's Transparency and Color reach particles already out. The aim's FOV circle is sized from the game's
+field of view, so it is off while `override fov` is on.
 
 The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
 

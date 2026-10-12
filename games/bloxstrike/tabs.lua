@@ -275,6 +275,9 @@ end
 
 local function addVisuals(window, features)
 	local visuals = features.visuals
+	-- view.lua's settings, behind the modulation and view cards, and entities.lua's
+	local options = features.view.settings
+	local things = features.entities.settings
 	local tab = window:CreateTab("visuals", "eye")
 	local world = tab:CreateSubTab("world")
 
@@ -292,10 +295,20 @@ local function addVisuals(window, features)
 	-- the hub's own
 	general:CreateToggle("night mode", false, features.setNight)
 
-	local modulation = world:CreateSection("modulation")
-	for _, label in { "world", "sun", "light", "sky", "molotov", "smoke", "ambience" } do
-		off.toggle(modulation, label, true)
+	-- a row's setting is its name with a capital, and its colour that with Color on the end
+	local function tinted(card, label, settings, key)
+		color(toggle(card, label, settings, key), settings, key .. "Color")
 	end
+
+	local modulation = world:CreateSection("modulation")
+	tinted(modulation, "world", options, "World")
+	tinted(modulation, "sun", options, "Sun")
+	tinted(modulation, "light", options, "Light")
+	-- a Roblox sky has no colour to set
+	off.toggle(modulation, "sky", true)
+	tinted(modulation, "molotov", options, "Molotov")
+	tinted(modulation, "smoke", options, "Smoke")
+	tinted(modulation, "ambience", options, "Ambience")
 
 	local effects = world:CreateSection("effects")
 	multi(effects, "hit markers", visuals, "hitMarkers", { "world", "screen" })
@@ -321,75 +334,80 @@ local function addVisuals(window, features)
 	toggle(effects, "hit effect", visuals, "hitEffect")
 
 	local view = world:CreateSection("view")
-	local zoom = off.group(view, "override fov")
-	off.slider(zoom, "field of view", 60, 120)
-	off.slider(zoom, "zoom x1", 0, 100, "%.0f%%")
-	off.slider(zoom, "zoom x2", 0, 100, "%.0f%%")
-	off.slider(view, "aspect ratio", 0, 2, "%.2f")
+	local zoom = group(view, "override fov", options, "Fov")
+	slider(zoom, "field of view", options, "FovValue", 60, 120, true)
+	slider(zoom, "zoom x1", options, "Zoom1", 0, 100, true, "%.0f%%")
+	slider(zoom, "zoom x2", options, "Zoom2", 0, 100, true, "%.0f%%")
+	slider(view, "aspect ratio", options, "AspectRatio", 0, 2, false, "%.2f")
 	local third = view:CreateGroup("third person", false, features.setThirdPerson)
 	third.header:CreateKeybind("NONE")
 	off.toggle(third, "animation")
 	-- in studs; starline's runs 50 to 160 of CS2's units
 	slider(third, "distance", visuals, "thirdPersonDistance", 5, 30, true)
-	off.slider(off.group(view, "scoped transparency"), "alpha", 0, 100, "%.0f%%")
-	-- a fold with no box of its own
-	local scope = view:CreateGroup("scope overlay (placeholder)")
-	scope.header:Disable()
-	off.toggle(scope, "show viewmodel")
-	off.slider(scope, "length", 5, 100, "%.0f%%")
-	off.toggle(scope, "dynamic gap")
-	off.slider(scope, "gap", 0, 100)
-	off.multi(view, "visual removals", {
-		"3d skybox",
+	local alpha = group(view, "scoped transparency", options, "ScopedAlpha")
+	slider(alpha, "alpha", options, "ScopedAlphaValue", 0, 100, true, "%.0f%%")
+	-- the dump's fold has no box of its own; the hub's has one, to switch it by
+	local scope = group(view, "scope overlay", options, "Scope")
+	color(scope.header, options, "ScopeColor")
+	toggle(scope, "show viewmodel", options, "ScopeViewmodel")
+	slider(scope, "length", options, "ScopeLength", 5, 100, true, "%.0f%%")
+	toggle(scope, "dynamic gap", options, "ScopeDynamic")
+	slider(scope, "gap", options, "ScopeGap", 0, 100, true)
+	-- the placeholders are things the game doesn't have to take away
+	multi(view, "visual removals", options, "Removals", {
+		"3d skybox (placeholder)",
 		"2d skybox",
 		"shadows",
 		"lights",
 		"smoke",
-		"torso",
+		"torso (placeholder)",
 		"flash",
-		"overhead name",
-		"overhead name team",
+		"overhead name (placeholder)",
+		"overhead name team (placeholder)",
 		"ragdoll",
 		"post process",
 		"fog",
 		"viewmodel bob",
-		"bullet decals",
+		"bullet decals (placeholder)",
 	})
-	off.toggle(off.group(view, "force crosshair"), "while scoped")
-	local viewmodel = off.group(view, "viewmodel changer")
+	toggle(group(view, "force crosshair", options, "Crosshair"), "while scoped", options, "CrosshairScoped")
+	local viewmodel = group(view, "viewmodel changer", options, "Viewmodel")
+	-- Roblox draws everything with the camera's one field of view
 	off.slider(viewmodel, "fov", 50, 120, "%.1f")
 	for _, label in { "x", "pitch", "y", "yaw", "z", "roll" } do
-		off.slider(viewmodel, label, -65, 65)
+		slider(viewmodel, label, options, "Viewmodel" .. label:gsub("^%l", string.upper), -65, 65, true)
 	end
 
 	local entities = tab:CreateSubTab("entities")
 
 	local projectiles = entities:CreateSection("projectiles")
-	off.toggle(projectiles, "enabled")
-	for _, label in { "bounding box", "name", "icon", "glow" } do
-		off.toggle(projectiles, label, true)
-	end
-	local prediction = off.group(projectiles, "grenade prediction")
-	off.toggle(prediction, "pin pulled")
+	toggle(projectiles, "enabled", things, "Projectiles")
+	tinted(projectiles, "bounding box", things, "ProjectileBox")
+	tinted(projectiles, "name", things, "ProjectileName")
+	tinted(projectiles, "icon", things, "ProjectileIcon")
+	tinted(projectiles, "glow", things, "ProjectileGlow")
+	local prediction = group(projectiles, "grenade prediction", things, "Prediction")
+	toggle(prediction, "pin pulled", things, "PredictionPin")
 	off.slider(prediction, "auto release", 0, 100)
-	off.toggle(off.group(projectiles, "trajectory"), "proximity warning")
-	for _, label in { "timers", "inferno spread", "smoke spread" } do
-		off.toggle(projectiles, label, true)
-	end
+	toggle(group(projectiles, "trajectory", things, "Trajectory"), "proximity warning", things, "TrajectoryWarning")
+	tinted(projectiles, "timers", things, "Timers")
+	tinted(projectiles, "inferno spread", things, "Inferno")
+	tinted(projectiles, "smoke spread", things, "Smoke")
 
 	local dropped = entities:CreateSection("dropped weapons")
-	off.toggle(dropped, "enabled")
-	for _, label in { "bounding box", "name", "icon" } do
-		off.toggle(dropped, label, true)
-	end
+	toggle(dropped, "enabled", things, "Dropped")
+	tinted(dropped, "bounding box", things, "DroppedBox")
+	tinted(dropped, "name", things, "DroppedName")
+	tinted(dropped, "icon", things, "DroppedIcon")
+	-- the game doesn't tell the client how many rounds a weapon on the ground has
 	off.toggle(dropped, "ammo")
-	off.toggle(dropped, "glow", true)
-	off.slider(dropped, "max distance", 100, 2000)
+	tinted(dropped, "glow", things, "DroppedGlow")
+	slider(dropped, "max distance", things, "DroppedDistance", 100, 2000, true)
 
 	local bomb = entities:CreateSection("bomb")
-	off.toggle(bomb, "enabled")
-	off.toggle(bomb, "screen info")
-	off.multi(off.group(bomb, "world info"), "show", { "name", "timer", "distance" })
+	toggle(bomb, "enabled", things, "Bomb")
+	toggle(bomb, "screen info", things, "BombScreen")
+	multi(group(bomb, "world info", things, "BombWorld"), "show", things, "BombShow", { "name", "timer", "distance" })
 end
 
 local function addMisc(window, movement, logs)
@@ -478,7 +496,7 @@ local function addMisc(window, movement, logs)
 end
 
 -- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals, movement
--- and logs settings, the skybox choices, setNight and setThirdPerson
+-- and logs settings, the skybox choices, view.lua and entities.lua, setNight and setThirdPerson
 return function(window, features)
 	addAimbot(window)
 	addPlayers(window)

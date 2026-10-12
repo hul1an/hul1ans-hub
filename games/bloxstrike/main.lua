@@ -9,6 +9,8 @@ local Debris = cloneref(game:GetService("Debris"))
 
 local esp = hub.require("games/bloxstrike/esp.lua")
 local aim = hub.require("games/bloxstrike/aim.lua")
+local view = hub.require("games/bloxstrike/view.lua")
+local entities = hub.require("games/bloxstrike/entities.lua")
 -- dead or spectating, the camera is on someone else and there is nothing to shoot with
 aim.blocked = function()
 	local player = Players.LocalPlayer
@@ -114,6 +116,11 @@ aim.scope = function()
 	end
 	task.spawn(weapon.scope, weapon, true)
 	return true
+end
+
+-- for the view card's force crosshair: whether the gun that is out is one with a sniper's scope
+view.sniper = function()
+	return equipped and equipped.IsActive and equipped.Properties.AimingOptions == "SniperScope"
 end
 
 -- whether the gun that is out could fire now: not between two shots, reloading or empty
@@ -312,6 +319,7 @@ end
 local database = ReplicatedStorage:FindFirstChild("Database")
 local custom = database and database:FindFirstChild("Custom")
 local weaponFiles = custom and custom:FindFirstChild("Weapons")
+entities.files = weaponFiles
 if not weaponFiles then
 	warn("[hub] ReplicatedStorage.Database.Custom.Weapons not found: weapon icon and ammo bar unavailable")
 	hub.ui.notify("ReplicatedStorage.Database.Custom.Weapons not found, no weapon icon or ammo bar", "error")
@@ -1174,7 +1182,10 @@ end)
 hub.cleanup.add(RunService.RenderStepped:Connect(function()
 	if daylight then
 		for property, value in NIGHT do
-			Lighting[property] = value
+			-- but for one a view row is holding at a value of its own
+			if not view.held[property] then
+				Lighting[property] = value
+			end
 		end
 	end
 end))
@@ -1218,10 +1229,14 @@ table.insert(skies, 1, "none")
 
 -- the Sky that was changed, the choice it was changed to, and what it had before
 local sky, skyName, skyWas
+-- the choice that is no sky at all, which no map is named
+local BLANK = ""
 
 local function skyStep()
+	-- the view card's 2d skybox removal is a choice of its own, a sky with nothing in it
+	local choice = table.find(view.settings.Removals, "2d skybox") and BLANK or visuals.sky
 	local current = Lighting:FindFirstChildOfClass("Sky")
-	if current == sky and visuals.sky == skyName then
+	if current == sky and choice == skyName then
 		return
 	end
 	if sky then
@@ -1229,13 +1244,23 @@ local function skyStep()
 			sky[property] = value
 		end
 	end
-	sky, skyName, skyWas = current, visuals.sky, {}
-	local folder = mapLighting and mapLighting:FindFirstChild(visuals.sky)
+	sky, skyName, skyWas = current, choice, {}
+	local folder = mapLighting and mapLighting:FindFirstChild(choice)
 	local chosen = folder and folder:FindFirstChildOfClass("Sky")
-	if current and chosen then
+	if current and (chosen or choice == BLANK) then
 		for _, property in SKY do
 			skyWas[property] = current[property]
-			current[property] = chosen[property]
+			if chosen then
+				current[property] = chosen[property]
+			end
+		end
+		if not chosen then
+			-- the first six are the faces
+			for face = 1, 6 do
+				current[SKY[face]] = ""
+			end
+			current.CelestialBodiesShown = false
+			current.StarCount = 0
 		end
 	end
 end
@@ -1391,6 +1416,7 @@ hub.cleanup.add(RunService.RenderStepped:Connect(function(dt)
 end))
 hub.cleanup.add(function()
 	visuals.sky, visuals.fog, visuals.bloom = "none", false, false
+	view.settings.Removals = {}
 	skyStep()
 	fogStep()
 	bloomStep()
@@ -1421,7 +1447,8 @@ local function thirdPersonStep()
 		return
 	end
 
-	setModifier(character, 0)
+	-- shown, or as far hidden as the view card's scoped transparency has it
+	setModifier(character, view.body())
 	for _, child in camera:GetChildren() do
 		if child:IsA("Model") then
 			setModifier(child, 1)
@@ -1569,6 +1596,9 @@ local STOP_SPEED = 6
 local TICK = 1 / 60
 -- the velocity the last movement command ran on
 local velocity = Vector3.zero
+entities.velocity = function()
+	return velocity
+end
 
 -- for the trigger's early auto stop: how long a counter-strafe would take to still the character from the speed it has
 aim.stopTime = function()
@@ -1626,12 +1656,17 @@ else
 	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop or auto stop", "error")
 end
 
+view.start()
+entities.start()
+
 local window = hub.ui.createWindow("BloxStrike")
 hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
 	logs = logs,
 	skies = skies,
+	view = view,
+	entities = entities,
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })

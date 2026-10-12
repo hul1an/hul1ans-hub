@@ -491,6 +491,46 @@
     thousand with a `SurfaceAppearance`; the plain parts are Plastic, Metal, DiamondPlate and SmoothPlastic, some with a
     `MaterialVariant`. `Map.Barriers` (741 parts) and `Map.DeathBarriers` are the invisible walls.
   - No rain, snow or other weather particles are anywhere under `ReplicatedStorage`.
+- What the rest of the visuals tab is built on, decompiled through the bridge on 2026-10-12 with the user in a match:
+  - The camera (`Controllers.CameraController`): `Database.Custom.Constants.DEFAULT_CAMERA_FOV` is 70 and the camera's
+    `FieldOfViewMode` is Diagonal. The field of view follows a spring whose goal weapons set with `updateCameraFOV`,
+    clamped 1 to 80, and is written to the camera in the step one after the camera's whenever it differs. Sniper
+    scopes take 37 and 60 off the default; other scopes 15 a level. The player's stretched resolution setting scales
+    the camera's Y axis by one over the stretch and narrows the field of view to match, on the RenderStepped event,
+    and undoes it at the first render step of the next frame.
+  - The sniper scope is the frame `PlayerGui.MainGui.Gameplay.Middle.SniperScope`, with two ImageLabels, `Sharp` and
+    `Blur`, each holding four black bars and a vignette. The game shows the frame while the gun out `IsAiming` with
+    `AimingOptions` `SniperScope`, sets `Blur.Visible` when it opens it, and fades between the two images each frame.
+    `Weapon:scope` calls `Viewmodel:hide()` for a sniper and `Viewmodel:aim()` for the others.
+  - The viewmodel (`Viewmodel.render`) is put at the camera's CFrame times `Bobble:getNextCFrame(dt)` times the
+    model's `Stats` rotation and offset times the player's own X, Y and Z Offset settings in hundredths of a stud,
+    anew every frame. `getNextCFrame` is the sway and bob, with a turn of 5 degrees while aiming; the class is
+    `Classes.WeaponComponent.Classes.Viewmodel.Classes.Bobble`, with `addScopeKick` beside it.
+  - A flashbang (`VFXLibary.FlashEffect`) is a ScreenGui `FlashbangEffect` with a frame `FlashOverlay`, a
+    ColorCorrectionEffect `FlashbangColorCorrection` in Lighting, and a ScreenGui `FlashScreenshot`.
+  - A smoke (`VFXLibary.CreateVoxelSmoke`) is a Folder `VoxelSmoke_<id>` under `workspace.Debris` of parts named
+    `SmokeVoxel`, each with ParticleEmitters, all made before the folder is parented; its colour is the thrower's
+    team's. It fades after a `Duration` the server sends and the folder goes 6 s later. Fire (`CreateVoxelFire`) is
+    `VoxelFire_<id>` with `InnerFireVoxel` and `OuterFireVoxel` parts. Neither duration is on the instance.
+  - A thrown grenade (`Controllers.Observers.Game.Grenade`) is a clone of `Assets.Weapons.<name>.Character` under
+    `workspace.Debris`, named by its id, tagged `Grenade`, with the attribute `GrenadeName`; `SimulationFinished` is
+    set when it goes off or comes to rest, after which it is hidden and soon destroyed. The server sends its start
+    (`Remotes.Projectile.Spawn`: position, velocity, and a radius, restitution, bounce limit and fuse time) and the
+    client moves it with `ReplicatedStorage.Shared.GrenadeSimulator`, 128 steps a second, gravity 23.83 studs.
+  - `GrenadeSimulator` has `calculateThrowParameters(position, direction, "Near" | "Far", rangeScale)` (the throw
+    starts 1.35 studs ahead and 2.4 up), `createInitialState(position, direction, kind, characterVelocity, rangeScale,
+    time)`, `createConfig(radius, rangeScale, isNear, fuseTime, minimumFuseTime, explodeOnFloorImpact)` and
+    `step(state, config, raycastParams, dt)`, which returns a new state and marks every end as `isAtRest`. A throw
+    itself is `Router.broadcastRouter("PredictGrenadeThrow", ...)`; what position and range scale that uses, and what
+    radius and fuse each grenade has, weren't found.
+  - A weapon on the ground is a Model under `workspace.Debris` named by a GUID, tagged `WeaponDropped`, with the
+    attributes `Weapon`, `Skin`, `CanPickup`, `DroppedByTeam` and `IsSuppressed`. No rounds.
+  - The planted bomb is tagged `Bomb`, with the attribute `BombPlanted`, JSON with `Time` (the server's clock when
+    planted) and `TimeUntilExplode` (40 without), and `Defused`, `Exploding`, `Exploded`, `IsGettingDefused` and
+    `CanDefuse`.
+  - Bullet impacts (`VFXLibary.CreateImpact`) are pooled invisible parts with ParticleEmitters, by material: there are
+    no bullet hole decals. No BillboardGui was found on any character or in the PlayerGui, so no overhead names.
+  - `Lighting.Bloom` is at Roblox's defaults, intensity 1, size 24, threshold 2.
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
 - Removed at the user's request on 2026-10-10:
