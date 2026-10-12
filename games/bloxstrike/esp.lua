@@ -28,6 +28,10 @@ local COVER = 1.03
 local TICK = 1 / 60
 -- where a backtrack copy waits while it has no record to stand at
 local PARKED = CFrame.new(0, -100000, 0)
+-- how far back the backtrack chams of the teammates and the user go: the longest the aim's backtrack does
+local BACKTRACK_TIME = 0.2
+-- what the user's own page has chams rows for besides the body, as esp.gear names them
+local GEAR = { "Viewmodel", "Weapon", "Attachments" }
 -- the chams materials as they go on a part, glass see-through even at full opacity. Each takes the part's Color.
 -- solid is a colour with no shading, which no material is: it is a Highlight's fill, over this on an on hit copy
 local MATERIALS = {
@@ -63,6 +67,7 @@ local BONES_R6 = {
 }
 
 local esp = {
+	-- the enemies' options; esp.teammates and esp.own, further down, each have their own under the same keys
 	settings = {
 		Enabled = false,
 		Box = true,
@@ -139,22 +144,28 @@ local esp = {
 	past = {},
 }
 
-local settings = esp.settings
+-- every source that is drawn. esp.sources is those of them the enemies' page shows and the aim picks its targets from
+local all = {}
 local sets = {}
 local bones = {}
 local highlights = {}
 -- by model, its avatar and weapon icon: ImageLabels, since a Drawing image can't show a Roblox asset
 local images = {}
--- the marks of sounds: position, at and circle
+-- the marks of sounds: position, at, circle and the settings they are drawn by
 local sounds = {}
--- by model, what visible chams has done to it: the material's name and the colour, and what each part (parts), skin
--- (taken, by where it was) and face decal (decals) had before
+-- by what it is on, a model or for the user's gear the model its parts are in, what chams have painted: the material's
+-- name, the colour and the opacity, what each part (parts), skin (taken, by where it was) and face decal (textures)
+-- had before, and the transparency last put on each part (wrote)
 local skins = {}
 -- the copies the other chams draw, each set a Model and its copies by part. By model: the invisible chams' set, the
--- overlay's, the backtrack's list of sets with one a tick, and the on hit set with when it began
+-- overlay's, the backtrack's list of sets with one a tick, and the on hit set with when it began and its settings
 local shades, shells, trails, flashes = {}, {}, {}, {}
 -- the ragdolls the ragdoll chams had last frame
 local ragdolls = {}
+-- by model, for the teammates and the user: the backtrack chams' records, which the aim only keeps of its targets, and
+-- the health last frame, for the on hit chams
+local walked = setmetatable({}, { __mode = "k" })
+local healths = setmetatable({}, { __mode = "k" })
 -- the folder in the world the copies are kept in
 local world
 local container, screen
@@ -181,13 +192,14 @@ function esp.visible(camera, point, model)
 	return false
 end
 
--- main.lua calls this with where an enemy made a sound
-function esp.sound(position)
+-- main.lua calls this with where a model of a source made a sound
+function esp.sound(position, source)
+	local settings = source.settings
 	if settings.Enabled and settings.Sounds then
 		local circle = Drawing.new("Circle")
 		circle.Thickness = 1
 		circle.NumSides = 32
-		table.insert(sounds, { position = position, at = os.clock(), circle = circle })
+		table.insert(sounds, { position = position, at = os.clock(), circle = circle, settings = settings })
 	end
 end
 
@@ -217,8 +229,10 @@ function esp.addSource(name, color, models, label)
 		aim = false,
 		models = models,
 		label = label,
+		settings = esp.settings,
 	}
 	table.insert(esp.sources, source)
+	table.insert(all, source)
 	return source
 end
 
@@ -235,6 +249,32 @@ end, function(character)
 	return Players:GetPlayerFromCharacter(character).DisplayName
 end)
 players.aim = true
+-- its models are bodies, for the chams to go on and the two filters to test, which a heard ghost isn't
+players.real = true
+
+-- the menu's other two pages, the user's teammates and the user's own character: drawn as the players are, with
+-- whatever main.lua sets on the players source, but each by options of its own. main.lua sets their models
+local function page()
+	local settings = table.clone(esp.settings)
+	-- solid is a Highlight's fill, and Roblox draws 31 Highlights: these two pages use none
+	for _, row in { "Visible", "Ragdoll", "Hit" } do
+		settings[row .. "ChamsMaterial"] = "flat"
+	end
+	local source = setmetatable({ settings = settings }, { __index = players })
+	source.models = function()
+		return {}
+	end
+	table.insert(all, source)
+	return source
+end
+esp.teammates = page()
+esp.own = page()
+for _, kind in GEAR do
+	local own = esp.own.settings
+	for row, material in { [kind .. "Chams"] = "flat", [kind .. "OverlayChams"] = "ghost" } do
+		own[row], own[row .. "Color"], own[row .. "Opacity"], own[row .. "Material"] = false, WHITE, 1, material
+	end
+end
 
 local function draw(class, properties)
 	local object = Drawing.new(class)
@@ -331,7 +371,7 @@ local function destroy(model)
 	end
 end
 
-local function updateSkeleton(model, camera, color)
+local function updateSkeleton(model, camera, settings, color)
 	local lines = bones[model]
 	if not settings.Skeleton then
 		if lines then
@@ -403,7 +443,8 @@ end
 
 -- a model's Highlight: the solid visible chams are its fill
 local function updateChams(model, source)
-	local solid = source == players and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
+	local settings = source.settings
+	local solid = source.real and settings.VisibleChams and settings.VisibleChamsMaterial == "solid"
 	light(model, solid and settings.VisibleChamsColor, settings.VisibleChamsOpacity)
 end
 
@@ -426,33 +467,34 @@ local function bodyParts(model)
 	return parts
 end
 
--- gives a model's parts a material, a colour and an opacity, remembering what each had. It runs every frame, so a part
--- the game adds later is done too
-local function paint(model, name, color, opacity)
-	local skin = skins[model]
+-- gives some parts a material, a colour and an opacity, remembering what each had, under what they are on: a model, or
+-- for the user's gear the model its parts are in. It runs every frame, so a part the game adds later is done too
+local function paint(holder, parts, name, color, opacity)
+	local skin = skins[holder]
 	if not skin then
-		skin = { parts = {}, taken = {}, textures = {} }
-		skins[model] = skin
+		skin = { parts = {}, taken = {}, textures = {}, wrote = {} }
+		skins[holder] = skin
 	end
 	local changed = skin.name ~= name or skin.color ~= color or skin.opacity ~= opacity
 	skin.name, skin.color, skin.opacity = name, color, opacity
 	local look = MATERIALS[name]
 
-	for _, part in bodyParts(model) do
+	for _, part in parts do
 		local old = skin.parts[part]
-		local new = old == nil
-		if new then
-			-- a part that can't be seen, like the root, is left that way
-			old = part.Transparency < 1
-				and {
+		local now = part.Transparency
+		-- a part that can't be seen is left that way: the root always, and a holstered gun or a scoped sniper's viewmodel,
+		-- which the game hides at Transparency 1, until it shows
+		if old or now < 1 then
+			local new = old == nil
+			if new then
+				old = {
 					Material = part.Material,
 					MaterialVariant = part.MaterialVariant,
 					Color = part.Color,
-					Transparency = part.Transparency,
+					Transparency = now,
 					TextureID = part:IsA("MeshPart") and part.TextureID or nil,
 				}
-			skin.parts[part] = old
-			if old then
+				skin.parts[part] = old
 				-- the skin is a SurfaceAppearance, which covers the material while it is on the part; the face is decals,
 				-- and a head that is a plain Part has its texture on a SpecialMesh
 				for _, child in part:GetChildren() do
@@ -472,24 +514,40 @@ local function paint(model, name, color, opacity)
 				end
 				part.MaterialVariant = ""
 			end
-		end
-		if old and (new or changed) then
-			part.Material = look.material
-			part.Color = color
-			part.Transparency = 1 - opacity * (1 - (look.transparency or old.Transparency))
+			if new or changed then
+				part.Material = look.material
+				part.Color = color
+			end
+			if now == 1 and now ~= skin.wrote[part] then
+				-- the game has hidden it since it was painted
+				skin.wrote[part] = nil
+			elseif new or changed or now ~= skin.wrote[part] then
+				-- the last is a part the game has shown again, which it does at a transparency of its own
+				local shown = 1 - opacity * (1 - (look.transparency or old.Transparency))
+				part.Transparency = shown
+				skin.wrote[part] = shown
+			end
 		end
 	end
 end
 
 -- puts back what paint changed
-local function strip(model)
-	local skin = skins[model]
-	skins[model] = nil
+local function strip(holder)
+	local skin = skins[holder]
+	skins[holder] = nil
 	for part, old in skin.parts do
-		if old then
-			for property, value in old do
-				part[property] = value
-			end
+		local shown = old.Transparency
+		-- a part the game has hidden since stays hidden
+		if part.Transparency == 1 and skin.wrote[part] ~= 1 then
+			old.Transparency = nil
+		end
+		for property, value in old do
+			part[property] = value
+		end
+		-- a viewmodel part comes back from hidden at the transparency in this attribute, which the game takes the first
+		-- time it hides the part, in paint or not
+		if part:GetAttribute("HiddenTransparency") then
+			part:SetAttribute("HiddenTransparency", shown)
 		end
 	end
 	for appearance, part in skin.taken do
@@ -503,55 +561,65 @@ local function strip(model)
 	end
 end
 
--- whether a part of a model is one that shows, going by what it was before paint changed it
-local function showing(model, part)
-	local skin = skins[model]
-	local old = skin and skin.parts[part]
-	if old ~= nil then
-		return old ~= false
-	end
-	return part.Transparency < 1
+-- whether a part can't be seen: at Transparency 1 without paint having put it there
+local function hidden(holder, part)
+	local skin = skins[holder]
+	return part.Transparency == 1 and not (skin and skin.wrote[part] == 1)
 end
 
--- bare copies of some of a model's parts under a Model of their own, to be dressed and put where the model is or
--- was. Welded, each copy rides on its part; otherwise it stays where it is put. The result is the Model and the
--- copies by part
-local function copyParts(model, parts, parent, scale, welded)
+-- those of some parts that can be seen
+local function showing(holder, parts)
+	local seen = {}
+	for _, part in parts do
+		if not hidden(holder, part) then
+			table.insert(seen, part)
+		end
+	end
+	return seen
+end
+
+-- a bare copy of a part, to be dressed and put where the part is or was. Welded, it rides on the part; otherwise it
+-- stays where it is put
+local function copyPart(part, scale, welded)
+	local copy = part:Clone()
+	-- a head that is a plain Part keeps the SpecialMesh that shapes it
+	for _, child in copy:GetChildren() do
+		if child:IsA("SpecialMesh") then
+			child.TextureId = ""
+		else
+			child:Destroy()
+		end
+	end
+	copy.Anchored = not welded
+	copy.CanCollide = false
+	copy.CanQuery = false
+	copy.CanTouch = false
+	copy.CastShadow = false
+	copy.Massless = true
+	copy.LocalTransparencyModifier = 0
+	copy.Material = Enum.Material.SmoothPlastic
+	copy.MaterialVariant = ""
+	copy.Size = part.Size * scale
+	if copy:IsA("MeshPart") then
+		copy.TextureID = ""
+	end
+	if welded then
+		local weld = Instance.new("Weld")
+		weld.Part0 = part
+		weld.Part1 = copy
+		weld.Parent = copy
+	end
+	return copy
+end
+
+-- copies of some parts under a Model of their own. The result is the Model and the copies by part
+local function copyParts(parts, parent, scale, welded)
 	local holder = Instance.new("Model")
 	local copies = {}
 	for _, part in parts do
-		if showing(model, part) then
-			local copy = part:Clone()
-			-- a head that is a plain Part keeps the SpecialMesh that shapes it
-			for _, child in copy:GetChildren() do
-				if child:IsA("SpecialMesh") then
-					child.TextureId = ""
-				else
-					child:Destroy()
-				end
-			end
-			copy.Anchored = not welded
-			copy.CanCollide = false
-			copy.CanQuery = false
-			copy.CanTouch = false
-			copy.CastShadow = false
-			copy.Massless = true
-			copy.LocalTransparencyModifier = 0
-			copy.Material = Enum.Material.SmoothPlastic
-			copy.MaterialVariant = ""
-			copy.Size = part.Size * scale
-			if copy:IsA("MeshPart") then
-				copy.TextureID = ""
-			end
-			if welded then
-				local weld = Instance.new("Weld")
-				weld.Part0 = part
-				weld.Part1 = copy
-				weld.Parent = copy
-			end
-			copy.Parent = holder
-			copies[part] = copy
-		end
+		local copy = copyPart(part, scale, welded)
+		copy.Parent = holder
+		copies[part] = copy
 	end
 	holder.Parent = parent
 	return { model = holder, copies = copies }
@@ -580,10 +648,10 @@ local function dress(set, name, color, opacity)
 	end
 end
 
--- destroys the copies kept by model for those that are gone, or all of them with the row off
-local function prune(kept, on, seen)
+-- destroys the copies kept by model for those their row wasn't on for this frame
+local function prune(kept, seen)
 	for model, set in kept do
-		if not (on and seen[model]) then
+		if not seen[model] then
 			unlight(set.model)
 			set.model:Destroy()
 			kept[model] = nil
@@ -593,10 +661,10 @@ end
 
 -- invisible chams: a Highlight through walls, solid its fill and glow its outline, on copies riding on the body. It
 -- is on copies so that it can leave out what is in plain sight, which the model's own Highlight couldn't
-local function shade(model, camera)
+local function shade(model, camera, settings)
 	local set = shades[model]
 	if not set then
-		set = copyParts(model, bodyParts(model), world, COVER, true)
+		set = copyParts(showing(model, bodyParts(model)), world, COVER, true)
 		shades[model] = set
 	end
 	local color, opacity = settings.InvisibleChamsColor, settings.InvisibleChamsOpacity
@@ -618,19 +686,61 @@ local function shade(model, camera)
 end
 
 -- overlay chams: a second skin a little bigger than the body, riding on it in the world
-local function shell(model)
+local function shell(model, settings)
 	local set = shells[model]
 	if not set then
-		set = copyParts(model, bodyParts(model), world, SHELL, true)
+		set = copyParts(showing(model, bodyParts(model)), world, SHELL, true)
 		shells[model] = set
 	end
 	dress(set, settings.OverlayChamsMaterial, settings.OverlayChamsColor, settings.OverlayChamsOpacity)
 end
 
--- backtrack chams: copies standing in the world where the aim's backtrack has the model's parts on record. The
--- oldest place only, or with per tick one for every game tick on record, in a gradient from oldest to newest if set
-local function trail(model, camera)
-	local records = esp.past[model]
+-- the same on the user's gear. The game hides it part by part, a holstered gun or a scoped sniper's viewmodel, and the
+-- hub's third person hides the viewmodel: a part gets its copy once it shows, and the copy is hidden whenever it is
+local function wrap(holder, parts, name, color, opacity)
+	local set = shells[holder]
+	if not set then
+		set = copyParts({}, world, SHELL, true)
+		shells[holder] = set
+	end
+	for _, part in parts do
+		local gone = hidden(holder, part)
+		local copy = set.copies[part]
+		if not (copy or gone) then
+			copy = copyPart(part, SHELL, true)
+			copy.Parent = set.model
+			set.copies[part] = copy
+			-- so that dress does the new copy
+			set.name, set.color = nil, nil
+		end
+		if copy then
+			copy.LocalTransparencyModifier = gone and 1 or part.LocalTransparencyModifier
+		end
+	end
+	dress(set, name, color, opacity)
+end
+
+-- where the body of a teammate or of the user has been over the backtrack time, as the aim records its targets in
+-- esp.past
+local function remember(model, now)
+	local frames = {}
+	for _, child in model:GetChildren() do
+		if child:IsA("BasePart") then
+			frames[child] = child.CFrame
+		end
+	end
+	local records = walked[model] or {}
+	walked[model] = records
+	table.insert(records, { at = now, frames = frames })
+	while now - records[1].at > BACKTRACK_TIME do
+		table.remove(records, 1)
+	end
+	return records
+end
+
+-- backtrack chams: copies standing in the world where a model's parts are on record. The oldest place only, or with
+-- per tick one for every game tick on record, in a gradient from oldest to newest if set
+local function trail(model, camera, settings, records)
 	if not records then
 		return
 	end
@@ -641,7 +751,7 @@ local function trail(model, camera)
 	end
 	local picked, drawn, spare = state.picked, state.drawn, state.spare
 
-	-- a record is taken to draw once a game tick and kept until the aim has dropped it, and its copy stands where it
+	-- a record is taken to draw once a game tick and kept until it has been dropped, and its copy stands where it
 	-- was put: moving every copy every frame is what made per tick heavy
 	local newest = records[#records]
 	if #picked == 0 or newest.at - picked[#picked].at >= TICK then
@@ -684,7 +794,7 @@ local function trail(model, camera)
 				for part in record.frames do
 					table.insert(parts, part)
 				end
-				set = copyParts(model, parts, state.folder, 1)
+				set = copyParts(showing(model, parts), state.folder, 1)
 			end
 			for part, copy in set.copies do
 				copy.CFrame = record.frames[part]
@@ -726,35 +836,51 @@ function esp.pose(model)
 	return frames
 end
 
--- on hit chams: main.lua calls this when a shot of the user's has hurt a model, with the pose it had when the shot was
--- fired. A copy stands there, a little bigger than the body it may still be around, and fades. One a model at a time
-function esp.flash(model, frames)
-	if not (settings.Enabled and settings.HitChams) then
-		return
-	end
+-- on hit chams: a copy of a model stands in a pose it had, a little bigger than the body it may still be around, and
+-- fades. One a model at a time
+local function flash(model, frames, settings)
 	local old = flashes[model]
 	if old then
 		unlight(old.model)
 		old.model:Destroy()
 	end
-	local set = copyParts(model, bodyParts(model), world, SHELL)
+	local set = copyParts(showing(model, bodyParts(model)), world, SHELL)
 	for part, copy in set.copies do
 		copy.CFrame = frames[part] or part.CFrame
 	end
 	set.at = os.clock()
+	set.settings = settings
 	flashes[model] = set
+end
+
+-- main.lua calls this when a shot of the user's has hurt an enemy, with the pose it had when the shot was fired
+function esp.flash(model, frames)
+	if esp.settings.Enabled and esp.settings.HitChams then
+		flash(model, frames, esp.settings)
+	end
+end
+
+-- main.lua reports no hits on the teammates or the user, so their on hit chams go by a drop in health, whoever caused it
+local function watch(model, source)
+	local health = esp.health(model, source)
+	local before = healths[model]
+	healths[model] = health
+	if before and health and health < before then
+		flash(model, esp.pose(model), source.settings)
+	end
 end
 
 local function renderFlashes()
 	local now = os.clock()
-	local name, color = settings.HitChamsMaterial, settings.HitChamsColor
 	for model, set in flashes do
+		local settings = set.settings
 		local left = 1 - (now - set.at) / settings.HitChamsDuration
 		if left <= 0 or not (settings.Enabled and settings.HitChams) then
 			unlight(set.model)
 			set.model:Destroy()
 			flashes[model] = nil
 		else
+			local name, color = settings.HitChamsMaterial, settings.HitChamsColor
 			local opacity = settings.HitChamsOpacity * left
 			dress(set, name, color, opacity)
 			local glow = settings.HitChamsGlow and settings.HitChamsGlowColor
@@ -763,19 +889,27 @@ local function renderFlashes()
 	end
 end
 
--- ragdoll chams: the enemies' ragdolls, which main.lua lists, painted as the visible chams paint the living
+-- ragdoll chams: the ragdolls in use, which main.lua lists by the source each is one of, painted as the visible chams
+-- paint the living
 local function renderRagdolls(painted)
 	local lying = {}
-	if settings.RagdollChams and esp.ragdolls then
-		local name = settings.RagdollChamsMaterial
-		for _, model in esp.ragdolls() do
-			lying[model] = true
-			if name == "solid" then
-				light(model, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
-			else
-				light(model)
-				painted[model] = true
-				paint(model, name, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
+	local wanted = false
+	for _, source in all do
+		wanted = wanted or source.settings.Enabled and source.settings.RagdollChams
+	end
+	if wanted and esp.ragdolls then
+		for model, source in esp.ragdolls() do
+			local settings = source.settings
+			if settings.Enabled and settings.RagdollChams then
+				lying[model] = true
+				local name = settings.RagdollChamsMaterial
+				if name == "solid" then
+					light(model, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
+				else
+					light(model)
+					painted[model] = true
+					paint(model, bodyParts(model), name, settings.RagdollChamsColor, settings.RagdollChamsOpacity)
+				end
 			end
 		end
 	end
@@ -787,13 +921,39 @@ local function renderRagdolls(painted)
 	ragdolls = lying
 end
 
--- undoes every kind of chams, for the esp going off and the hub unloading
-local function clearChams()
-	for model in skins do
-		strip(model)
+-- the user's own page's rows for what isn't the body. esp.gear, set by main.lua, lists the parts of each kind by the
+-- model they are in; each kind has a row that paints them and a row that puts an overlay on them
+local function renderGear(painted, shelled)
+	local settings = esp.own.settings
+	if not (settings.Enabled and esp.gear) then
+		return
 	end
-	prune(shades, false)
-	prune(shells, false)
+	local gear
+	for _, kind in GEAR do
+		local row, over = kind .. "Chams", kind .. "OverlayChams"
+		if settings[row] or settings[over] then
+			gear = gear or esp.gear()
+			for holder, parts in gear[kind] do
+				if settings[row] then
+					painted[holder] = true
+					paint(holder, parts, settings[row .. "Material"], settings[row .. "Color"], settings[row .. "Opacity"])
+				end
+				if settings[over] then
+					shelled[holder] = true
+					wrap(holder, parts, settings[over .. "Material"], settings[over .. "Color"], settings[over .. "Opacity"])
+				end
+			end
+		end
+	end
+end
+
+-- undoes every kind of chams, for the hub unloading
+local function clearChams()
+	for holder in skins do
+		strip(holder)
+	end
+	prune(shades, {})
+	prune(shells, {})
 	for model in trails do
 		endTrail(model)
 	end
@@ -809,7 +969,7 @@ local function clearChams()
 end
 
 -- an arrow towards a model that is off the screen, its tip the offset in from the screen's edge
-local function point(set, camera, viewport, center, color)
+local function point(set, camera, viewport, center, settings, color)
 	local offset = camera.CFrame:PointToObjectSpace(center)
 	local direction = Vector2.new(offset.X, -offset.Y)
 	-- straight behind, it points down
@@ -832,6 +992,7 @@ local function point(set, camera, viewport, center, color)
 end
 
 local function update(model, source, camera, viewport)
+	local settings = source.settings
 	local health, maxHealth = esp.health(model, source)
 	if health and health <= 0 then
 		return false
@@ -854,7 +1015,7 @@ local function update(model, source, camera, viewport)
 	end
 
 	-- the two filters are for models that are really there, which a heard ghost isn't
-	if source == players then
+	if source.real then
 		local head = model:FindFirstChild("Head")
 		if settings.OnlyVisible and not esp.visible(camera, head and head.Position or center, model) then
 			return false
@@ -888,7 +1049,7 @@ local function update(model, source, camera, viewport)
 	local own = source.color
 	if pointed then
 		hide(model)
-		point(set, camera, viewport, center, own or settings.ArrowsColor)
+		point(set, camera, viewport, center, settings, own or settings.ArrowsColor)
 		return true
 	end
 	set.arrowShadow.Visible, set.arrow.Visible, set.arrowOutline.Visible = false, false, false
@@ -968,7 +1129,7 @@ local function update(model, source, camera, viewport)
 		set.flags.Position = Vector2.new(x + width + 4, y - 2)
 	end
 
-	updateSkeleton(model, camera, own or settings.SkeletonColor)
+	updateSkeleton(model, camera, settings, own or settings.SkeletonColor)
 	updateChams(model, source)
 
 	return true
@@ -980,6 +1141,7 @@ local function renderSounds(camera, viewport)
 	local now = os.clock()
 	for index = #sounds, 1, -1 do
 		local sound = sounds[index]
+		local settings = sound.settings
 		local age = (now - sound.at) / SOUND_TIME
 		local circle = sound.circle
 		if age > 1 or not (settings.Enabled and settings.Sounds) then
@@ -1003,37 +1165,44 @@ end
 local function render()
 	local camera = workspace.CurrentCamera
 	local viewport = camera.ViewportSize
+	local now = os.clock()
 	renderSounds(camera, viewport)
-	if not settings.Enabled then
-		for model in sets do
-			hide(model)
-		end
-		clearChams()
-		return
-	end
 
-	-- solid is the Highlight's fill; every other visible chams material goes on the players' own parts
-	local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
-	-- the models whose own parts chams have painted this frame
-	local painted = {}
+	-- the models with drawings this frame, and those each kind of chams was on for
 	local seen = {}
-	for _, source in esp.sources do
-		if source.enabled then
+	local painted, shaded, shelled, trailed = {}, {}, {}, {}
+	for _, source in all do
+		local settings = source.settings
+		if settings.Enabled and source.enabled then
+			-- solid is the Highlight's fill; every other visible chams material goes on the models' own parts
+			local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
 			for _, model in source.models(true) do
 				seen[model] = true
-				if source == players then
+				if source.real then
 					if material then
 						painted[model] = true
-						paint(model, material, settings.VisibleChamsColor, settings.VisibleChamsOpacity)
+						paint(model, bodyParts(model), material, settings.VisibleChamsColor, settings.VisibleChamsOpacity)
 					end
 					if settings.InvisibleChams then
-						shade(model, camera)
+						shaded[model] = true
+						shade(model, camera, settings)
 					end
 					if settings.OverlayChams then
-						shell(model)
+						shelled[model] = true
+						shell(model, settings)
 					end
 					if settings.BacktrackChams then
-						trail(model, camera)
+						trailed[model] = true
+						-- the aim has the players' records, since they are its targets
+						local records = esp.past[model]
+						if source ~= players then
+							records = remember(model, now)
+						end
+						trail(model, camera, settings, records)
+					end
+					-- main.lua reports the hits on the players
+					if settings.HitChams and source ~= players then
+						watch(model, source)
 					end
 				end
 				if not update(model, source, camera, viewport) and sets[model] then
@@ -1050,16 +1219,17 @@ local function render()
 		end
 	end
 	renderRagdolls(painted)
+	renderGear(painted, shelled)
 	renderFlashes()
-	for model in skins do
-		if not painted[model] then
-			strip(model)
+	for holder in skins do
+		if not painted[holder] then
+			strip(holder)
 		end
 	end
-	prune(shades, settings.InvisibleChams, seen)
-	prune(shells, settings.OverlayChams, seen)
+	prune(shades, shaded)
+	prune(shells, shelled)
 	for model in trails do
-		if not (settings.BacktrackChams and seen[model]) then
+		if not trailed[model] then
 			endTrail(model)
 		end
 	end

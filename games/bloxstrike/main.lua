@@ -230,7 +230,9 @@ end
 local players = esp.sources[1]
 local charactersWarned = false
 
-players.models = function(skipTeammates)
+-- the living characters in the folder but the user's own: all of them, or with mates given only those who are (true)
+-- or aren't (false) on the user's side. With the user on no side no one is
+local function shown(mates)
 	local characters = {}
 	local folder = workspace:FindFirstChild("Characters")
 	if not folder then
@@ -241,17 +243,34 @@ players.models = function(skipTeammates)
 		return characters
 	end
 
-	local team = skipTeammates and Players.LocalPlayer:GetAttribute("Team")
+	local team = Players.LocalPlayer:GetAttribute("Team")
 	local mine = Players.LocalPlayer.Character
 	for _, character in folder:GetChildren() do
 		if character ~= mine
 			and character:FindFirstChild("HumanoidRootPart")
 			and not character:GetAttribute("Dead")
-			and not (team and teamOf(character) == team) then
+			and (mates == nil or (team ~= nil and teamOf(character) == team) == mates) then
 			table.insert(characters, character)
 		end
 	end
 	return characters
+end
+
+players.models = function(skipTeammates)
+	return shown(if skipTeammates then false else nil)
+end
+
+esp.teammates.models = function()
+	return shown(true)
+end
+
+-- the esp's source a character or a ragdoll is one of: the user's own, the teammates or the players
+local function sourceOf(model)
+	if ownerOf(model) == Players.LocalPlayer then
+		return esp.own
+	end
+	local team = Players.LocalPlayer:GetAttribute("Team")
+	return team and teamOf(model) == team and esp.teammates or players
 end
 
 players.label = function(character)
@@ -487,7 +506,7 @@ if soundBank and debris then
 	end
 
 	hub.cleanup.add(debris.DescendantAdded:Connect(function(sound)
-		if not (esp.settings.Enabled and sound:IsA("Sound") and noisy[sound.SoundId]) then
+		if not (sound:IsA("Sound") and noisy[sound.SoundId]) then
 			return
 		end
 		local part = sound.Parent
@@ -496,17 +515,36 @@ if soundBank and debris then
 		end
 		-- the shown character it is beside made it, and with no one there a hidden enemy did
 		local maker = shownNear(part.Position, HEARD_OWNER_RANGE, false)
-		if not maker then
-			esp.sound(part.Position)
+		if maker then
+			esp.audible[maker] = os.clock()
+			esp.sound(part.Position, sourceOf(maker))
+		elseif esp.settings.Enabled then
+			esp.sound(part.Position, players)
 			if heardSource.enabled then
 				local class = noisy[sound.SoundId]
 				hear(part.Position, class ~= "FloorSounds" and class or nil)
 			end
-		elseif teamOf(maker) ~= Players.LocalPlayer:GetAttribute("Team") then
-			esp.audible[maker] = os.clock()
-			esp.sound(part.Position)
 		end
 	end))
+
+	-- the user's own sounds aren't played from a part under workspace.Debris: the game puts a footstep on the
+	-- character's root part
+	local characters = workspace:FindFirstChild("Characters")
+	if characters then
+		hub.cleanup.add(characters.DescendantAdded:Connect(function(sound)
+			if not (sound:IsA("Sound") and noisy[sound.SoundId]) then
+				return
+			end
+			local mine = Players.LocalPlayer.Character
+			if mine and sound:IsDescendantOf(mine) then
+				esp.audible[mine] = os.clock()
+				esp.sound(mine:GetPivot().Position, esp.own)
+			end
+		end))
+	else
+		warn("[hub] workspace.Characters not found: only audible and sounds unavailable on the local page")
+		hub.ui.notify("workspace.Characters not found, no only audible or sounds on the local page", "error")
+	end
 else
 	local missing = soundBank and "workspace.Debris" or "ReplicatedStorage.Sounds"
 	warn("[hub] " .. missing .. " not found: heard enemies, only audible and sounds unavailable")
@@ -521,14 +559,14 @@ hub.cleanup.add(function()
 end)
 
 -- the game keeps a copy of every character ready under workspace.Debris and turns it into the ragdoll on death: one in
--- use has ClientRagdoll and Dead set, and its character's attributes, so its side is found as a character's is
+-- use has ClientRagdoll and Dead set, and its character's attributes, so whose it is is found as a character's is.
+-- The ragdolls in use, each with its source
 if debris then
 	esp.ragdolls = function()
 		local models = {}
-		local team = Players.LocalPlayer:GetAttribute("Team")
 		for _, model in debris:GetChildren() do
-			if model:GetAttribute("ClientRagdoll") and model:GetAttribute("Dead") and teamOf(model) ~= team then
-				table.insert(models, model)
+			if model:GetAttribute("ClientRagdoll") and model:GetAttribute("Dead") then
+				models[model] = sourceOf(model)
 			end
 		end
 		return models
@@ -953,6 +991,70 @@ end
 hub.cleanup.add(function()
 	setThirdPerson(false)
 end)
+
+-- the user's own character is only there to see in third person, so that is when its page of the esp draws on it
+esp.own.models = function()
+	local character = thirdPerson and Players.LocalPlayer.Character
+	return character and character:FindFirstChild("HumanoidRootPart") and { character } or {}
+end
+
+-- every part inside something, added to a list
+local function partsIn(root, parts)
+	for _, part in root:GetDescendants() do
+		if part:IsA("BasePart") then
+			table.insert(parts, part)
+		end
+	end
+	return parts
+end
+
+-- the game's names for the arms of a first person viewmodel, which carry the sleeves and gloves it puts on them, and
+-- for the folders of a character with the gun in its hands and the ones it carries on its body
+local ARMS = { "Left Arm", "Right Arm" }
+local CARRIED = { Weapon = "WeaponModel", Attachments = "WeaponAttachments" }
+local gearWarned = false
+
+-- what the local page has chams rows for besides the body, each kind a list of parts by the model they are in. A
+-- viewmodel is a Model under the camera named by its gun, holding the arms and the gun as a Model named Weapon, or
+-- two for a pair of guns. What the character holds and carries is only there to see in third person
+esp.gear = function()
+	local gear = { Viewmodel = {}, Weapon = {}, Attachments = {} }
+	for _, model in workspace.CurrentCamera:GetChildren() do
+		if model:IsA("Model") then
+			local arms = {}
+			for _, name in ARMS do
+				local arm = model:FindFirstChild(name)
+				if arm then
+					table.insert(arms, arm)
+					partsIn(arm, arms)
+				end
+			end
+			gear.Viewmodel[model] = arms
+			for _, child in model:GetChildren() do
+				if child:IsA("Model") and child.Name:find("^Weapon") then
+					gear.Weapon[child] = partsIn(child, {})
+				end
+			end
+		end
+	end
+
+	local character = thirdPerson and Players.LocalPlayer.Character
+	if character then
+		for kind, name in CARRIED do
+			local folder = character:FindFirstChild(name)
+			if folder then
+				for _, model in folder:GetChildren() do
+					gear[kind][model] = partsIn(model, {})
+				end
+			elseif not gearWarned then
+				gearWarned = true
+				warn("[hub] " .. name .. " not found in the local character: no chams on it in third person")
+				hub.ui.notify(name .. " not found in the local character, no chams on it in third person", "error")
+			end
+		end
+	end
+	return gear
+end
 
 -- the game sends the jump button for as long as the key is held and its simulation only jumps on a fresh press,
 -- so bunnyhop drops the button from every command but the first one on the ground

@@ -450,6 +450,30 @@
   `GroundAccelerate` 5.5, `Friction` 5.2, `StopSpeed` 80 units (6 studs), `AirAccelerate` 12, `Gravity` 800 units and
   `JumpSpeed` 301.99 units, a unit being 0.075 studs; the casual and deathmatch profiles have `GroundAccelerate` 5,
   `Friction` 4 and `AirAccelerate` 150. A weapon file's `WalkSpeed` is in studs a second (AK-47 17.372, knife 20.2).
+- The first person viewmodel, from `Classes.WeaponComponent.Classes.Viewmodel` and
+  `Database.Components.Common.AttachGlovesToViewmodel` decompiled through the bridge on 2026-10-12 for the local page's
+  chams, with the user in the menu, so none of it was seen live:
+  - A viewmodel is a copy of `ReplicatedStorage.Assets.Weapons.<name>.Camera` (through `Skins.GetCameraModel`), a Model
+    renamed to the weapon. Equipped it is a child of the camera; unequipped it waits in `Camera.ViewmodelStash`.
+  - It holds `Left Arm` and `Right Arm` (MeshParts, coloured from the character's torso), the gun as a Model named
+    `Weapon` (two of that name in Dual Berettas; the code also looks for `WeaponL` and `WeaponR`), and
+    `HumanoidRootPart`, `ViewmodelLight` and `Interactables.MuzzlePart`, all three transparent. Some knives have a
+    `DummyParts` folder. `attachSleeves` puts a part named `Sleeve` under each arm, the glove attacher one named `Glove`.
+  - `hide` sets every part's Transparency to 1 and keeps the one it had in the attribute `HiddenTransparency`, only the
+    first time; `unhide` puts the attribute's value back, and `equip` unhides. What calls `hide` wasn't read; it is
+    taken to be a sniper's scope.
+  - A gun with a charm also has `LargeWeaponModel`, a second Model of the same name under the camera, fully transparent
+    and collidable, for the charm's physics.
+- Third person weapon models, from `Controllers.Observers.Players.Components.CreateWeaponModel` (same day): a
+  character's `WeaponModel` folder holds the model in its hands, named `Equipped` (parked in
+  `workspace.ThirdPersonWeaponStash` when not), and `WeaponAttachments` a model per carried weapon, with
+  `ObjectiveKitHolster` and the bomb's holster. `SetModelVisible` hides and shows one by writing Transparency 1 or 0 on
+  every part, a few part names having a fixed value, so a carried gun's parts are all at 1 while it is out (seen on an
+  enemy: an AK-47's at 1 beside a Desert Eagle's at 0). Not seen: whether the local player's character has these
+  folders.
+- `Classes.Sound.play` puts a clone of a sound, or a `Persistent` one kept in `SoundService.PersistentSounds`, into the
+  parent it is given and plays it there; `PlaySoundAtPosition` is the one with the part under `workspace.Debris`. Either
+  way the sound keeps its `SoundId` and fires `DescendantAdded` where it lands.
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
 - Removed at the user's request on 2026-10-10:

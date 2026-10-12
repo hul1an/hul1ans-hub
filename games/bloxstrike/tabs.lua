@@ -15,22 +15,6 @@ local MATERIALS = { "solid", "flat", "glow", "ghost", "glass" }
 local THROUGH = { "solid", "glow" }
 -- overlay and backtrack are copies standing in the world, where solid has nothing to draw with
 local COPIES = { "flat", "glow", "ghost", "glass" }
--- starline's chams rows, each a fold with a material. The dump has them all on one page and only the enemies page
--- has been seen, so teammates get the same rows and local gets every one
-local CHAMS = { "visible", "invisible", "overlay", "ragdoll", "backtrack" }
-local CHAMS_LOCAL = {
-	"visible",
-	"invisible",
-	"overlay",
-	"viewmodel",
-	"ragdoll",
-	"viewmodel overlay",
-	"backtrack",
-	"weapon",
-	"weapon overlay",
-	"attachments",
-	"attachments overlay",
-}
 
 local function nothing() end
 
@@ -181,21 +165,20 @@ local function addAimbot(window)
 	off.slider(rcs, "smoothing", 0, 100)
 end
 
--- one of starline's player pages: its esp and chams cards. The hub's esp only draws enemies, so that page is the
--- live one and the others are placeholders throughout
-local function addPlayerPage(tab, name, live)
-	local settings = esp.settings
+-- one of starline's player pages, its esp and chams cards, on the options of the enemies, the teammates or the user's
+-- own character. The enemies' page has rows the other two don't: what takes a Highlight, of which Roblox draws 31, is
+-- kept for them
+local function addPlayerPage(tab, name, settings)
 	local page = tab:CreateSubTab(name)
+	local enemies = settings == esp.settings
+	local own = settings == esp.own.settings
 
-	-- key is the esp setting behind a row the hub draws, whose colour is the same key with Color on the end; plain is a
-	-- row starline has no colour on
+	-- key is the esp setting behind a row, whose colour is the same key with Color on the end; plain is a row starline
+	-- has no colour on
 	local function row(card, label, key, plain)
-		if not (live and key) then
-			off.toggle(card, label, not plain)
-		elseif plain then
-			toggle(card, label, settings, key)
-		else
-			color(toggle(card, label, settings, key), settings, key .. "Color")
+		local control = toggle(card, label, settings, key)
+		if not plain then
+			color(control, settings, key .. "Color")
 		end
 	end
 
@@ -211,71 +194,66 @@ local function addPlayerPage(tab, name, live)
 	row(card, "skeleton", "Skeleton")
 	row(card, "health bar", "HealthBar")
 	row(card, "ammo bar", "AmmoBar")
-	if live then
-		multi(card, "flags", settings, "Flags", FLAGS)
-		local sounds = group(card, "sounds", settings, "Sounds")
-		color(sounds.header, settings, "SoundsColor")
-		dropdown(sounds, "draw type", settings, "SoundsType", { "circle", "ring" })
-		slider(sounds, "radius", settings, "SoundsRadius", 5, 40, true)
-		local arrows = group(card, "offscreen arrows", settings, "Arrows")
-		color(arrows.header, settings, "ArrowsColor")
-		color(toggle(arrows, "shadow", settings, "ArrowsShadow"), settings, "ArrowsShadowColor")
-		color(toggle(arrows, "outline", settings, "ArrowsOutline"), settings, "ArrowsOutlineColor")
-		slider(arrows, "size", settings, "ArrowsSize", 4, 24, true)
-		slider(arrows, "offset", settings, "ArrowsOffset", 0, 48, true)
-	else
-		off.multi(card, "flags")
-		local sounds = off.group(card, "sounds", true)
-		off.dropdown(sounds, "draw type")
-		off.slider(sounds, "radius", 5, 40)
-		local arrows = off.group(card, "offscreen arrows", true)
-		off.toggle(arrows, "shadow", true)
-		off.toggle(arrows, "outline", true)
-		off.slider(arrows, "size", 4, 24)
-		off.slider(arrows, "offset", 0, 48)
-	end
+	multi(card, "flags", settings, "Flags", FLAGS)
+	local sounds = group(card, "sounds", settings, "Sounds")
+	color(sounds.header, settings, "SoundsColor")
+	dropdown(sounds, "draw type", settings, "SoundsType", { "circle", "ring" })
+	slider(sounds, "radius", settings, "SoundsRadius", 5, 40, true)
+	local arrows = group(card, "offscreen arrows", settings, "Arrows")
+	color(arrows.header, settings, "ArrowsColor")
+	color(toggle(arrows, "shadow", settings, "ArrowsShadow"), settings, "ArrowsShadowColor")
+	color(toggle(arrows, "outline", settings, "ArrowsOutline"), settings, "ArrowsOutlineColor")
+	slider(arrows, "size", settings, "ArrowsSize", 4, 24, true)
+	slider(arrows, "offset", settings, "ArrowsOffset", 0, 48, true)
 
 	local chams = page:CreateSection("chams", "RightSide")
-	if live then
-		-- a chams row: its fold, the colour and opacity on its header and its material. key is the row's esp setting,
-		-- which the others are named after
-		local function fold(label, key, materials)
-			local row = group(chams, label, settings, key)
-			color(row.header, settings, key .. "Color", key .. "Opacity")
-			dropdown(row, "material", settings, key .. "Material", materials)
-			return row
-		end
-		fold("visible", "VisibleChams", MATERIALS)
-		fold("invisible", "InvisibleChams", THROUGH)
-		fold("overlay", "OverlayChams", COPIES)
-		fold("ragdoll", "RagdollChams", MATERIALS)
-		-- the hub's own: per tick and its gradient. Without per tick only the oldest place is drawn
-		local ticks = group(fold("backtrack", "BacktrackChams", COPIES), "per tick", settings, "BacktrackChamsPerTick")
-		toggle(ticks, "gradient", settings, "BacktrackChamsGradient")
-		for _, label in { "oldest", "newest" } do
-			local key = "BacktrackChams" .. label:gsub("^%l", string.upper)
-			ticks:CreateColorpicker(label, function(value, amount)
-				settings[key] = value
-				settings[key .. "Opacity"] = amount
-			end, true):UpdateColor(settings[key], settings[key .. "Opacity"])
-		end
-		local hit = fold("on hit", "HitChams", MATERIALS)
-		slider(hit, "duration", settings, "HitChamsDuration", 0.1, 5, false, "%.1fs")
-		color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor", "HitChamsGlowOpacity")
-	else
-		for _, label in name == "local" and CHAMS_LOCAL or CHAMS do
-			off.dropdown(off.group(chams, label, true), "material")
-		end
-		local hit = off.group(chams, "on hit", true)
-		off.dropdown(hit, "material")
-		off.slider(hit, "duration", 0.1, 5, "%.1fs")
-		off.toggle(hit, "glow", true)
-		off.toggle(chams, "glow", true)
+	-- a chams row: its fold, the colour and opacity on its header and its material. key is the row's esp setting,
+	-- which the others are named after
+	local function fold(label, key, materials)
+		local row = group(chams, label, settings, key)
+		color(row.header, settings, key .. "Color", key .. "Opacity")
+		dropdown(row, "material", settings, key .. "Material", materials)
+		return row
 	end
-
-	if not live then
+	-- solid is a Highlight's fill
+	local materials = enemies and MATERIALS or COPIES
+	-- the rows are in starline's order, which has the local page's own in between
+	fold("visible", "VisibleChams", materials)
+	if enemies then
+		fold("invisible", "InvisibleChams", THROUGH)
+	end
+	fold("overlay", "OverlayChams", COPIES)
+	if own then
+		fold("viewmodel", "ViewmodelChams", COPIES)
+	end
+	fold("ragdoll", "RagdollChams", materials)
+	if own then
+		fold("viewmodel overlay", "ViewmodelOverlayChams", COPIES)
+	end
+	-- the hub's own: per tick and its gradient. Without per tick only the oldest place is drawn
+	local ticks = group(fold("backtrack", "BacktrackChams", COPIES), "per tick", settings, "BacktrackChamsPerTick")
+	toggle(ticks, "gradient", settings, "BacktrackChamsGradient")
+	for _, label in { "oldest", "newest" } do
+		local key = "BacktrackChams" .. label:gsub("^%l", string.upper)
+		ticks:CreateColorpicker(label, function(value, amount)
+			settings[key] = value
+			settings[key .. "Opacity"] = amount
+		end, true):UpdateColor(settings[key], settings[key .. "Opacity"])
+	end
+	if own then
+		fold("weapon", "WeaponChams", COPIES)
+		fold("weapon overlay", "WeaponOverlayChams", COPIES)
+		fold("attachments", "AttachmentsChams", COPIES)
+		fold("attachments overlay", "AttachmentsOverlayChams", COPIES)
+	end
+	local hit = fold("on hit", "HitChams", materials)
+	slider(hit, "duration", settings, "HitChamsDuration", 0.1, 5, false, "%.1fs")
+	if not enemies then
 		return
 	end
+	-- a Highlight's outline
+	color(toggle(hit, "glow", settings, "HitChamsGlow"), settings, "HitChamsGlowColor", "HitChamsGlowOpacity")
+
 	-- the hub's own: a card for each of the esp's sources but the players, whose rows are the esp card's
 	for index = 2, #esp.sources do
 		local source = esp.sources[index]
@@ -289,9 +267,9 @@ end
 
 local function addPlayers(window)
 	local tab = window:CreateTab("players", "users")
-	addPlayerPage(tab, "enemies", true)
-	addPlayerPage(tab, "teammates", false)
-	addPlayerPage(tab, "local", false)
+	addPlayerPage(tab, "enemies", esp.settings)
+	addPlayerPage(tab, "teammates", esp.teammates.settings)
+	addPlayerPage(tab, "local", esp.own.settings)
 	tab:CreateSubTab("list")
 end
 
