@@ -142,6 +142,9 @@ local esp = {
 	-- by model, where each of its parts was on the frames of the backtrack time, oldest first: a record is at and
 	-- frames, the CFrame by part. The aim keeps it for its backtrack and the backtrack chams draw it
 	past = {},
+	-- by a player's name, or a bot's, what the players › list page has set for them: whitelist, priority, autoWall,
+	-- triggerAutoWall, fov (degrees), reaction (milliseconds) and hidden
+	overrides = {},
 }
 
 -- every source that is drawn. esp.sources is those of them the enemies' page shows and the aim picks its targets from
@@ -171,6 +174,12 @@ local world
 local container, screen
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local NONE = {}
+
+-- what the list page has set for whoever a model is: a character, and its ragdoll, has its player's name or its bot's
+function esp.override(model)
+	return esp.overrides[model.Name] or NONE
+end
 
 -- whether the camera has a line to a point on a model
 function esp.visible(camera, point, model)
@@ -855,7 +864,7 @@ end
 
 -- main.lua calls this when a shot of the user's has hurt an enemy, with the pose it had when the shot was fired
 function esp.flash(model, frames)
-	if esp.settings.Enabled and esp.settings.HitChams then
+	if esp.settings.Enabled and esp.settings.HitChams and not esp.override(model).hidden then
 		flash(model, frames, esp.settings)
 	end
 end
@@ -900,7 +909,7 @@ local function renderRagdolls(painted)
 	if wanted and esp.ragdolls then
 		for model, source in esp.ragdolls() do
 			local settings = source.settings
-			if settings.Enabled and settings.RagdollChams then
+			if settings.Enabled and settings.RagdollChams and not esp.override(model).hidden then
 				lying[model] = true
 				local name = settings.RagdollChamsMaterial
 				if name == "solid" then
@@ -1177,6 +1186,10 @@ local function render()
 			-- solid is the Highlight's fill; every other visible chams material goes on the models' own parts
 			local material = settings.VisibleChams and settings.VisibleChamsMaterial ~= "solid" and settings.VisibleChamsMaterial
 			for _, model in source.models(true) do
+				-- the list page's disable visuals: nothing is drawn of that player
+				if esp.override(model).hidden then
+					continue
+				end
 				seen[model] = true
 				if source.real then
 					if material then

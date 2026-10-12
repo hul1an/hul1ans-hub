@@ -900,6 +900,11 @@ function Container:CreateToggle(name, default, callback)
 
 	local container = self
 	local toggle = setmetatable({ row = row, label = text }, Control)
+	function toggle:Set(value)
+		if value ~= state then
+			set(value)
+		end
+	end
 
 	-- the toggle's bind, and the chip that shows it on the row once it has a key, left of any swatch
 	local chip
@@ -1015,7 +1020,8 @@ function Container:CreateToggle(name, default, callback)
 	return toggle
 end
 
--- precise means whole numbers, as it did in Bracket; format is a string.format pattern for the readout
+-- precise means whole numbers, as it did in Bracket; format is a string.format pattern for the readout, or a function
+-- that gives its text for a value
 function Container:CreateSlider(name, min, max, default, precise, callback, format)
 	format = format or (precise and "%.0f" or "%.2f")
 	local row = self:row(30)
@@ -1057,7 +1063,7 @@ function Container:CreateSlider(name, min, max, default, precise, callback, form
 				NumberSequenceKeypoint.new(1, 1),
 			})
 		end
-		readout.Text = string.format(format, value)
+		readout.Text = if type(format) == "function" then format(value) else string.format(format, value)
 	end
 	show()
 
@@ -1076,7 +1082,11 @@ function Container:CreateSlider(name, min, max, default, precise, callback, form
 	self:register(name, row, function()
 		return value
 	end, set)
-	return setmetatable({ row = row }, Control)
+	local control = setmetatable({ row = row }, Control)
+	function control:Set(number)
+		set(number)
+	end
+	return control
 end
 
 -- with multi the callback gets the list of chosen names, otherwise the one name
@@ -1472,6 +1482,247 @@ function SubTab:scroll(dt)
 	self.content.Position = UDim2.fromOffset(0, -math.round(self.position))
 	self.top.BackgroundTransparency = 1 - math.clamp(self.position / 6, 0, 1)
 	self.bottom.BackgroundTransparency = 1 - math.clamp((limit - self.position) / 6, 0, 1)
+end
+
+-- a name as the player list shows it: cut to 15 characters, and marked when it is the user's own
+local function listName(player)
+	local cut = utf8.offset(player.name, 16)
+	local name = cut and cut <= #player.name and player.name:sub(1, cut - 1) .. "..." or player.name
+	return player.you and name .. " (you)" or name
+end
+
+-- starline's player list: the players by group down the left, and on the right the one picked, with a card of rows
+-- about them. groups() gives the groups in order, each a name and its players, or nil while there is no match to
+-- list, when the page only says so. A player is an id, a name, you (whether it is the user), an image or nil, a color
+-- for the name or nil, and info, a list of label and value pairs. chosen(player, group) is called when a player is
+-- picked, with the group's name. Returns the card's rows as a container; they are about one player at a time, so its
+-- controls are in no search and no config
+function SubTab:CreatePlayerList(groups, chosen)
+	local subtab = self
+	local absent = frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = self.view })
+	label(ROW, {
+		Text = "player list",
+		TextColor3 = MUTED,
+		TextTransparency = 0.37,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Position = UDim2.new(0, 0, 0.5, -17),
+		Size = UDim2.new(1, 0, 0, 13),
+		Parent = absent,
+	})
+	label(TAB, {
+		Text = "available ingame only",
+		TextColor3 = MUTED,
+		TextTransparency = 0.62,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Position = UDim2.new(0, 0, 0.5, 2),
+		Size = UDim2.new(1, 0, 0, 12),
+		Parent = absent,
+	})
+
+	local function card(column)
+		column.cards += 1
+		local back = frame({
+			BackgroundColor3 = STRIP,
+			BackgroundTransparency = 0.04,
+			Size = UDim2.fromScale(1, 0),
+			LayoutOrder = column.cards,
+			Visible = false,
+			Parent = column.holder,
+		})
+		corner(back, 3)
+		outline(back, BORDER, 3)
+		return back
+	end
+
+	local roster = card(self.left)
+	local stack = frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 0), Parent = roster })
+	local stackLayout = make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = stack })
+	stackLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		roster.Size = UDim2.new(1, 0, 0, math.round(stackLayout.AbsoluteContentSize.Y / zoom.Scale))
+	end)
+
+	local detail = card(self.right)
+	local prompt = label(TITLE, {
+		Text = "select a player",
+		TextColor3 = MUTED,
+		Position = UDim2.fromOffset(9, 12),
+		Size = UDim2.new(1, -18, 0, 12),
+		Parent = detail,
+	})
+	local sheet = frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Parent = detail })
+	local heading = label(TITLE, { Position = UDim2.fromOffset(9, 0), Size = UDim2.new(1, -18, 0, 22), Parent = sheet })
+	frame({ BackgroundColor3 = BORDER, Position = UDim2.fromOffset(0, 22), Size = UDim2.new(1, 0, 0, 1), Parent = sheet })
+	local facts = frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(9, 27), Size = UDim2.new(1, -18, 0, 0), Parent = sheet })
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = facts })
+	local rule = frame({ BackgroundColor3 = BORDER, Size = UDim2.new(1, 0, 0, 1), Parent = sheet })
+	local holder = frame({ BackgroundTransparency = 1, Size = UDim2.new(1, -18, 0, 0), Parent = sheet })
+	local layout = make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = holder })
+
+	-- by group name: its header's caption, the frame its players' rows are in, and those rows by player id
+	local shown = {}
+	-- the id of the player picked, the name of their group, and how many lines of info they have
+	local picked, pickedGroup, lines
+
+	local function arrange()
+		if not picked then
+			detail.Size = UDim2.new(1, 0, 0, 36)
+			return
+		end
+		-- under the name and its rule: the info with 4 px above and below, a rule, then the rows
+		local top = 31 + 18 * lines
+		rule.Position = UDim2.fromOffset(0, top)
+		holder.Position = UDim2.fromOffset(9, top + 4)
+		detail.Size = UDim2.new(1, 0, 0, top + 7 + math.round(layout.AbsoluteContentSize.Y / zoom.Scale))
+	end
+	layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(arrange)
+	arrange()
+
+	local function paint(row)
+		local on = row.player.id == picked
+		row.fill.BackgroundTransparency = on and 0.92 or 1
+		row.caption.TextColor3 = row.player.color or (on and TEXT or MUTED)
+	end
+
+	local function pick(player, group)
+		picked, pickedGroup = player and player.id, group
+		prompt.Visible = player == nil
+		sheet.Visible = player ~= nil
+		if player then
+			heading.Text = listName(player)
+			for _, line in facts:GetChildren() do
+				if line:IsA("Frame") then
+					line:Destroy()
+				end
+			end
+			lines = #player.info
+			for order, pair in player.info do
+				local line = frame({ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = order, Parent = facts })
+				label(TITLE, { Text = pair[1], TextColor3 = MUTED, Size = UDim2.fromScale(1, 1), Parent = line })
+				label(TITLE, { Text = pair[2], TextXAlignment = Enum.TextXAlignment.Right, Size = UDim2.fromScale(1, 1), Parent = line })
+			end
+			chosen(player, group)
+		end
+		arrange()
+		for _, entry in shown do
+			for _, row in entry.rows do
+				paint(row)
+			end
+		end
+	end
+
+	-- a group's header, which folds its players away, and the frame they are listed in
+	local function section(name, order)
+		local header = button({ Size = UDim2.new(1, 0, 0, 22), LayoutOrder = order * 2 - 1, Parent = stack })
+		wash(header, 5)
+		local chevron = icon("expand-chev", {
+			ImageColor3 = MUTED,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(11.5, 11),
+			Rotation = 90,
+			Parent = header,
+		})
+		local caption = label(TITLE, {
+			TextColor3 = MUTED,
+			Position = UDim2.fromOffset(20, 0),
+			Size = UDim2.new(1, -29, 1, 0),
+			Parent = header,
+		})
+		frame({ BackgroundColor3 = BORDER, Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1), Parent = header })
+		local body = frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 0), LayoutOrder = order * 2, Parent = stack })
+		local list = make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = body })
+		list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			body.Size = UDim2.new(1, 0, 0, math.round(list.AbsoluteContentSize.Y / zoom.Scale))
+		end)
+		header.MouseButton1Click:Connect(function()
+			body.Visible = not body.Visible
+			chevron.Rotation = body.Visible and 90 or 0
+		end)
+		return { caption = caption, body = body, rows = {} }
+	end
+
+	local function playerRow(entry, group)
+		local hit = button({ Size = UDim2.new(1, 0, 0, 22), Parent = entry.body })
+		local row = {
+			hit = hit,
+			fill = frame({ BackgroundColor3 = ACCENT, Size = UDim2.fromScale(1, 1), ZIndex = 0, Parent = hit }),
+			face = make("ImageLabel", {
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(9, 3),
+				Size = UDim2.fromOffset(16, 16),
+				Parent = hit,
+			}),
+			caption = label(TITLE, { Size = UDim2.new(1, -38, 1, 0), Parent = hit }),
+		}
+		wash(hit, 5)
+		hit.MouseButton1Click:Connect(function()
+			pick(row.player, group)
+		end)
+		return row
+	end
+
+	local function sync()
+		local found = groups()
+		absent.Visible = found == nil
+		roster.Visible = found ~= nil
+		detail.Visible = found ~= nil
+		if not found then
+			return
+		end
+
+		local still = false
+		for order, group in found do
+			local entry = shown[group.name]
+			if not entry then
+				entry = section(group.name, order)
+				shown[group.name] = entry
+			end
+			entry.caption.Text = string.format("%s (%d)", group.name, #group.players)
+
+			local listed = {}
+			for index, player in group.players do
+				listed[player.id] = true
+				local row = entry.rows[player.id]
+				if not row then
+					row = playerRow(entry, group.name)
+					entry.rows[player.id] = row
+				end
+				row.player = player
+				row.hit.LayoutOrder = index
+				row.face.Image = player.image or ""
+				row.caption.Text = listName(player)
+				-- the name goes after the avatar when there is one
+				row.caption.Position = UDim2.fromOffset(player.image and 29 or 9, 0)
+				paint(row)
+				if player.id == picked then
+					still = true
+					-- on the other side now, where the card has other rows
+					if group.name ~= pickedGroup then
+						pick(player, group.name)
+					end
+				end
+			end
+			for id, row in entry.rows do
+				if not listed[id] then
+					row.hit:Destroy()
+					entry.rows[id] = nil
+				end
+			end
+		end
+		if picked and not still then
+			pick(nil)
+		end
+	end
+
+	-- the list is read again twice a second, and only while the page is on show
+	local read = 0
+	hub.cleanup.add(RunService.Heartbeat:Connect(function()
+		if page == subtab and visible and os.clock() - read > 0.5 then
+			read = os.clock()
+			sync()
+		end
+	end))
+
+	return setmetatable({ window = { controls = {} }, page = self, path = self.path, holder = holder, rows = 0 }, Container)
 end
 
 local Tab = {}

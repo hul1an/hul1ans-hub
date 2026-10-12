@@ -135,14 +135,15 @@ local function airborne(camera)
 	return workspace:Raycast(root.Position, Vector3.new(0, -root.Size.Y * 1.75, 0), rayParams) == nil
 end
 
--- calls back with every live model the aim may target, its root part and its health
+-- calls back with every live model the aim may target, its root part and its health. A player whitelisted on the list
+-- page isn't one
 local function eachTarget(callback)
 	for _, source in esp.sources do
 		if source.aim then
 			for _, model in source.models(true) do
 				local health = esp.health(model, source)
 				local root = model:FindFirstChild("HumanoidRootPart")
-				if root and not (health and health <= 0) then
+				if root and not (health and health <= 0) and not esp.override(model).whitelist then
 					healthOf[model] = health
 					callback(model, root, health)
 				end
@@ -216,13 +217,15 @@ end
 local function evaluate(camera, model, forward, fov)
 	local eye = camera.CFrame.Position
 	local bestPart, bestPoint, bestAngle
+	-- the list page can switch auto wall on for one player
+	local autoWall = settings.AutoWall or esp.override(model).autoWall
 
 	local function consider(part, point)
 		local angle = math.deg(forward:Angle(point - eye))
 		if angle > fov or bestAngle and angle >= bestAngle then
 			return
 		end
-		local reached, through = reaches(camera, point, model, settings.AutoWall)
+		local reached, through = reaches(camera, point, model, autoWall)
 		-- a shot has to do the minimum damage, in plain sight or through something, unless it would kill
 		if reached and settings.MinDamage > 0 then
 			local damage = aim.damage(part, (point - eye).Magnitude, through)
@@ -271,16 +274,18 @@ local function evaluate(camera, model, forward, fov)
 	return bestPart, bestPoint
 end
 
--- starline's target selection: the target with the best key that has a point inside its FOV.
--- the last value is the FOV to draw, which in dynamic mode follows the enemy nearest the crosshair
+-- starline's target selection: the target with the best key that has a point inside its FOV, one the list page has as
+-- high priority before any that isn't. The last value is the FOV to draw, which in dynamic mode follows the enemy
+-- nearest the crosshair
 local function findTarget(camera)
 	local eye = camera.CFrame.Position
 	local forward = camera.CFrame.LookVector
 	local dynamic = settings.FovMode == "dynamic"
 	-- a dynamic FOV keeps its size on screen when the view zooms
-	local base = dynamic and settings.Fov * camera.FieldOfView / DEFAULT_FOV or settings.Fov
+	local zoom = dynamic and camera.FieldOfView / DEFAULT_FOV or 1
+	local base = settings.Fov * zoom
 	local drawn, nearest = base, base * 1.5
-	local bestModel, bestPart, bestPoint, bestScore
+	local bestModel, bestPart, bestPoint, bestScore, bestFirst
 
 	eachTarget(function(model, root, health)
 		local offset = root.Position - eye
@@ -289,12 +294,20 @@ local function findTarget(camera)
 			return
 		end
 
+		local override = esp.override(model)
 		local angle = math.deg(forward:Angle(offset))
 		local fov = base
 		if dynamic then
 			fov = scaleFov(base, distance)
 			if angle < nearest then
 				nearest, drawn = angle, fov
+			end
+		end
+		-- the list page's fov amount is that player's own max fov
+		if override.fov then
+			fov = override.fov * zoom
+			if dynamic then
+				fov = scaleFov(fov, distance)
 			end
 		end
 
@@ -304,10 +317,11 @@ local function findTarget(camera)
 		elseif settings.Selection == "health" then
 			score = health or math.huge
 		end
-		if not bestScore or score < bestScore then
+		local first = override.priority or false
+		if not bestScore or first and not bestFirst or first == bestFirst and score < bestScore then
 			local part, point = evaluate(camera, model, forward, fov)
 			if part then
-				bestModel, bestPart, bestPoint, bestScore = model, part, point, score
+				bestModel, bestPart, bestPoint, bestScore, bestFirst = model, part, point, score, first
 			end
 		end
 	end)
@@ -453,10 +467,11 @@ local function underCrosshair(camera)
 		if along <= 0 or (offset - forward * along).Magnitude > TRIGGER_REACH then
 			return
 		end
+		local autoWall = settings.TriggerAutoWall or esp.override(model).triggerAutoWall
 		for _, part in hitParts(model, settings.TriggerHitgroups) do
 			local distance = crosses(part, eye, forward)
 			if distance and distance <= settings.MaxDistance and (not best or distance < best) then
-				local reached, through = reaches(camera, eye + forward * distance, model, settings.TriggerAutoWall)
+				local reached, through = reaches(camera, eye + forward * distance, model, autoWall)
 				if reached then
 					nearest, struck, best, walled = model, part, distance, through
 				end
@@ -636,9 +651,10 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	if UserInputService:IsMouseButtonPressed(FIRE_BUTTON) and not clicking then
 		return
 	end
-	-- sampled every third frame, as starline does every third command
+	-- sampled every third frame, as starline does every third command. Whatever the setting, since the list page can
+	-- give one player a visible delay
 	frame += 1
-	if settings.TriggerVisibleDelay > 0 and frame % 3 == 0 then
+	if frame % 3 == 0 then
 		updateSeen(camera, now)
 	end
 
@@ -681,9 +697,11 @@ local function trigger(camera, now, aimed, aimedPart, aimedPoint)
 	if settings.TriggerAutoScope and aim.scope() then
 		return
 	end
-	-- rolled once each time a target comes under the crosshair
+	-- rolled once each time a target comes under the crosshair. The list page's trigger reaction is that player's own
+	-- visible delay
 	if not reaction then
-		reaction, visibleFor = roll(settings.TriggerDelay), roll(settings.TriggerVisibleDelay)
+		reaction = roll(settings.TriggerDelay)
+		visibleFor = roll(esp.override(model).reaction or settings.TriggerVisibleDelay)
 	end
 	if visibleFor > 0 and now - (seenSince[model] or now) < visibleFor then
 		return

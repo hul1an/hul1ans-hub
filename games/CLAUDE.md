@@ -539,6 +539,14 @@
   false. The old keybind chips checked that flag too, so a bind on a game key never worked.
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
+- Read through the bridge on 2026-10-12 for the players › list page, with the user dead in a round:
+  - The dead user's Player had `Team` `Spectators`, `Dead` and `IsSpectating` set and `SpectatingUserId`, with kills
+    from the same match on it, so a player's own side isn't on the Player while they are dead. Their character was
+    still in `workspace.Characters`, `Dead`, with `CharacterName` `Anarchist`; a Counter-Terrorist bot's was `IDF`.
+  - A Player's other attributes: `Kills`, `Deaths`, `Assists`, `Headshots`, `MVPs`, `Score`, `ADR`, `Ping`, `Money`,
+    `Spectators` (how many are watching them), `LastKiller`, `PinVerified`, `CanUseVIPMenu`. Nothing like a rank.
+  - A character is named by the Player's `Name`, which can differ from the `DisplayName` the hub shows. A bot's name
+    looks like a player's (`RealLestro`); it had `Bot`, `Team`, `ActorId` and `CombatantId`.
 - Removed at the user's request on 2026-10-10:
   - Dormant ESP, a fading box at a culled enemy's last shown position.
   - Sound ESP, a fading ring at each `Sound` under `workspace.Debris` that wasn't beside a shown character.

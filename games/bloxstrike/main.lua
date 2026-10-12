@@ -551,7 +551,9 @@ if soundBank and debris then
 		local maker = shownNear(part.Position, HEARD_OWNER_RANGE, false)
 		if maker then
 			esp.audible[maker] = os.clock()
-			esp.sound(part.Position, sourceOf(maker))
+			if not esp.override(maker).hidden then
+				esp.sound(part.Position, sourceOf(maker))
+			end
 		elseif esp.settings.Enabled then
 			esp.sound(part.Position, players)
 			if heardSource.enabled then
@@ -1656,6 +1658,57 @@ else
 	hub.ui.notify("MovementV2.Client.Runtime._buildCommandInput not found, no bunnyhop or auto stop", "error")
 end
 
+-- the two sides of a match, as the Team attribute has them
+local SIDES = { Terrorists = true, ["Counter-Terrorists"] = true }
+-- the side the user was last on: dead, the user's own Team reads Spectators until the next round
+local side
+
+-- for the players › list page: everyone in the match, the enemies and the teammates, or nothing until the user has
+-- been on a side. Each is an id (the name the character has, which the esp keeps a player's options by), a name, a
+-- userId and whether it is the user. The hidden and the dead are among them: a Player is there either way, and a bot,
+-- which has none, is its character in the game's folder of the shown or of the hidden
+local function roster()
+	local team = Players.LocalPlayer:GetAttribute("Team")
+	if SIDES[team] then
+		side = team
+	end
+	if not side then
+		return nil
+	end
+
+	local enemies, teammates = {}, {}
+	for _, player in Players:GetPlayers() do
+		local you = player == Players.LocalPlayer
+		local theirs = you and side or player:GetAttribute("Team")
+		if SIDES[theirs] then
+			table.insert(theirs == side and teammates or enemies, {
+				id = player.Name,
+				name = player.DisplayName,
+				userId = player.UserId,
+				you = you,
+			})
+		end
+	end
+	local function bots(folder)
+		for _, character in folder and folder:GetChildren() or {} do
+			if character:GetAttribute("Bot") then
+				local list = character:GetAttribute("Team") == side and teammates or enemies
+				table.insert(list, { id = character.Name, name = character.Name })
+			end
+		end
+	end
+	bots(workspace:FindFirstChild("Characters"))
+	bots(ReplicatedStorage:FindFirstChild("_PVS_CulledCharacters"))
+
+	-- by name, so that no one changes place as the game hides and shows them
+	for _, list in { enemies, teammates } do
+		table.sort(list, function(a, b)
+			return a.name:lower() < b.name:lower()
+		end)
+	end
+	return enemies, teammates
+end
+
 view.start()
 entities.start()
 
@@ -1664,6 +1717,7 @@ hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
 	logs = logs,
+	roster = roster,
 	skies = skies,
 	view = view,
 	entities = entities,

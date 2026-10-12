@@ -15,6 +15,11 @@ local MATERIALS = { "solid", "flat", "glow", "ghost", "glass" }
 local THROUGH = { "solid", "glow" }
 -- overlay and backtrack are copies standing in the world, where solid has nothing to draw with
 local COPIES = { "flat", "glow", "ghost", "glass" }
+-- starline's colours for the name of a whitelisted player on the list and of a high priority one
+local WHITELISTED = Color3.new(0, 1, 0)
+local PRIORITY = Color3.new(1, 0, 0)
+-- where the list's trigger reaction slider ends, in seconds, which is its default
+local REACTION = 0.65
 
 local function nothing() end
 
@@ -265,12 +270,92 @@ local function addPlayerPage(tab, name, settings)
 	end
 end
 
-local function addPlayers(window)
+-- starline's player list: everyone in the match, and for the one picked the options the esp keeps under their id.
+-- roster is main.lua's, the enemies and the teammates, or nothing outside a match
+local function addList(tab, roster)
+	-- the picked player's options
+	local options = {}
+	-- the card's toggles by the option each keeps, its two sliders, and every row with who it is for: "enemy", "other"
+	-- (anyone but the user) or "own"
+	local flags, rows = {}, {}
+	local fov, reaction
+
+	local card = tab:CreateSubTab("list"):CreatePlayerList(function()
+		local enemies, teammates = roster()
+		if not enemies then
+			return nil
+		end
+		for _, players in { enemies, teammates } do
+			for _, player in players do
+				local set = esp.overrides[player.id]
+				player.color = set and (set.whitelist and WHITELISTED or set.priority and PRIORITY) or nil
+				player.image = player.userId and "rbxthumb://type=AvatarHeadShot&id=" .. player.userId .. "&w=48&h=48"
+				-- starline's are the steamid and the premier rating, which the game has nothing like
+				player.info = {
+					{ "userid", player.userId and tostring(player.userId) or "bot" },
+					{ "premier rating (placeholder)", "unranked" },
+				}
+			end
+		end
+		return { { name = "enemies", players = enemies }, { name = "teammates", players = teammates } }
+	end, function(player, group)
+		options = esp.overrides[player.id] or {}
+		esp.overrides[player.id] = options
+		local kind = player.you and "own" or group == "enemies" and "enemy" or "other"
+		for _, entry in rows do
+			entry.control.row.Visible = entry.who == kind or entry.who == "other" and kind == "enemy"
+		end
+		for key, control in flags do
+			control:Set(options[key] or false)
+		end
+		fov:Set(options.fov or 0)
+		reaction:Set(options.reaction and options.reaction / 1000 or REACTION)
+	end)
+
+	local function row(control, who)
+		table.insert(rows, { control = control, who = who })
+		return control
+	end
+
+	local function flag(name, key, who)
+		flags[key] = row(card:CreateToggle(name, false, function(value)
+			options[key] = value or nil
+		end), who)
+	end
+
+	-- starline's row with nothing behind it
+	local function dead(name, who)
+		row(card:CreateButton(name .. " (placeholder)", nothing), who):Disable()
+	end
+
+	flag("whitelist", "whitelist", "enemy")
+	flag("high priority", "priority", "enemy")
+	flag("auto wall (aimbot)", "autoWall", "enemy")
+	flag("auto wall (trigger)", "triggerAutoWall", "enemy")
+	-- both sliders say default at the end that leaves the player to the aimbot's and the trigger's own settings
+	fov = row(card:CreateSlider("fov amount", 0, 30, 0, false, function(value)
+		options.fov = value > 0 and value or nil
+	end, function(value)
+		return value > 0 and string.format("%.1f", value) or "default"
+	end), "enemy")
+	reaction = row(card:CreateSlider("trigger reaction", 0, REACTION, REACTION, false, function(value)
+		options.reaction = value < REACTION and value * 1000 or nil
+	end, function(value)
+		return value < REACTION and string.format("%.3fs", value) or "default"
+	end), "enemy")
+	flag("disable visuals", "hidden", "other")
+	dead("steal name", "other")
+	dead("reset name", "other")
+	dead("reset name", "own")
+	dead("vote kick yourself", "own")
+end
+
+local function addPlayers(window, roster)
 	local tab = window:CreateTab("players", "users")
 	addPlayerPage(tab, "enemies", esp.settings)
 	addPlayerPage(tab, "teammates", esp.teammates.settings)
 	addPlayerPage(tab, "local", esp.own.settings)
-	tab:CreateSubTab("list")
+	addList(tab, roster)
 end
 
 local function addVisuals(window, features)
@@ -496,10 +581,10 @@ local function addMisc(window, movement, logs)
 end
 
 -- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals, movement
--- and logs settings, the skybox choices, view.lua and entities.lua, setNight and setThirdPerson
+-- and logs settings, the roster, the skybox choices, view.lua and entities.lua, setNight and setThirdPerson
 return function(window, features)
 	addAimbot(window)
-	addPlayers(window)
+	addPlayers(window, features.roster)
 	addVisuals(window, features)
 	-- the dump has no cards for the inventory changer or the script list; their pages are kept so the tab row matches
 	window:CreateTab("changer", "hanger"):CreateSubTab("inventory")
