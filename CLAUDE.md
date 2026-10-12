@@ -124,6 +124,8 @@ Changes that aren't about any game, such as the menu's style, are exempt.
   keeps it on while the key is down and switches it off on release. A bound row shows a chip with the key, and `hold`
   after it, left of any swatch; clicking the chip opens the popup too. One InputBegan and one InputEnded listener serve
   every bind. A config keeps each as `<name> bind`, the key with ` hold` after it, so binds saved before still load.
+  A bind doesn't go by InputBegan's `processed` flag (see `games/CLAUDE.md`: BloxStrike marks all its own keys as
+  taken); it is only ignored while a text box has focus, and for a mouse button while the menu is showing.
   Claude's reading: a feature is a toggle. Buttons, sliders and dropdowns have no bind, and a greyed-out row takes no
   right click.
 - The Combat tab is starline's aimbot › assist page (`starline-src/assets/gui/pages.json` in the dump has its
@@ -439,8 +441,10 @@ disabler, the triggerbot, and that silent aim still gets its target from `aim.ta
 keybinds in `core/ui.lua` are written and not run as well.
 
 The reworked binds (right click popup, toggle and hold) were written on 2026-10-12 and have not been run. Open: whether
-a right click reaches a row's `MouseButton2Click`, whether a click to bind a mouse button leaves the popup in a
-sensible state, and whether a key bound while a text box has focus is rightly ignored.
+a click to bind a mouse button leaves the popup in a sensible state, and whether a key pressed while a text box has
+focus is rightly ignored. The user reported on 2026-10-12 that the third person bind didn't work; the listener
+skipped every input the game had marked as processed, which in BloxStrike is every key the game uses, and it no
+longer goes by that. Not run since.
 
 Baim if lethal, auto scope, auto stop and the R15 hitgroups were written on 2026-10-11 and have not been run.
 BloxStrike's aim step was moved from one after the camera's priority to the camera's own on 2026-10-11, after the

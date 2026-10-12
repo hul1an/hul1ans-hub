@@ -531,6 +531,12 @@
   - Bullet impacts (`VFXLibary.CreateImpact`) are pooled invisible parts with ParticleEmitters, by material: there are
     no bullet hole decals. No BillboardGui was found on any character or in the PlayerGui, so no overhead names.
   - `Lighting.Bloom` is at Roblox's defaults, intensity 1, size 24, threshold 2.
+- Input, from `Controllers.InputController` decompiled on 2026-10-12 when a bind didn't answer: every one of the
+  game's actions (about 40 under `InputController.Actions`: movement, the weapon slots, the grenades, Fire and
+  SecondaryFire, Reload, Use, Inspect, Walk, Crouch, Jump, the menus, chat, Ping, VoiceChat) is bound with
+  `ContextActionService:BindAction` to a handler that returns nothing, which sinks the input. So `InputBegan` gives
+  `processed` as true for every key or mouse button the game uses, and only keys it doesn't use come through as
+  false. The old keybind chips checked that flag too, so a bind on a game key never worked.
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
 - Removed at the user's request on 2026-10-10:

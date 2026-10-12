@@ -694,11 +694,15 @@ local function inputName(input)
 		or input.UserInputType.Name:match("^MouseButton%d$")
 end
 
-hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
+hub.cleanup.add(UserInputService.InputBegan:Connect(function(input)
 	local name = inputName(input)
 	if not name then
 		return
 	end
+	-- Roblox's own word on whether the game took the input is no use here: a game that binds its keys as actions has
+	-- every one of them marked as taken. What a bind mustn't answer is typing, and a mouse button while the menu is up
+	local typing = UserInputService:GetFocusedTextBox() ~= nil
+	local clicking = visible and input.UserInputType ~= Enum.UserInputType.Keyboard
 	if listening then
 		listening = false
 		swallowed = name == "MouseButton1"
@@ -706,7 +710,7 @@ hub.cleanup.add(UserInputService.InputBegan:Connect(function(input, processed)
 		binding.key = (name == "Escape" or name == "Backspace") and "NONE" or name
 		binding.changed()
 		showBinder()
-	elseif not processed then
+	elseif not (typing or clicking) then
 		for _, bind in binds do
 			if bind.key == name then
 				bind.held = bind.mode == "hold"
