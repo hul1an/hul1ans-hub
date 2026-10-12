@@ -1038,7 +1038,7 @@ end
 -- is in studs a second and life in seconds, which together are how far a particle falls; spread and spin are in degrees
 local PLATE_HEIGHT = 35
 local WEATHER = {
-	rain = { texture = "weather-rain.png", speed = 80, life = 1, size = 2, color = Color3.fromRGB(190, 205, 225), fade = 0.5 },
+	rain = { texture = "weather-streak.png", speed = 80, life = 1, size = 2, color = Color3.fromRGB(190, 205, 225), fade = 0.5 },
 	snow = { texture = "weather-dot.png", speed = 8, life = 8, size = 0.2, color = Color3.new(1, 1, 1), spread = 15 },
 	leaves = { texture = "weather-leaf.png", speed = 7, life = 9, size = 0.6, color = Color3.fromRGB(170, 110, 50), spread = 25, spin = 180 },
 	ashes = { texture = "weather-dot.png", speed = 4, life = 12, size = 0.12, color = Color3.fromRGB(120, 120, 120), spread = 20 },
@@ -1065,7 +1065,7 @@ for name, kind in WEATHER do
 	emitter.LightEmission = kind.glow or 0
 	-- lit the same by day and under night mode
 	emitter.LightInfluence = 0
-	-- the rain's texture is a streak, which lies along the way it falls
+	-- the rain's texture is a streak from left to right, which is the side of it this lays along the fall
 	if name == "rain" then
 		emitter.Orientation = Enum.ParticleOrientation.VelocityParallel
 	end
