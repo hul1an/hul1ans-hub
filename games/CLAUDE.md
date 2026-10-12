@@ -398,6 +398,12 @@
   shown elsewhere or dead. The gun comes from the sound's class, a player's from the `Name` in the Player's
   `CurrentEquipped` JSON, a bot's from its character's `BotLoadout` JSON, which lists every gun it has. Not known: why the Sound ESP of 2026-10-10 "didn't work" (it listened the same way and drew a 6 pixel
   ring), and how far footsteps carry (the probe's one case suggested about 107 studs).
+- Fog of war flickers (asked for by the user on 2026-10-12, who sees enemies shown for a moment now and then; written,
+  not run): `workspace.Characters.ChildRemoved` tells when the game hides a character, and a living enemy that has
+  just landed in `_PVS_CulledCharacters` gets a ghost where its model was left, with its name for certain. It takes
+  the ghost that character had, else one within 15 studs, else a new one. A ghost that is certain now goes as soon as
+  its character is shown anywhere or dead; a guessed one still only loses its name. A ghost's box is drawn whatever
+  the enemies' bounding box row says (`box` on the source); its name still follows the name row.
 - What an enemy holds, read through the bridge on 2026-10-11 for the esp card's weapon rows:
   - A Player's `CurrentEquipped` attribute is JSON with `Name` (`Desert Eagle`), `Rounds` (left in the magazine),
     `Capacity` (the reserve), `Identifier`, `_id`, `Skin`, `IsSuppressed` and more. Seen on teammates and enemies

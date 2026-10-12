@@ -1069,10 +1069,12 @@ local function update(model, source, camera, viewport)
 	local x = top.X - width / 2
 	local y = math.min(top.Y, bottom.Y)
 
-	set.boxOutline.Visible = settings.Box
+	-- a source with box set has its box whatever the row says
+	local boxed = settings.Box or source.box or false
+	set.boxOutline.Visible = boxed
 	set.boxOutline.Position = Vector2.new(x, y)
 	set.boxOutline.Size = Vector2.new(width, height)
-	set.box.Visible = settings.Box
+	set.box.Visible = boxed
 	set.box.Color = own or settings.BoxColor
 	set.box.Position = Vector2.new(x, y)
 	set.box.Size = Vector2.new(width, height)

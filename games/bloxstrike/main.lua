@@ -475,15 +475,18 @@ local heardSource = esp.addSource("heard", Color3.fromRGB(150, 150, 150), functi
 	local now = os.clock()
 	local models = {}
 	for model, ghost in ghosts do
-		-- gone quiet, or shown again and drawn as itself
-		if now - ghost.at > heard.memory or shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
+		local character = ghost.character
+		local elsewhere = character and (character:IsDescendantOf(workspace) or character:GetAttribute("Dead"))
+		-- gone quiet, or shown again and drawn as itself, or known to be someone who is now shown elsewhere or dead
+		if now - ghost.at > heard.memory
+			or elsewhere and ghost.certain
+			or shownNear(ghost.root.Position, HEARD_TRACK_RANGE, true) then
 			ghosts[model] = nil
 			model:Destroy()
 		else
-			-- shown somewhere else or dead, it was someone else
-			local character = ghost.character
-			if character and (character:IsDescendantOf(workspace) or character:GetAttribute("Dead")) then
-				ghost.character, ghost.certain = nil, false
+			-- a guess that was shown somewhere else or dead was someone else
+			if elsewhere then
+				ghost.character = nil
 			end
 			table.insert(models, model)
 		end
@@ -499,6 +502,8 @@ end)
 
 heardSource.toggle = "dormant esp"
 heardSource.aimToggle = "dormant aimbot"
+-- a ghost is nothing but its box
+heardSource.box = true
 heardSource.options = function(section)
 	section:CreateSlider("fade out", 1, 10, heard.memory, true, function(value)
 		heard.memory = value
@@ -506,6 +511,22 @@ heardSource.options = function(section)
 end
 heardSource.opacityOf = function(model)
 	return 1 - (os.clock() - ghosts[model].at) / heard.memory
+end
+
+-- puts a ghost at a position and starts its fade over, a new ghost when none is given
+local function place(ghost, position)
+	if not ghost then
+		local model = Instance.new("Model")
+		local root = Instance.new("Part")
+		root.Name = "HumanoidRootPart"
+		root.Size = Vector3.new(2, 2, 1)
+		root.Parent = model
+		ghost = { root = root, certain = false }
+		ghosts[model] = ghost
+	end
+	ghost.root.Position = position
+	ghost.at = os.clock()
+	return ghost
 end
 
 -- weapon is the gun's name for a shot, nil for a footstep
@@ -517,17 +538,7 @@ local function hear(position, weapon)
 			nearest, best = ghost, distance
 		end
 	end
-	if not nearest then
-		local model = Instance.new("Model")
-		local root = Instance.new("Part")
-		root.Name = "HumanoidRootPart"
-		root.Size = Vector3.new(2, 2, 1)
-		root.Parent = model
-		nearest = { root = root, certain = false }
-		ghosts[model] = nearest
-	end
-	nearest.root.Position = position
-	nearest.at = os.clock()
+	nearest = place(nearest, position)
 
 	if not nearest.certain then
 		nearest.character, nearest.certain = identify(nearest, position, weapon)
@@ -536,6 +547,30 @@ local function hear(position, weapon)
 	if character then
 		lastHeard[character] = { position = position, frozen = character.HumanoidRootPart.Position }
 	end
+end
+
+-- the fog of war shows an enemy for a moment now and then. One the game hides again stands where it was last shown,
+-- so it gets a ghost there, named for certain: the one it had, or one heard where it stands, or a new one
+local shownFolder = workspace:FindFirstChild("Characters")
+if shownFolder then
+	hub.cleanup.add(shownFolder.ChildRemoved:Connect(function(character)
+		if not (esp.settings.Enabled and heardSource.enabled and table.find(hiddenEnemies(), character)) then
+			return
+		end
+		local position = character.HumanoidRootPart.Position
+		local own, best
+		for _, ghost in ghosts do
+			local distance = ghost.character == character and 0 or (ghost.root.Position - position).Magnitude
+			if distance <= HEARD_TRACK_RANGE and (not best or distance < best) then
+				own, best = ghost, distance
+			end
+		end
+		own = place(own, position)
+		own.character, own.certain = character, true
+	end))
+else
+	warn("[hub] workspace.Characters not found: dormant esp won't keep the enemies the fog of war hides")
+	hub.ui.notify("workspace.Characters not found, dormant esp won't keep the enemies the fog of war hides", "error")
 end
 
 local soundBank = ReplicatedStorage:FindFirstChild("Sounds")
