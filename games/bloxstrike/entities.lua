@@ -23,6 +23,11 @@ local PATH_TIME = 0.1
 -- the proximity warning is for a grenade that will end up within this many studs of the camera
 local WARN_RANGE = 15
 local CIRCLE_SIDES = 24
+-- how fine the ground under a fire or a smoke is cut up to find the outline of what it covers, in studs
+local CELL = 0.5
+-- the fade inside such an outline: how far in from the line it reaches in studs, in how many steps, and how solid it is
+-- at the line
+local EDGE_REACH, EDGE_STEPS, EDGE_OPACITY = 2, 5, 0.4
 -- the game destroys a smoke's folder this long after the smoke itself has gone (VFXLibary.CreateVoxelSmoke)
 local FADE = { Smoke = 6, Fire = 0 }
 -- the game's tags for a thrown grenade, a weapon on the ground and the planted bomb
@@ -106,8 +111,8 @@ local weaponModels = assets and assets:FindFirstChild("Weapons")
 -- everything here is drawn anew each frame. A drawing asked for is the one that was handed out at the same place in
 -- the frame before, and those not asked for this frame are hidden when it ends. The same goes for the image labels
 -- the icons are, since a Drawing image can't show a Roblox asset, and the Highlights the glows are
-local pools = { Line = {}, Text = {}, Square = {}, Image = {}, Glow = {} }
-local used = { Line = 0, Text = 0, Square = 0, Image = 0, Glow = 0 }
+local pools = { Line = {}, Text = {}, Square = {}, Quad = {}, Image = {}, Glow = {} }
+local used = { Line = 0, Text = 0, Square = 0, Quad = 0, Image = 0, Glow = 0 }
 
 local function take(class)
 	used[class] += 1
@@ -132,6 +137,10 @@ local function take(class)
 				object.Outline = true
 			else
 				object.Thickness = 1
+				-- the quads are the fades inside the spreads' outlines
+				if class == "Quad" then
+					object.Filled = true
+				end
 			end
 		end
 		pools[class][index] = object
@@ -196,6 +205,150 @@ local function ring(camera, center, radius, color)
 			worldLine(camera, last, point, color)
 		end
 		last = point
+	end
+end
+
+-- how high the surface a fire's plate lies on is, or the floor of a smoke's block, at a place over or under it
+local function heightAt(plate, x, z)
+	return plate.base.Y - (plate.up.X * (x - plate.base.X) + plate.up.Z * (z - plate.base.Z)) / plate.up.Y
+end
+
+local function cellKey(i, j)
+	return i * 65536 + j
+end
+
+-- the outline of the ground a fire's plates or a smoke's blocks cover. The game lays a fire's plates flat on whatever
+-- they landed on, sides along x and z, so the ground is cut into cells, each with the plate over it, and the outline
+-- is the cell sides with nothing beyond them. It comes as loops of corners, the ground to the left of the way round:
+-- each corner is its place on that ground at every step of the fade, the line first, and room for the same on screen
+local function outline(parts)
+	local cells = {}
+	local lowI, highI, lowJ, highJ = math.huge, -math.huge, math.huge, -math.huge
+	for _, part in parts do
+		local cframe, half = part.CFrame, part.Size / 2
+		local up = cframe.UpVector
+		-- a plate on a wall covers no ground
+		if up.Y > 0.1 then
+			local plate = { base = part.Position - up * half.Y, up = up }
+			local right, back = cframe.RightVector, cframe.ZVector
+			local reachX = math.abs(right.X) * half.X + math.abs(up.X) * half.Y + math.abs(back.X) * half.Z
+			local reachZ = math.abs(right.Z) * half.X + math.abs(up.Z) * half.Y + math.abs(back.Z) * half.Z
+			local x, z = part.Position.X, part.Position.Z
+			-- the cells whose middles are under it
+			for i = math.ceil((x - reachX) / CELL - 0.5), math.floor((x + reachX) / CELL - 0.5) do
+				for j = math.ceil((z - reachZ) / CELL - 0.5), math.floor((z + reachZ) / CELL - 0.5) do
+					local key = cellKey(i, j)
+					-- of two over one cell the lower is the ground: a smoke's blocks are stacked
+					if not cells[key] or plate.base.Y < cells[key].base.Y then
+						cells[key] = plate
+					end
+					lowI, highI = math.min(lowI, i), math.max(highI, i)
+					lowJ, highJ = math.min(lowJ, j), math.max(highJ, j)
+				end
+			end
+		end
+	end
+
+	-- the sides, by the corner each starts from
+	local sides = {}
+	local function side(i, j, toI, toJ, plate)
+		local key = cellKey(i, j)
+		sides[key] = sides[key] or {}
+		table.insert(sides[key], { i = i, j = j, toI = toI, toJ = toJ, plate = plate })
+	end
+	for i = lowI, highI do
+		for j = lowJ, highJ do
+			local plate = cells[cellKey(i, j)]
+			if plate then
+				if not cells[cellKey(i, j - 1)] then
+					side(i, j, i + 1, j, plate)
+				end
+				if not cells[cellKey(i + 1, j)] then
+					side(i + 1, j, i + 1, j + 1, plate)
+				end
+				if not cells[cellKey(i, j + 1)] then
+					side(i + 1, j + 1, i, j + 1, plate)
+				end
+				if not cells[cellKey(i - 1, j)] then
+					side(i, j + 1, i, j, plate)
+				end
+			end
+		end
+	end
+
+	local loops = {}
+	for _, list in sides do
+		for _, first in list do
+			if not first.used then
+				-- round from one side to the next that starts where it ends, until none is left there
+				local round = {}
+				local at = first
+				while at do
+					at.used = true
+					table.insert(round, at)
+					local following = sides[cellKey(at.toI, at.toJ)]
+					at = nil
+					for _, candidate in following do
+						if not candidate.used then
+							at = candidate
+							break
+						end
+					end
+				end
+
+				local loop = {}
+				for index, here in round do
+					local before = round[index == 1 and #round or index - 1]
+					local wayX, wayZ = here.toI - here.i, here.toJ - here.j
+					local wasX, wasZ = before.toI - before.i, before.toJ - before.j
+					-- a corner is where the way round turns
+					if wayX ~= wasX or wayZ ~= wasZ then
+						local x, z = here.i * CELL, here.j * CELL
+						-- the way in from a side is to its left, and from a corner between the ways in of its two sides
+						local inX, inZ = -wayZ - wasZ, wayX + wasX
+						local corner = { [0] = Vector3.new(x, heightAt(here.plate, x, z), z), screen = {} }
+						for step = 1, EDGE_STEPS do
+							local depth = step / EDGE_STEPS * EDGE_REACH
+							local stepX, stepZ = x + inX * depth, z + inZ * depth
+							local under = cells[cellKey(math.floor(stepX / CELL), math.floor(stepZ / CELL))]
+							-- where the covered ground is narrower than the fade, the fade ends at its far side
+							corner[step] = under and Vector3.new(stepX, heightAt(under, stepX, stepZ), stepZ) or corner[step - 1]
+						end
+						table.insert(loop, corner)
+					end
+				end
+				table.insert(loops, loop)
+			end
+		end
+	end
+	return loops
+end
+
+-- an outline's lines, and inside them its colour fading out over the steps
+local function spread(camera, loops, color)
+	for _, loop in loops do
+		for _, corner in loop do
+			for step = 0, EDGE_STEPS do
+				local point = camera:WorldToViewportPoint(corner[step])
+				-- left out behind the camera
+				corner.screen[step] = point.Z > 0 and Vector2.new(point.X, point.Y)
+			end
+		end
+		for index, corner in loop do
+			local a, b = corner.screen, loop[index % #loop + 1].screen
+			if a[0] and b[0] then
+				line(a[0], b[0], color)
+			end
+			for step = 1, EDGE_STEPS do
+				if a[step - 1] and b[step - 1] and a[step] and b[step] then
+					local quad = take("Quad")
+					quad.PointA, quad.PointB, quad.PointC, quad.PointD = a[step - 1], b[step - 1], b[step], a[step]
+					quad.Color = color
+					quad.Transparency = EDGE_OPACITY * (1 - (step - 0.5) / EDGE_STEPS)
+					quad.Visible = true
+				end
+			end
+		end
 	end
 end
 
@@ -373,8 +526,8 @@ local function projectiles(camera, now, dt)
 	end
 end
 
--- by the folder of a smoke or fire volume: its kind, when it was first seen, its middle at ground level and how far
--- it reaches from there
+-- by the folder of a smoke or fire volume: its kind, when it was first seen, its middle at ground level, the outline
+-- of the ground it covers, and the first and the number of the parts that outline was worked out from
 local clouds = {}
 -- by kind, how long the last one stayed, which the timers count down from. Until one has been timed they count up
 local lasted = {}
@@ -386,33 +539,34 @@ local function volumes(camera, now)
 		if FADE[kind] then
 			seen[folder] = true
 			local cloud = clouds[folder]
-			if not cloud then
-				local sum, count, floor = Vector3.zero, 0, math.huge
-				local parts = {}
-				for _, part in folder:GetChildren() do
-					if part:IsA("BasePart") then
-						table.insert(parts, part)
+			local parts = {}
+			for _, part in folder:GetChildren() do
+				if part:IsA("BasePart") then
+					table.insert(parts, part)
+				end
+			end
+			if not cloud and #parts > 0 then
+				cloud = { kind = kind, began = now }
+				clouds[folder] = cloud
+			end
+			-- the game makes a fire's plates anew as it spreads and dies down
+			if cloud and (parts[1] ~= cloud.first or #parts ~= cloud.count) then
+				cloud.first, cloud.count = parts[1], #parts
+				cloud.shape = outline(parts)
+				if #parts > 0 then
+					local sum, floor = Vector3.zero, math.huge
+					for _, part in parts do
 						sum += part.Position
-						count += 1
 						floor = math.min(floor, part.Position.Y - part.Size.Y / 2)
 					end
-				end
-				if count > 0 then
-					local middle = sum / count
-					local center = Vector3.new(middle.X, floor, middle.Z)
-					local reach = 0
-					for _, part in parts do
-						local offset = part.Position - center
-						reach = math.max(reach, Vector3.new(offset.X, 0, offset.Z).Magnitude + part.Size.X / 2)
-					end
-					cloud = { kind = kind, began = now, center = center, reach = reach }
-					clouds[folder] = cloud
+					local middle = sum / #parts
+					cloud.center = Vector3.new(middle.X, floor, middle.Z)
 				end
 			end
 			if cloud then
 				local color = kind == "Smoke" and settings.SmokeColor or settings.InfernoColor
 				if kind == "Smoke" and settings.Smoke or kind == "Fire" and settings.Inferno then
-					ring(camera, cloud.center, cloud.reach, color)
+					spread(camera, cloud.shape, color)
 				end
 				if settings.Timers then
 					local age = now - cloud.began
@@ -507,7 +661,7 @@ function entities.start()
 	screen.Parent = gethui()
 
 	hub.cleanup.add(function()
-		for _, class in { "Line", "Text", "Square" } do
+		for _, class in { "Line", "Text", "Square", "Quad" } do
 			for _, object in pools[class] do
 				object:Remove()
 			end

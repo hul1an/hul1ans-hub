@@ -518,7 +518,12 @@
   - A smoke (`VFXLibary.CreateVoxelSmoke`) is a Folder `VoxelSmoke_<id>` under `workspace.Debris` of parts named
     `SmokeVoxel`, each with ParticleEmitters, all made before the folder is parented; its colour is the thrower's
     team's. It fades after a `Duration` the server sends and the folder goes 6 s later. Fire (`CreateVoxelFire`) is
-    `VoxelFire_<id>` with `InnerFireVoxel` and `OuterFireVoxel` parts. Neither duration is on the instance.
+    `VoxelFire_<id>` with `InnerFireVoxel` and `OuterFireVoxel` parts. Neither duration is on the instance. Read again
+    on 2026-10-12: the server sends a fire as a list of voxels, each a `Position`, `SizeX`, `SizeZ` and `Normal`, and a
+    voxel is a plate that size and 0.2 thick lying on the surface, tilted to the normal about x or z only, so its
+    sides stay along the world's x and z. `Update` destroys every plate and makes the new list 0.3 s later in the
+    same folder, which is how a fire spreads and dies down. A smoke's `SmokeVoxel` is an unturned cube of the size
+    the server gives.
   - A thrown grenade (`Controllers.Observers.Game.Grenade`) is a clone of `Assets.Weapons.<name>.Character` under
     `workspace.Debris`, named by its id, tagged `Grenade`, with the attribute `GrenadeName`; `SimulationFinished` is
     set when it goes off or comes to rest, after which it is hidden and soon destroyed. The server sends its start

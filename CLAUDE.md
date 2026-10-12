@@ -352,8 +352,13 @@ Changes that aren't about any game, such as the menu's style, are exempt.
     up to 3 s; its `proximity warning` turns that red, with a line of text, when it ends within 15 studs of the camera.
     `grenade prediction` is the same from a throw worked out as the game does: far with the left button, near with the
     right alone, drawn always or with `pin pulled` only while a button is held. `timers` count up on a smoke or fire
-    until one has been seen out, then down from how long that one stayed. The two spreads are a ring round the
-    volume at ground level.
+    until one has been seen out, then down from how long that one stayed. The two spreads are the outline of the
+    ground a fire's plates or a smoke's blocks cover, with the row's colour fading out over 2 studs inside the line (asked for by the user on 2026-10-12 in place of a ring round the volume:
+    the actual spread, on the ground, with a fade that has no options). The ground is cut into half stud cells, each
+    with the plate over it; the outline is the cell sides with nothing beyond them, at the height of the plate's own
+    plane, and the fade five filled Drawing quads a side, 40% solid at the line. It is worked out again whenever the
+    game remakes the parts. The user named inferno and molotov spread; smoke spread goes through the same code, which
+    is Claude's reading. Not run.
   - dropped weapons: `max distance` is in CS2 units. bomb: `screen info` is a line near the top of the screen, red
     under 10 s; `world info` the chosen words at the bomb.
 - The misc tab (asked for by the user on 2026-10-12: implement all its features, with `fake 0ms`, `team damage list`,
