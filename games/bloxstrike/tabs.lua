@@ -279,16 +279,17 @@ local function addVisuals(window, features)
 	local world = tab:CreateSubTab("world")
 
 	local general = world:CreateSection("general")
-	off.dropdown(general, "skybox", { "none" })
-	local rain = off.group(general, "precipitation")
-	off.multi(rain, "types", { "rain", "snow", "leaves", "ashes", "embers" })
-	off.toggle(rain, "outdoors only")
-	off.slider(rain, "particles", 24, 1024)
+	-- the skies of the game's own maps; the dump has no list
+	dropdown(general, "skybox", visuals, "sky", features.skies)
+	local rain = group(general, "precipitation", visuals, "precipitation")
+	multi(rain, "types", visuals, "weather", { "rain", "snow", "leaves", "ashes", "embers" })
+	toggle(rain, "outdoors only", visuals, "outdoors")
+	slider(rain, "particles", visuals, "particles", 24, 1024, true)
 	off.toggle(general, "wetness")
-	local fog = off.group(general, "fog")
-	off.slider(fog, "density", 0, 100)
-	off.slider(fog, "start", 0, 8000)
-	off.slider(fog, "end", 0, 8000)
+	local fog = group(general, "fog", visuals, "fog")
+	slider(fog, "density", visuals, "fogDensity", 0, 100, true, "%.0f%%")
+	slider(fog, "start", visuals, "fogStart", 0, 8000, true)
+	slider(fog, "end", visuals, "fogEnd", 0, 8000, true)
 	-- the hub's own
 	general:CreateToggle("night mode", false, features.setNight)
 
@@ -477,7 +478,7 @@ local function addMisc(window, movement, logs)
 end
 
 -- starline's tabs, sub-tabs and cards in its order. features is what main.lua has behind them: its visuals, movement
--- and logs settings, setNight and setThirdPerson
+-- and logs settings, the skybox choices, setNight and setThirdPerson
 return function(window, features)
 	addAimbot(window)
 	addPlayers(window)

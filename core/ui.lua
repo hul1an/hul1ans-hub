@@ -222,6 +222,8 @@ local function hover(target, apply, seconds, curve)
 end
 
 local ui = {}
+-- for a game's own files under assets/
+ui.asset = asset
 local visible = true
 -- the sub-tab on show, the function fed the mouse while the left button is held, and the open popup
 local page, dragging, popup, popupClosed

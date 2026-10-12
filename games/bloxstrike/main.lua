@@ -60,6 +60,15 @@ local visuals = {
 	tracerSize = 0.08,
 	tracerDuration = 1.2,
 	hitEffect = false,
+	sky = "none",
+	precipitation = false,
+	weather = { "rain" },
+	outdoors = false,
+	particles = 256,
+	fog = false,
+	fogDensity = 50,
+	fogStart = 0,
+	fogEnd = 4000,
 }
 
 -- a player's character names its owner; a bot's has no owner and no Player object at all
@@ -931,6 +940,170 @@ hub.cleanup.add(RunService.RenderStepped:Connect(function()
 	end
 end))
 
+-- a CS2 unit in studs (MovementV2.SpeedProfile.HammerUnitToStud): starline's fog distances are in units
+local UNIT = 0.075
+
+-- the skybox row. The game keeps every map's lighting in a folder by the map's name, its Sky among it, and those are
+-- the choices. The Sky in Lighting is given the chosen one's looks rather than swapped for it, because the game
+-- destroys what is in Lighting whenever it sets a map's lighting up
+local SKY = {
+	"SkyboxBk",
+	"SkyboxDn",
+	"SkyboxFt",
+	"SkyboxLf",
+	"SkyboxRt",
+	"SkyboxUp",
+	"SkyboxOrientation",
+	"SunTextureId",
+	"SunAngularSize",
+	"MoonTextureId",
+	"MoonAngularSize",
+	"StarCount",
+	"CelestialBodiesShown",
+}
+local assets = ReplicatedStorage:FindFirstChild("Assets")
+local mapLighting = assets and assets:FindFirstChild("Lighting")
+local skies = {}
+if mapLighting then
+	for _, folder in mapLighting:GetChildren() do
+		if folder:FindFirstChildOfClass("Sky") then
+			table.insert(skies, folder.Name)
+		end
+	end
+	table.sort(skies)
+else
+	warn("[hub] ReplicatedStorage.Assets.Lighting not found: no skyboxes")
+	hub.ui.notify("ReplicatedStorage.Assets.Lighting not found, no skyboxes", "error")
+end
+table.insert(skies, 1, "none")
+
+-- the Sky that was changed, the choice it was changed to, and what it had before
+local sky, skyName, skyWas
+
+local function skyStep()
+	local current = Lighting:FindFirstChildOfClass("Sky")
+	if current == sky and visuals.sky == skyName then
+		return
+	end
+	if sky then
+		for property, value in skyWas do
+			sky[property] = value
+		end
+	end
+	sky, skyName, skyWas = current, visuals.sky, {}
+	local folder = mapLighting and mapLighting:FindFirstChild(visuals.sky)
+	local chosen = folder and folder:FindFirstChildOfClass("Sky")
+	if current and chosen then
+		for _, property in SKY do
+			skyWas[property] = current[property]
+			current[property] = chosen[property]
+		end
+	end
+end
+
+-- the fog row. Starline's fog is CS2's: none before start, thickest at end, and density the most it hides. Roblox's
+-- runs from FogStart to a FogEnd where nothing shows, so FogEnd is put where the fog is as thick as the density at
+-- starline's end. An Atmosphere in Lighting switches that fog off, so the game's is held out of it meanwhile
+local fogWas, air
+
+local function fogStep()
+	if not visuals.fog then
+		if fogWas then
+			Lighting.FogStart, Lighting.FogEnd = fogWas[1], fogWas[2]
+			fogWas = nil
+			if air then
+				air.Parent = Lighting
+				air = nil
+			end
+		end
+		return
+	end
+	fogWas = fogWas or { Lighting.FogStart, Lighting.FogEnd }
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		-- the one held is from a map since left, and out of Lighting the game doesn't destroy it
+		if air then
+			air:Destroy()
+		end
+		air = atmosphere
+		atmosphere.Parent = nil
+	end
+	local start = visuals.fogStart * UNIT
+	local reach = math.max(visuals.fogEnd * UNIT - start, 1)
+	Lighting.FogStart = start
+	Lighting.FogEnd = start + reach / math.max(visuals.fogDensity / 100, 0.001)
+end
+
+-- the precipitation row: an emitter for each type on a plate held over the camera, with the hub's own textures. speed
+-- is in studs a second and life in seconds, which together are how far a particle falls; spread and spin are in degrees
+local PLATE_HEIGHT = 35
+local WEATHER = {
+	rain = { texture = "weather-rain.png", speed = 80, life = 1, size = 2, color = Color3.fromRGB(190, 205, 225), fade = 0.5 },
+	snow = { texture = "weather-dot.png", speed = 8, life = 8, size = 0.2, color = Color3.new(1, 1, 1), spread = 15 },
+	leaves = { texture = "weather-leaf.png", speed = 7, life = 9, size = 0.6, color = Color3.fromRGB(170, 110, 50), spread = 25, spin = 180 },
+	ashes = { texture = "weather-dot.png", speed = 4, life = 12, size = 0.12, color = Color3.fromRGB(120, 120, 120), spread = 20 },
+	embers = { texture = "weather-dot.png", speed = 5, life = 10, size = 0.1, color = Color3.fromRGB(255, 130, 40), spread = 25, glow = 1 },
+}
+local plate = effectPart()
+plate.Transparency = 1
+plate.Size = Vector3.new(100, 1, 100)
+plate.Parent = effects
+local emitters = {}
+for name, kind in WEATHER do
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Enabled = false
+	emitter.Texture = hub.ui.asset(kind.texture)
+	emitter.EmissionDirection = Enum.NormalId.Bottom
+	emitter.Speed = NumberRange.new(kind.speed * 0.8, kind.speed)
+	emitter.Lifetime = NumberRange.new(kind.life)
+	emitter.Size = NumberSequence.new(kind.size)
+	emitter.Color = ColorSequence.new(kind.color)
+	emitter.Transparency = NumberSequence.new(kind.fade or 0)
+	emitter.SpreadAngle = Vector2.one * (kind.spread or 0)
+	emitter.Rotation = NumberRange.new(0, kind.spin and 360 or 0)
+	emitter.RotSpeed = NumberRange.new(-(kind.spin or 0), kind.spin or 0)
+	emitter.LightEmission = kind.glow or 0
+	-- lit the same by day and under night mode
+	emitter.LightInfluence = 0
+	-- the rain's texture is a streak, which lies along the way it falls
+	if name == "rain" then
+		emitter.Orientation = Enum.ParticleOrientation.VelocityParallel
+	end
+	emitter.Parent = plate
+	emitters[name] = emitter
+end
+
+local function weatherStep()
+	local camera = workspace.CurrentCamera
+	local eye = camera.CFrame.Position
+	local falling = visuals.precipitation
+	if falling then
+		plate.CFrame = CFrame.new(eye + Vector3.new(0, PLATE_HEIGHT, 0))
+		-- outdoors only: nothing falls while there is something over the camera. Particles don't stop at a roof, so
+		-- this is as near as it gets
+		if visuals.outdoors and not esp.visible(camera, eye + Vector3.new(0, 300, 0), plate) then
+			falling = false
+		end
+	end
+	for name, emitter in emitters do
+		emitter.Enabled = falling and table.find(visuals.weather, name) ~= nil
+		-- particles is how many are in the air at once, shared between the types
+		emitter.Rate = visuals.particles / math.max(#visuals.weather, 1) / WEATHER[name].life
+	end
+end
+
+-- every frame, since the game makes Lighting's Sky and Atmosphere anew for each map
+hub.cleanup.add(RunService.RenderStepped:Connect(function()
+	skyStep()
+	fogStep()
+	weatherStep()
+end))
+hub.cleanup.add(function()
+	visuals.sky, visuals.fog = "none", false
+	skyStep()
+	fogStep()
+end)
+
 -- third person shows the local character, hides the gun viewmodel held under the camera, and pulls the camera back
 local thirdPerson = false
 local modifiers = {}
@@ -1166,6 +1339,7 @@ hub.require("games/bloxstrike/tabs.lua")(window, {
 	visuals = visuals,
 	movement = movement,
 	logs = logs,
+	skies = skies,
 	setNight = setNight,
 	setThirdPerson = setThirdPerson,
 })

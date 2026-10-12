@@ -474,6 +474,23 @@
 - `Classes.Sound.play` puts a clone of a sound, or a `Persistent` one kept in `SoundService.PersistentSounds`, into the
   parent it is given and plays it there; `PlaySoundAtPosition` is the one with the part under `workspace.Debris`. Either
   way the sound keeps its `SoundId` and fires `DescendantAdded` where it lands.
+- Lighting, from `Controllers.Observers.Game.MapLighting` and `Components.Common.SceneLighting` decompiled through the
+  bridge on 2026-10-12 for the world page:
+  - `ReplicatedStorage.Assets.Lighting` has a folder for each of the 13 maps, by name, holding its `Sky` (under various
+    names), `Atmosphere`, `Bloom`, `ColorCorrection`, `SunRays` and mostly a `DepthOfField`.
+  - `SceneLighting.RestoreMap(map)` runs when a map loads, when the workspace's `Map` attribute changes and when a menu
+    scene closes. It sets twelve Lighting properties from `Database.Custom.GameStats.Maps.<map>` (`Lighting.Properties`:
+    `Ambient`, `Brightness`, the two `ColorShift`s, the two `Environment` scales, `GlobalShadows`, `OutdoorAmbient`,
+    `ShadowSoftness`, `ClockTime`, `GeographicLatitude`, `ExposureCompensation`), destroys everything in Lighting but
+    the blur named `Menu`, and puts clones of the map's folder there. So it isn't every frame, and anything the hub
+    parents to Lighting dies at the next one.
+  - It never touches `FogStart`, `FogEnd` or `FogColor`, which read 0, 100000 and a 192 grey.
+  - Night mode takes the six properties it changes when it goes on and puts those back when it goes off, so after a
+    map change in between it puts the old map's back. Not fixed.
+  - A map's `Geometry` folder (Hellena: 5231 children, almost all Models) is mostly MeshParts, over half of the first
+    thousand with a `SurfaceAppearance`; the plain parts are Plastic, Metal, DiamondPlate and SmoothPlastic, some with a
+    `MaterialVariant`. `Map.Barriers` (741 parts) and `Map.DeathBarriers` are the invisible walls.
+  - No rain, snow or other weather particles are anywhere under `ReplicatedStorage`.
 - `gethui()` in Potassium is `CoreGui.RobloxGui`, which the bridge can read: the hub's ESP folder and its Highlights
   are there.
 - Removed at the user's request on 2026-10-10:
