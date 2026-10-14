@@ -40,11 +40,11 @@ function hub.require(path)
 	return modules[path]
 end
 
--- a game with no file gets nothing: no window, no features
+-- a game with no file of its own gets the universal script
 local gamePath = hub.require("games/registry.lua")[game.GameId]
 if not gamePath then
-	warn("[hub] no script for this game (GameId " .. game.GameId .. ")")
-	return
+	warn("[hub] no script for this game (GameId " .. game.GameId .. "), using the universal one")
+	gamePath = "games/universal/main.lua"
 end
 
 hub.cleanup = hub.require("core/cleanup.lua")
