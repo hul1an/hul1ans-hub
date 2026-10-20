@@ -29,14 +29,13 @@ function hub.read(path)
 	return hub.fetch(BASE_URL .. path)
 end
 
--- Matcha's loadstring drops the chunk's return, so each module is wrapped in a vararg function
--- and taken from the chunk's environment
+-- Matcha's loadstring drops the chunk's return and setfenv can't change a chunk's environment, so each module is
+-- wrapped in a vararg function that the chunk leaves in a global, taken out again at once
 function hub.load(path)
-	local env = setmetatable({}, { __index = _G })
-	local chunk = loadstring("module = (function(...)\n" .. hub.read(path) .. "\nend)", "=" .. path)
-	setfenv(chunk, env)
-	chunk()
-	return assert(env.module, path .. " did not compile")(hub)
+	loadstring("_G.HubModule = (function(...)\n" .. hub.read(path) .. "\nend)", "=" .. path)()
+	local module = _G.HubModule
+	_G.HubModule = nil
+	return assert(module, path .. " did not compile")(hub)
 end
 
 function hub.require(path)
