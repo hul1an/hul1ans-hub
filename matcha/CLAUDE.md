@@ -58,8 +58,10 @@ docs of 2026-10-16, not run. What differs from the root copy:
 - Kept: the esp (box, name, weapon name, skeleton, health bar, arrows, only visible) on the enemies, teammates and
   local pages, the aim and triggerbot, the list page, night mode (`ClockTime`, `Ambient`, `ExposureCompensation`),
   ambience (`Ambient`), override fov, aspect ratio, the watermark and the velocity graph.
-- Open: whether Drawing text takes `Size` or `FontSize` (both are set), whether a Drawing line takes `Thickness` and a
-  Square `Thickness` as the docs' example does, whether a camera write lands before or after the game's own each
+- Seen on 2026-10-20 through Matcha's MCP: a Text takes `Size` and errors on `FontSize` (`Unknown property`), the
+  docs' property list is wrong there; `Color3.new()` needs its arguments; `table.find`, `table.clear`, `math.atan2`,
+  `os.date` and `CFrame.lookAt` all exist, so the docs' list of what is missing is too long.
+- Open: whether a camera write lands before or after the game's own each
   frame (override fov and aspect ratio are written from what the game would have, not from the last frame), and
   whether the trigger's click at the cursor's place is where the view is.
 

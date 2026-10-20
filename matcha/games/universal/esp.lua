@@ -175,9 +175,8 @@ local function draw(class, properties)
 	return object
 end
 
--- Matcha's docs name a text's size both Size and FontSize
 local function text()
-	return draw("Text", { Size = 13, FontSize = 13, Center = true, Outline = true })
+	return draw("Text", { Size = 13, Center = true, Outline = true })
 end
 
 local function createSet()

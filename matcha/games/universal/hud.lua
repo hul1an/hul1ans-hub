@@ -32,11 +32,9 @@ local lines = {}
 local back, readout, mark
 local sampled = 0
 
--- Matcha's docs name a text's size both Size and FontSize
 local function text()
 	local object = Drawing.new("Text")
 	object.Size = 13
-	object.FontSize = 13
 	object.Outline = true
 	return object
 end
