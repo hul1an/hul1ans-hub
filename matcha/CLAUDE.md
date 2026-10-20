@@ -35,6 +35,33 @@ Nothing here has run in Matcha yet.
   orientation with `fromOrientation`: pitch `asin(y)`, yaw `atan2(-x, -z)`, no roll.
 - `writefile` only takes `.txt .lua .luau .json .cfg .dat .ini`, which the configs already are.
 
+## Universal script (`games/universal/`)
+
+Asked for by the user on 2026-10-20: the root `games/universal/` made as compatible with Matcha as it can be. This is
+its own copy, run by the loader in a game with no entry in the registry; the shared `core/esp.lua`, `core/aim.lua`
+and `universal.lua` are for the BloxStrike and Walking Dead Online ports and were not touched. Written against the
+docs of 2026-10-16, not run. What differs from the root copy:
+- Only documented API: no `cloneref`, `gethui`, `Instance.new`, `BindToRenderStep`, `VirtualInputManager`, `Random`,
+  `CFrame.lookAt`, `GetPlayerFromCharacter`, `DisplayName`, `RaycastParams`, `WorldToViewportPoint`, `os.date` or `continue`.
+  Time is `tick()`, the click `mouse1press` released from the frame loop, positions `WorldToScreen`.
+- Angles in the aim are two numbers (pitch, yaw) and not a Vector2, which the docs give no arithmetic for.
+- Tables keyed by an instance are keyed by its `Address`: the docs say `==` works on instances, not that the same
+  instance is always the same object.
+- Line of sight is `workspace:Raycast` with no params; a ray that hits the user's own character, the camera or a part
+  with `Transparency` 1 is moved on past it, up to eight times. The jump disabler's ground ray does the same.
+- Left out because Matcha can't: chams and avatars (no Highlight or image), precipitation, fog, bloom, motion blur,
+  the world tint, sun, light and the removals (no instances, and the Lighting properties they need aren't documented),
+  third person (Player camera properties undocumented), auto jump (`Humanoid.Jump` undocumented, and a key press
+  can't be told from the user's), the keybind list (Matcha has its own hotkey overlay, `:AddToHotkey`), the landing
+  events, the watermark's time and the offscreen arrows' fill and outline (three lines, with a shadow).
+- Kept: the esp (box, name, weapon name, skeleton, health bar, arrows, only visible) on the enemies, teammates and
+  local pages, the aim and triggerbot, the list page, night mode (`ClockTime`, `Ambient`, `ExposureCompensation`),
+  ambience (`Ambient`), override fov, aspect ratio, the watermark and the velocity graph.
+- Open: whether Drawing text takes `Size` or `FontSize` (both are set), whether a Drawing line takes `Thickness` and a
+  Square `Thickness` as the docs' example does, whether a camera write lands before or after the game's own each
+  frame (override fov and aspect ratio are written from what the game would have, not from the last frame), and
+  whether the trigger's click at the cursor's place is where the view is.
+
 ## Adapter mapping (`core/ui.lua`)
 
 - `CreateTab` is `UI.AddTab`, one per name; the icon argument is dropped. Eject removes the tab.
@@ -45,7 +72,13 @@ Nothing here has run in Matcha yet.
   layout here already creates a toggle directly before each picker; keep that true in new code.
 - `CreateDropdown` is `Combo`, matched on the option text. `AddOption` and `ClearOptions` mutate the
   list the next frame shows.
-- No tooltips, search, config popup, sub-tabs or a RightShift toggle (Matcha's menu is its own), and
+- A toggle's creator also gives `CreateKeybind(key, mode)` with mode `hold` or `toggle`, `CreateColorpicker(callback,
+  alpha)` (a swatch on the toggle's row, the callback getting the colour and its opacity) and `Set`, which is
+  `UI.SetValue`; a group has `.header`, its own toggle, and a slider has `Set`. `tab:CreateSubTab(name)` puts its
+  sections in the tab with its name in front of theirs, and its `CreatePlayerList(groups, chosen)` is a dropdown of
+  everyone over a card of rows. A format function on a slider is ignored: Matcha takes a pattern. These are for
+  `games/universal/`; the older ports don't use them.
+- No tooltips, search, config popup, RightShift toggle (Matcha's menu is its own), and
   `ui.visible()` is always false because Matcha doesn't say whether its menu is open, so the
   triggerbot can click into it.
 

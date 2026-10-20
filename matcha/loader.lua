@@ -59,10 +59,8 @@ _G.Hub = hub
 local registry = hub.require("games/registry.lua")
 local gamePath = registry[game.GameId]
 if not gamePath then
-	local window = hub.ui.createWindow("Universal")
-	hub.require("universal.lua")(window)
-	window:CreateTab("Misc", "settings"):CreateSection("Hub"):CreateButton("Eject", hub.unload)
-	return
+	warn("[hub] no script for this game (GameId " .. game.GameId .. "), using the universal one")
+	gamePath = "games/universal/main.lua"
 end
 
 local ok, err = pcall(hub.load, gamePath)
