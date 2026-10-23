@@ -648,7 +648,13 @@ were written on 2026-10-12 and have not been run (see the flickers bullet in `ga
 the game's decompiled culling code the same day: the model is reparented and not moved, and signals are deferred.
 Open: whether a ghost ever shows at a stale place when a round ends.
 
-The Matcha port in `matcha/` was written on 2026-10-11 against its documented API and has not been run.
+The Matcha port in `matcha/` was written on 2026-10-11 against its documented API. Run through Matcha's MCP on
+2026-10-20 (in BloxStrike, with the registry skipped): the loader failed on `setfenv` and was fixed, and
+`matcha/games/universal/` then loaded with no error and its tabs showed in Matcha's own menu. Nothing in it has been
+used yet, and the BloxStrike and Walking Dead Online Matcha ports have not been run. The user asked whether the bloxline
+menu is possible on Matcha: not as GUI instances; a Drawing-drawn lookalike was offered (clicks would also reach the
+game) and not answered. Matcha's MCP (`claude mcp add --transport http --scope user matcha http://127.0.0.1:8765/mcp`)
+needs Matcha running; its tools are `matcha_exec`, `matcha_logs`, `matcha_status` and a few more.
 
 The split into per-game folders was written on 2026-10-11 and has not been run; the loader stopping in unlisted games
 was replaced on 2026-10-14 by the universal script. The Walking Dead Online's `esp.lua`, `aim.lua` and `tabs.lua` have not been run in that
